@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.android)
     `maven-publish`
+
 }
 
 
@@ -33,6 +34,15 @@ android {
 }
 
 dependencies {
+    implementation(libs.ktor.client.core)
+    implementation(libs.ktor.client.android)
+    implementation(libs.ktor.client.cio)
+    implementation(libs.ktor.serialization.kotlinx.json)
+    implementation(libs.ktor.client.content.negotiation)
+    implementation(libs.ktor.client.serialization)
+    implementation (libs.kotlinx.coroutines.core)
+    implementation (libs.kotlinx.coroutines.android)
+
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
     implementation(libs.material)
@@ -49,10 +59,13 @@ publishing {
             }
             groupId = "com.intempt"
             artifactId = "intempt-android"
-            version = "1.0.0"
+            version = "1.0.9"
         }
     }
     repositories {
         mavenLocal()
     }
 }
+
+
+
