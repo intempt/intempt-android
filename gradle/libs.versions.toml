@@ -11,7 +11,7 @@ ktorClientAndroid = "2.0.0"
 ktorClientContentNegotiation = "2.0.0"
 ktorClientCore = "2.0.0"
 material = "1.12.0"
-
+serialization="2.0.20"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -32,7 +32,7 @@ material = { group = "com.google.android.material", name = "material", version.r
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
-kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 android-library = { id = "com.android.library", version.ref = "agp" }
-
+kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+kotlin-serialization= {id="org.jetbrains.kotlin.plugin.serialization", version.ref="serialization"}
 

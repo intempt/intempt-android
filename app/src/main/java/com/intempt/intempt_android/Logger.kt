@@ -6,7 +6,4 @@ class Logger {
             Log.i("Intempt", message)
         }
     }
-
-
-
 }

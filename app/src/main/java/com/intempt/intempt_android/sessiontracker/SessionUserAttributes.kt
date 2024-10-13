@@ -7,86 +7,73 @@ import android.util.Log
 
 
 import io.ktor.client.*
-
 import io.ktor.client.request.*
 import io.ktor.client.statement.HttpResponse
-import kotlinx.coroutines.CoroutineScope
-
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.statement.bodyAsText
 import io.ktor.serialization.kotlinx.json.*
 
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.launch
+
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.*
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 
 
-@Serializable
-data class LocationInfo(
-    val ip: String,
-    val city: String,
-    val region: String,
-    val country: String
-)
+object LocationInfo {
+    var IP: String = "";
+    var CITY: String = ""
+    var REGION: String = ""
+    var COUNTRY: String = ""
+}
 
 
-open class SessionUserAttributes(context: Context) {
-
-   protected val deviceType: String = getDeviceType(context);
-   protected val carrier: String = getDeviceCarrier(context).toString();
-   protected val platform: String = getDevicePlatform();
-//   protected val ipAddress: String = "0.0.0.0";
-//   protected val region: String;
-//   protected val country: String;
-//   protected val city: String;
+ class SessionUserAttributes(context: Context) {
+    val deviceType: String = getDeviceType(context);
+    val carrier: String = getDeviceCarrier(context).toString();
+    val platform: String = getDevicePlatform();
+    val ipAddress: String = LocationInfo.IP;
+    val region: String = LocationInfo.REGION;
+    val country: String = LocationInfo.COUNTRY;
+    val city: String = LocationInfo.CITY;
 
     companion object{
-        suspend fun getLocationInfo(): String? {
+         suspend fun getLocationInfo() {
+             val startTime = System.currentTimeMillis()
             return withContext(Dispatchers.IO) {
-                val apiUrl = "https://ipapi.co/json/";
-                val client = HttpClient() {
-                    install(ContentNegotiation) {
-                        json(Json {
-                            prettyPrint = true
-                            isLenient = true
-                        })
-                    }
-                }
-                try{
-                    val response: HttpResponse = client.get(apiUrl);
+                 val apiUrl = "https://ipapi.co/json/";
+                 val client = HttpClient() {
+                     install(ContentNegotiation) {
+                         json(Json {
+                             prettyPrint = true
+                             isLenient = true
+                         })
+                     }
+                 }
+                 try{
+                     val response: HttpResponse = client.get(apiUrl);
+                     val locationInfo = response.bodyAsText();
 
+                     val jsonElement = Json.parseToJsonElement(locationInfo).jsonObject
 
-                    val locationInfo = response.bodyAsText();
-                    return@withContext locationInfo;
-
-                }
-                catch (e: Exception) {
-                    e.printStackTrace()
-                }
-                finally {
-                    client.close()
-                }
-                return@withContext null
-            }
+                     LocationInfo.IP = jsonElement["ip"]?.jsonPrimitive?.content ?: "";
+                     LocationInfo.REGION = jsonElement["region"]?.jsonPrimitive?.content ?: "";
+                     LocationInfo.CITY = jsonElement["city"]?.jsonPrimitive?.content ?: "";
+                     LocationInfo.COUNTRY = jsonElement["country_name"]?.jsonPrimitive?.content ?: "";
+                 }
+                 catch (e: Exception) {
+                     e.printStackTrace()
+                 }
+                 finally {
+                     client.close()
+                     val endTime = System.currentTimeMillis() // Capture end time
+                     val initializationTime = endTime - startTime // Calculate elapsed time
+                     Log.d("getLocationInfo Initialization", "Initialization completed in $initializationTime ms")
+                 }
+             };
         }
     }
-
-   init {
-        val job = Job()
-        val coroutineScope = CoroutineScope(Dispatchers.Main + job)
-
-        coroutineScope.launch {
-           val locationInfo =  getLocationInfo();
-
-           Log.d("LocationInfo", locationInfo.toString())
-
-
-       }
-
-   }
 
 
     private fun getDeviceType(context: Context): String {
@@ -104,35 +91,6 @@ open class SessionUserAttributes(context: Context) {
 
     private fun getDevicePlatform(): String {
         return "Android ${android.os.Build.VERSION.RELEASE}"
-    }
-
-    private suspend fun getLocationInfo(): String? {
-        return withContext(Dispatchers.IO) {
-            val apiUrl = "https://ipapi.co/json/";
-            val client = HttpClient() {
-                install(ContentNegotiation) {
-                    json(Json {
-                        prettyPrint = true
-                        isLenient = true
-                    })
-                }
-            }
-            try{
-                val response: HttpResponse = client.get(apiUrl);
-
-
-                val locationInfo = response.bodyAsText();
-                return@withContext locationInfo;
-
-            }
-            catch (e: Exception) {
-                e.printStackTrace()
-            }
-            finally {
-                client.close()
-            }
-            return@withContext null
-        }
     }
 
 }

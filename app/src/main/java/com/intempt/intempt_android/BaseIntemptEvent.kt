@@ -2,10 +2,12 @@ package com.intempt.intempt_android
 
 import android.content.Context
 
-open class BaseIntemptEvent(context:Context) {
+
+
+open class BaseIntemptEvent(context: Context) {
     protected val eventId: String = generateId("ev");
-    protected val sessionId: String = StorageHandler.sessionIdGet(context).toString();
-    protected val pageId: String = StorageHandler.pageIdGet(context).toString()
-    protected val profileId: String = StorageHandler.profileIdGet(context).toString();
+    protected val sessionId: String = context.let { StorageHandler.sessionIdGet(it).toString() };
+    protected val pageId: String = context.let { StorageHandler.pageIdGet(it).toString() }
+    protected val profileId: String = context.let { StorageHandler.profileIdGet(it).toString() };
     protected val timestamp: Long = System.currentTimeMillis();
 }
