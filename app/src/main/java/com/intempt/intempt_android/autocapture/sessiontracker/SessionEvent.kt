@@ -1,4 +1,4 @@
-package com.intempt.intempt_android.sessiontracker
+package com.intempt.intempt_android.autocapture.sessiontracker
 
 import android.annotation.SuppressLint
 import android.content.ContentResolver
@@ -20,6 +20,9 @@ data class SessionEvent(val context: Context): BaseIntemptEvent(context) {
         "appVersion" to context.packageManager?.getPackageInfo(context.packageName, 0)?.versionName.toString(),
         "appIdentifier" to (context.packageName ?: ""),
         "androidId" to Settings.Secure.getString((context.contentResolver ?: "") as ContentResolver?, Settings.Secure.ANDROID_ID)
+        //TODO: need to check
+        //advertiserId ?
+        //sessionStartEventName
     )
 
     override fun toString(): String {

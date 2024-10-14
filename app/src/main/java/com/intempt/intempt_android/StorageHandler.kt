@@ -11,6 +11,24 @@ class StorageHandler {
         private const val PROFILE_ID_KEY = "profile_id";
         private const val PAGE_ID_KEY = "page_id";
 
+        private const val SESSION_TIMESTAMP_KEY = "session_time"
+
+        private fun setTimestamp(context: Context, prefs: String, key: String) {
+            val timestamp = System.currentTimeMillis()
+            val sharedPreferences = context.getSharedPreferences(prefs, Context.MODE_PRIVATE)
+            val editor = sharedPreferences.edit()
+            editor.putLong(key, timestamp)
+            editor.apply()
+
+            Logger.log("SetTimestamp: prefs=$prefs, key=$key, timestamp=$timestamp")
+        }
+
+        fun getSessionTime(context: Context): Long {
+            val sharedPreferences = context.getSharedPreferences(SESSION_PREFS, Context.MODE_PRIVATE)
+            val timestamp = sharedPreferences.getLong(SESSION_TIMESTAMP_KEY, 0L)
+            Logger.log("GetSessionTime: prefs=$SESSION_PREFS, key=$SESSION_TIMESTAMP_KEY, timestamp=$timestamp")
+            return timestamp
+        }
 
         private fun setId(context: Context, idType:String, prefs:String, keyType:String){
             val id = generateId(idType)
@@ -48,11 +66,17 @@ class StorageHandler {
         fun sessionIdSet(context: Context) {
             Logger.log("Set session Id");
             setId(context, "ses", SESSION_PREFS, SESSION_ID_KEY);
+            setTimestamp(context, SESSION_PREFS, SESSION_TIMESTAMP_KEY)
         }
 
         fun sessionIdClear(context: Context) {
             Logger.log("Clear session Id");
             clearId(context, SESSION_PREFS,SESSION_ID_KEY);
+        }
+
+        fun updateSessionTimestamp(context: Context) {
+            Logger.log("Update session last activity timestamp")
+            //setTimestamp(context, SESSION_PREFS, LAST_ACTIVITY_TIMESTAMP_KEY)
         }
 
 

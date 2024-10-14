@@ -1,9 +1,6 @@
 package com.intempt.intempt_android.autocapture
 
 class ViewData {
-
-
-
 //    private fun getTouchedView(event: MotionEvent): View? {
 //        val rootView = activity.window.decorView
 //        val location = IntArray(2)

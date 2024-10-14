@@ -1,8 +1,9 @@
 package com.intempt.intempt_android
 
 import android.content.Context
-import com.intempt.intempt_android.sessiontracker.SessionEvent
-import com.intempt.intempt_android.sessiontracker.SessionUserAttributes
+import com.intempt.intempt_android.autocapture.AutoCapture
+import com.intempt.intempt_android.autocapture.sessiontracker.SessionTracker
+import com.intempt.intempt_android.autocapture.sessiontracker.SessionUserAttributes
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -11,9 +12,13 @@ import kotlinx.coroutines.launch
 
 
 class Intempt private constructor()  {
+    private var autoCapture: AutoCapture? = null
+
+
     companion object {
         @Volatile
         private var instance: Intempt? = null
+
 
         /**
          * Initializes the Intempt SDK.
@@ -39,14 +44,17 @@ class Intempt private constructor()  {
      * @param context The application context.
      */
     private fun init(context: Context, config: ConfigManager) {
-
+        autoCapture = AutoCapture(context);
         val job = Job()
         val coroutineScope = CoroutineScope(Dispatchers.Main + job)
 
         coroutineScope.launch {
             val locationDeferred = async { SessionUserAttributes.getLocationInfo() }
             val sessionDeferred = async {
-                StorageHandler.sessionIdSet(context)
+                SessionTracker.start(null, context);
+
+
+
                 StorageHandler.profileIdSet(context)
                 StorageHandler.pageIdSet(context)
             }
@@ -54,10 +62,10 @@ class Intempt private constructor()  {
             locationDeferred.await()
             sessionDeferred.await()
 
-            val sessionEvent = SessionEvent(context);
+
+
 
             Logger.log("config: $config")
-            Logger.log("SessionEvent: $sessionEvent")
             Logger.log("Intempt SDK initialized")
         }
     }

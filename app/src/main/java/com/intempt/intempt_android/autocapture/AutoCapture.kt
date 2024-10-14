@@ -1,27 +1,40 @@
 package com.intempt.intempt_android.autocapture
 
 import android.app.Activity
-import android.util.Log
+import android.app.Application
+import android.content.Context
 import android.view.MotionEvent
 import android.view.Window
-import androidx.appcompat.app.AppCompatActivity
+import com.intempt.intempt_android.DispatchEventProps
+import com.intempt.intempt_android.EventBus
+import com.intempt.intempt_android.Logger
+import com.intempt.intempt_android.autocapture.screenTracker.ActivityTracker
 
-
-class AutoCapture(private val activity: Activity) {
-
-
+class AutoCapture(private val context: Context) {
     init{
-        captureTouchEvents()
+        registerGlobalActivityLifecycleCallbacks()
+    }
+
+    private fun registerGlobalActivityLifecycleCallbacks() {
+        val application = context.applicationContext as Application;
+        val screenTracker = ActivityTracker()
+        application.registerActivityLifecycleCallbacks(screenTracker)
     }
 
 
-    private fun captureTouchEvents() {
+    private fun captureTouchEvents(activity: Activity) {
         activity.window.callback = object : Window.Callback by activity.window.callback {
             override fun dispatchTouchEvent(event: MotionEvent?): Boolean {
+                Logger.log("AutoCapture | TouchEvents: ${activity.localClassName}")
 
-                Log.d("AutoCapture", "Global touch event: $event")
-
-
+                EventBus.dispatchEvent(
+                    DispatchEventProps(
+                        eventName = "TouchEvent",
+                        type = "touch",
+                        event = null,
+                        context = activity
+                    )
+                )
 
                 return activity.dispatchTouchEvent(event)
             }
