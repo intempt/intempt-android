@@ -52,11 +52,8 @@ class Intempt private constructor()  {
             val locationDeferred = async { SessionUserAttributes.getLocationInfo() }
             val sessionDeferred = async {
                 SessionTracker.start(null, context);
-
-
-
                 StorageHandler.profileIdSet(context)
-                StorageHandler.pageIdSet(context)
+
             }
 
             locationDeferred.await()

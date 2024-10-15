@@ -22,23 +22,4 @@ class AutoCapture(private val context: Context) {
     }
 
 
-    private fun captureTouchEvents(activity: Activity) {
-        activity.window.callback = object : Window.Callback by activity.window.callback {
-            override fun dispatchTouchEvent(event: MotionEvent?): Boolean {
-                Logger.log("AutoCapture | TouchEvents: ${activity.localClassName}")
-
-                EventBus.dispatchEvent(
-                    DispatchEventProps(
-                        eventName = "TouchEvent",
-                        type = "touch",
-                        event = null,
-                        context = activity
-                    )
-                )
-
-                return activity.dispatchTouchEvent(event)
-            }
-        }
-    }
-
 }

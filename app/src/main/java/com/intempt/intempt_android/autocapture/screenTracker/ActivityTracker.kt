@@ -3,13 +3,11 @@ package com.intempt.intempt_android.autocapture.screenTracker
 import android.app.Activity
 import android.app.Application
 import android.os.Bundle
-import android.view.View
 import androidx.appcompat.app.AppCompatActivity
-import androidx.fragment.app.Fragment
-import androidx.fragment.app.FragmentManager
 import com.intempt.intempt_android.DispatchEventProps
 import com.intempt.intempt_android.EventBus
 import com.intempt.intempt_android.Logger
+import com.intempt.intempt_android.StorageHandler
 import com.intempt.intempt_android.autocapture.touchTracker.TouchTracker
 
 class ActivityTracker : Application.ActivityLifecycleCallbacks {
@@ -19,12 +17,15 @@ class ActivityTracker : Application.ActivityLifecycleCallbacks {
 
 
     override fun onActivityResumed(activity: Activity) {
+        Logger.log("AutoCapture | Activity viewed: ${activity.localClassName}")
         touchTracker.registerTouchEventsForActivity(activity)
 
+        StorageHandler.pageIdSet(activity)
 
         EventBus.dispatchEvent(
             DispatchEventProps(
                 eventName = "Screen view",
+                entityName="screenView",
                 type = "screen",
                 event = null,
                 context = activity
@@ -35,25 +36,15 @@ class ActivityTracker : Application.ActivityLifecycleCallbacks {
             activity.supportFragmentManager.registerFragmentLifecycleCallbacks(_fragmentTracker!!, true)
         }
 
-//        if (activity is AppCompatActivity) {
-//            activity.supportFragmentManager.registerFragmentLifecycleCallbacks(object : FragmentManager.FragmentLifecycleCallbacks() {
-//                override fun onFragmentViewCreated(fm: FragmentManager, fragment: Fragment, view: View, savedInstanceState: Bundle?) {
-//                    touchTracker.registerTouchEventsForFragment(fragment)
-//                }
-//            }, true)
-//        }
 
-        //EventBus.dispatchEvent("ScreenViewed", activity)
-        // Capture touch events for this activity when it's resumed
-       //captureTouchEvents(activity)
-        Logger.log("AutoCapture | Activity viewed: ${activity.localClassName}")
     }
 
     override fun onActivityPaused(activity: Activity) {
-
+        Logger.log("AutoCapture | Screen Leave: ${activity.localClassName}")
         EventBus.dispatchEvent(
             DispatchEventProps(
                 eventName = "Screen leave",
+                entityName="screenLeave",
                 type = "screen",
                 event = null,
                 context = activity
@@ -63,7 +54,7 @@ class ActivityTracker : Application.ActivityLifecycleCallbacks {
             activity.supportFragmentManager.unregisterFragmentLifecycleCallbacks(_fragmentTracker!!)
         }
 
-        Logger.log("AutoCapture | Screen Leave: ${activity.localClassName}")
+
     }
 
 

@@ -18,6 +18,7 @@ class TouchTracker {
                 EventBus.dispatchEvent(
                     DispatchEventProps(
                         eventName = "TouchEvent",
+                        entityName="touchEvent",
                         type = "touch",
                         event = null,
                         context = activity
@@ -37,6 +38,7 @@ class TouchTracker {
             EventBus.dispatchEvent(
                 DispatchEventProps(
                     eventName = "TouchEvent",
+                    entityName="touchEvent",
                     type = "touch",
                     event = null,
                     context = fragment.requireActivity()

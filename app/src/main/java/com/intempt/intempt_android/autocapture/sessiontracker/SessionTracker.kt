@@ -1,6 +1,4 @@
 package com.intempt.intempt_android.autocapture.sessiontracker
-
-import android.app.Activity
 import android.content.Context
 import com.intempt.intempt_android.BaseIntemptEvent
 import com.intempt.intempt_android.DispatchEventProps
@@ -32,12 +30,13 @@ class SessionTracker {
            EventBus.dispatchEvent(DispatchEventProps(
                eventName = "Session start",
                event = newEvent,
+               entityName="sessionStart",
                type = "session",
                context = context
            ))
        }
 
-        fun handleSession(event:BaseIntemptEvent?, context: Context){
+       fun handleSession(event:BaseIntemptEvent?, context: Context){
             if(event == null) {
                 Logger.log("handleSession | Event is null")
                 return;
