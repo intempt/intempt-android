@@ -3,7 +3,7 @@ package com.intempt.intempt_android
 import android.content.Context
 import com.intempt.intempt_android.autocapture.AutoCapture
 import com.intempt.intempt_android.autocapture.sessiontracker.SessionTracker
-import com.intempt.intempt_android.autocapture.sessiontracker.SessionUserAttributes
+import com.intempt.intempt_android.autocapture.eventModels.SessionUserAttributes
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -44,7 +44,11 @@ class Intempt private constructor()  {
      * @param context The application context.
      */
     private fun init(context: Context, config: ConfigManager) {
+        Logger.log("config: $config")
         autoCapture = AutoCapture(context);
+
+        StorageHandler.init(context)
+
         val job = Job()
         val coroutineScope = CoroutineScope(Dispatchers.Main + job)
 
@@ -52,7 +56,7 @@ class Intempt private constructor()  {
             val locationDeferred = async { SessionUserAttributes.getLocationInfo() }
             val sessionDeferred = async {
                 SessionTracker.start(null, context);
-                StorageHandler.profileIdSet(context)
+                StorageHandler.profileIdSet()
 
             }
 
@@ -62,7 +66,7 @@ class Intempt private constructor()  {
 
 
 
-            Logger.log("config: $config")
+
             Logger.log("Intempt SDK initialized")
         }
     }

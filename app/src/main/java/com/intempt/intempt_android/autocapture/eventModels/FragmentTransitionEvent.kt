@@ -1,14 +1,12 @@
-package com.intempt.intempt_android.autocapture.screenTracker
-
-import android.app.Activity
+package com.intempt.intempt_android.autocapture.eventModels
 import com.intempt.intempt_android.BaseIntemptEvent
 import com.intempt.intempt_android.StorageHandler
 
-class FragmentTransitionEvent(activity:Activity): BaseIntemptEvent(activity) {
+class FragmentTransitionEvent: BaseIntemptEvent() {
 
-    private val visibleFragment = StorageHandler.getFragmentName(activity,"visibleFragment") ?: ""
-    private val addedFragment = StorageHandler.getFragmentName(activity,"addedFragment") ?: ""
-    private val removedFragment = StorageHandler.getFragmentName(activity,"removedFragment") ?: ""
+    private val visibleFragment = StorageHandler.getFragmentName("visibleFragment") ?: ""
+    private val addedFragment = StorageHandler.getFragmentName("addedFragment") ?: ""
+    private val removedFragment = StorageHandler.getFragmentName("removedFragment") ?: ""
 
     override fun toString(): String {
 

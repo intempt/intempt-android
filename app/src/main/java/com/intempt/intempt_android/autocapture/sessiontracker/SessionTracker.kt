@@ -5,6 +5,7 @@ import com.intempt.intempt_android.DispatchEventProps
 import com.intempt.intempt_android.EventBus
 import com.intempt.intempt_android.Logger
 import com.intempt.intempt_android.StorageHandler
+import com.intempt.intempt_android.autocapture.eventModels.SessionEvent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -23,7 +24,7 @@ class SessionTracker {
 
 
        fun start(event:BaseIntemptEvent?, context: Context){
-           StorageHandler.sessionIdSet(context);
+           StorageHandler.sessionIdSet();
 
            val newEvent = SessionEvent(context)
 
@@ -46,14 +47,14 @@ class SessionTracker {
             debounceJob = CoroutineScope(Dispatchers.Main).launch {
                 delay(DEBOUNCE_DELAY)
                 val eventTimestamp = event.getEventTime();
-                val sessionTimestamp = StorageHandler.getSessionTime(context)
+                val sessionTimestamp = StorageHandler.getSessionTime()
 
                 if (eventTimestamp - sessionTimestamp > SESSION_TIMEOUT) {
                     Logger.log("Session expired. Creating new session.")
                     start(event,context)  // Create a new session ID
                 } else {
                     Logger.log("Session active. Updating last activity timestamp.")
-                    StorageHandler.updateSessionTimestamp(context)
+                    StorageHandler.updateSessionTimestamp()
                 }
 
             }

@@ -20,7 +20,7 @@ class ActivityTracker : Application.ActivityLifecycleCallbacks {
         Logger.log("AutoCapture | Activity viewed: ${activity.localClassName}")
         touchTracker.registerTouchEventsForActivity(activity)
 
-        StorageHandler.pageIdSet(activity)
+        StorageHandler.pageIdSet()
 
         EventBus.dispatchEvent(
             DispatchEventProps(

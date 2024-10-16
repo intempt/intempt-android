@@ -1,4 +1,4 @@
-package com.intempt.intempt_android.autocapture.sessiontracker
+package com.intempt.intempt_android.autocapture.eventModels
 
 import android.content.Context
 import android.content.res.Configuration

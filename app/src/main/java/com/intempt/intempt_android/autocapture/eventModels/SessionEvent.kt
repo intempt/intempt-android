@@ -1,4 +1,4 @@
-package com.intempt.intempt_android.autocapture.sessiontracker
+package com.intempt.intempt_android.autocapture.eventModels
 
 import android.annotation.SuppressLint
 import android.content.ContentResolver
@@ -8,9 +8,8 @@ import android.provider.Settings
 import com.intempt.intempt_android.BaseIntemptEvent
 
 
-
 @SuppressLint("HardwareIds")
-data class SessionEvent(val context: Context): BaseIntemptEvent(context) {
+data class SessionEvent(val context: Context): BaseIntemptEvent() {
     private val userAttributes: SessionUserAttributes = SessionUserAttributes(context);
 
     private val data = mapOf(

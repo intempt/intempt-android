@@ -17,7 +17,6 @@ class FragmentTracker(private val touchTracker: TouchTracker) : FragmentManager.
 
         val key = "addedFragment"
         StorageHandler.saveFragmentName(
-            fragment.requireActivity(),
             key,
             fragment,
         )
@@ -28,7 +27,6 @@ class FragmentTracker(private val touchTracker: TouchTracker) : FragmentManager.
 
         val key = "visibleFragment"
         StorageHandler.saveFragmentName(
-            fragment.requireActivity(),
             key,
             fragment,
         )
@@ -51,7 +49,6 @@ class FragmentTracker(private val touchTracker: TouchTracker) : FragmentManager.
 
         val key = "removedFragment";
         StorageHandler.saveFragmentName(
-            fragment.requireActivity(),
             key,
             fragment,
         )

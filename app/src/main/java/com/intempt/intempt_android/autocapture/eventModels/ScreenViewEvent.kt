@@ -1,10 +1,10 @@
-package com.intempt.intempt_android.autocapture.screenTracker
+package com.intempt.intempt_android.autocapture.eventModels
 import com.intempt.intempt_android.BaseIntemptEvent
 import com.intempt.intempt_android.ScreenViewProps
 import com.intempt.intempt_android.StorageHandler
 
 
-class ScreenViewEvent(props: ScreenViewProps): BaseIntemptEvent(props.activity) {
+class ScreenViewEvent(props: ScreenViewProps): BaseIntemptEvent() {
     private val activity = props.activity.localClassName ?: "";
     private val fullActivity = props.activity.javaClass.name ?: "";
     private val screenName = props.activity.javaClass.name ?: "";
@@ -13,7 +13,7 @@ class ScreenViewEvent(props: ScreenViewProps): BaseIntemptEvent(props.activity) 
 
     init{
         if (props.entityName == "screenLeave") {
-            val durationInSeconds = (System.currentTimeMillis() - StorageHandler.getPageTime(props.activity)) / 1000
+            val durationInSeconds = (System.currentTimeMillis() - StorageHandler.getPageTime()) / 1000
             this.timeOnScreen = durationInSeconds
         }
     }

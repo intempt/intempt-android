@@ -1,7 +1,9 @@
 package com.intempt.intempt_android
 import android.app.Activity
-import com.intempt.intempt_android.autocapture.screenTracker.FragmentTransitionEvent
-import com.intempt.intempt_android.autocapture.screenTracker.ScreenViewEvent
+import android.view.View
+import com.intempt.intempt_android.autocapture.eventModels.FragmentTransitionEvent
+import com.intempt.intempt_android.autocapture.eventModels.ScreenViewEvent
+import com.intempt.intempt_android.autocapture.eventModels.UiElementEvent
 import com.intempt.intempt_android.autocapture.sessiontracker.SessionTracker
 import kotlin.reflect.full.declaredFunctions
 import kotlin.reflect.jvm.isAccessible
@@ -22,17 +24,22 @@ object EventTypeHandler {
 
     fun fragment(props:HandleEventTypeProps) {
         Logger.log("Fragment called")
-        val newEvent = FragmentTransitionEvent(props.context as Activity)
+        val newEvent = FragmentTransitionEvent()
         Logger.log("Fragment Event: $newEvent")
     }
 
-    fun touch(props:HandleEventTypeProps){}
+    fun touch(props:HandleEventTypeProps){
+        Logger.log("Touch called")
+        val view:View = props.view!!
+        val newEvent = UiElementEvent(view)
+        Logger.log("Touch Event: $newEvent")
+    }
 }
 
 
 object EventBus {
     fun dispatchEvent(props:DispatchEventProps) {
-        val (eventName,entityName, event, type, context) = props
+        val (eventName,entityName, event, type, context, view) = props
 
         Logger.log("Received Event: $eventName")
         Logger.log("Received Type: $type")
@@ -41,9 +48,10 @@ object EventBus {
 
         handleEventType(
             HandleEventTypeProps(
-            type = type,
-            entityName = entityName,
-            context = context
+                type = type,
+                entityName = entityName,
+                context = context,
+                view = view
           )
         )
 

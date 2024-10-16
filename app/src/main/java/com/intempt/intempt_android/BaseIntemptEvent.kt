@@ -4,14 +4,11 @@ import android.content.Context
 
 
 
-open class BaseIntemptEvent(context: Context) {
-
-
-
+open class BaseIntemptEvent() {
     protected val eventId: String = generateId("ev");
-    protected val sessionId: String = context.let { StorageHandler.sessionIdGet(it).toString() };
-    protected val pageId: String = context.let { StorageHandler.pageIdGet(it).toString() }
-    protected val profileId: String = context.let { StorageHandler.profileIdGet(it).toString() };
+    protected val sessionId: String = StorageHandler.sessionIdGet().toString();
+    protected val pageId: String = StorageHandler.pageIdGet().toString()
+    protected val profileId: String = StorageHandler.profileIdGet().toString();
     protected val timestamp: Long = System.currentTimeMillis();
 
 
