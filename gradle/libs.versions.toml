@@ -1,7 +1,5 @@
 [versions]
 agp = "8.6.1"
-dokkaGradlePlugin = "1.4.10.2"
-gradleMavenPublishPlugin = "0.30.0"
 kotlin = "1.9.22"
 coreKtx = "1.13.1"
 junit = "4.13.2"
@@ -13,14 +11,11 @@ ktorClientAndroid = "2.3.11"
 ktorClientContentNegotiation = "2.3.11"
 ktorClientCore = "2.3.11"
 material = "1.12.0"
-serialization="2.0.20"
-deployer="0.14.0"
-#deployer="0.0.8"
+vanniktech="0.28.0"
+nmcp="0.0.8"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
-dokka-gradle-plugin = { module = "org.jetbrains.dokka:dokka-gradle-plugin", version.ref = "dokkaGradlePlugin" }
-gradle-maven-publish-plugin = { module = "com.vanniktech:gradle-maven-publish-plugin", version.ref = "gradleMavenPublishPlugin" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
 androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }
@@ -40,6 +35,5 @@ material = { group = "com.google.android.material", name = "material", version.r
 android-application = { id = "com.android.application", version.ref = "agp" }
 android-library = { id = "com.android.library", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
-
-kotlin-deployer = {id="io.deepmedia.tools.deployer", version.ref="deployer"}
-#kotlin-serialization= {id="org.jetbrains.kotlin.plugin.serialization", version.ref="serialization"}
+vanniktech-deployer = { id="com.vanniktech.maven.publish", version.ref = "vanniktech"}
+gradleup-nmcp={id="com.gradleup.nmcp", version.ref="nmcp"}

@@ -1,6 +1,3 @@
-
-
-
 //plugins {
 //    alias(libs.plugins.android.library)
 //    alias(libs.plugins.kotlin.android)
@@ -138,108 +135,36 @@
 //
 //}
 
+//----------------------------------------------------------------//
 
-
-
-
-//
-//plugins {
-//    alias(libs.plugins.android.library)
-//    alias(libs.plugins.kotlin.android)
-//    `maven-publish`
-//}
-//
-//android {
-//    namespace = "com.intempt.sdk"
-//    compileSdk = 34
-//
-//    defaultConfig {
-//        minSdk = 31
-//        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-//    }
-//
-//    buildTypes {
-//        release {
-//            isMinifyEnabled = false
-//            proguardFiles(
-//                getDefaultProguardFile("proguard-android-optimize.txt"),
-//                "proguard-rules.pro"
-//            )
-//        }
-//    }
-//    compileOptions {
-//        sourceCompatibility = JavaVersion.VERSION_1_8
-//        targetCompatibility = JavaVersion.VERSION_1_8
-//    }
-//    kotlinOptions {
-//        jvmTarget = "1.8"
-//    }
-//}
-//
-//dependencies {
-//    implementation(kotlin("reflect"))
-//    implementation(libs.ktor.client.core)
-//    implementation(libs.ktor.client.android)
-//    implementation(libs.ktor.client.cio)
-//    implementation(libs.ktor.serialization.kotlinx.json)
-//    implementation(libs.ktor.client.content.negotiation)
-//    implementation(libs.ktor.client.serialization)
-//    implementation(libs.kotlinx.coroutines.core)
-//    implementation(libs.kotlinx.coroutines.android)
-//
-//    implementation(libs.androidx.core.ktx)
-//    implementation(libs.androidx.appcompat)
-//    implementation(libs.material)
-//    testImplementation(libs.junit)
-//    androidTestImplementation(libs.androidx.junit)
-//    androidTestImplementation(libs.androidx.espresso.core)
-//}
-//
-//publishing {
-//    publications {
-//        create<MavenPublication>("release") {
-//            afterEvaluate {
-//                from(components["release"])
-//                groupId = project.findProperty("GROUP") as String
-//                artifactId = project.findProperty("ARTIFACT_ID") as String
-//                version = project.findProperty("VERSION") as String
-//            }
-//        }
-//    }
-//    repositories {
-//        mavenLocal()
-//    }
-//}
-
-import com.vanniktech.maven.publish.AndroidSingleVariantLibrary
-import com.vanniktech.maven.publish.SonatypeHost
 
 
 plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.android)
-    id("com.vanniktech.maven.publish.base") version "0.30.0"
-}
-buildscript {
-    dependencies {
-        classpath(libs.gradle.maven.publish.plugin)
-        classpath(libs.dokka.gradle.plugin)
-    }
+    alias(libs.plugins.vanniktech.deployer)
+    alias(libs.plugins.gradleup.nmcp)
+
+//    id("com.vanniktech.maven.publish") version "0.28.0"
+    //id("com.gradleup.nmcp") version "0.0.8"
+
 }
 
 android {
     namespace = "com.intempt.sdk"
     compileSdk = 34
 
-    publishing {
-        singleVariant("release") {
-            withSourcesJar()
-        }
-    }
+//    publishing {
+//        singleVariant("release") {
+//            withSourcesJar()
+//        }
+//    }
 
     defaultConfig {
         minSdk = 31
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+
     }
 
     buildTypes {
@@ -254,9 +179,12 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_1_8
         targetCompatibility = JavaVersion.VERSION_1_8
+
+
     }
     kotlinOptions {
         jvmTarget = "1.8"
+
     }
 }
 
@@ -279,27 +207,12 @@ dependencies {
     androidTestImplementation(libs.androidx.espresso.core)
 }
 
-publishing {
-    repositories {
-        maven {
-            credentials {
-                username = project.findProperty("mavenCentralUsername") as String
-                password = project.findProperty("mavenCentralPassword") as String
-            }
-        }
-    }
-}
-
 mavenPublishing {
-    val groupId = project.findProperty("GROUP") as String
-    val artifactId = project.findProperty("ARTIFACT_ID") as String
-    val version = project.findProperty("VERSION") as String
-
-    coordinates(groupId, artifactId, version)
-
-
-    publishToMavenCentral(SonatypeHost.CENTRAL_PORTAL)
-    signAllPublications()
+    coordinates(
+        groupId = project.findProperty("GROUP") as String,
+        artifactId = project.findProperty("ARTIFACT_ID") as String,
+        version = project.findProperty("VERSION") as String
+    )
 
     pom {
         name = project.findProperty("POM_NAME") as String
@@ -328,6 +241,8 @@ mavenPublishing {
         }
     }
 
-
+    signing{
+        useGpgCmd()
+    }
 
 }
