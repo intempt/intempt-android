@@ -2,17 +2,20 @@ package com.intempt.intempt_android
 
 import android.content.Context
 import androidx.fragment.app.Fragment
+import com.intempt.intempt_android.types.AppVisibilityState
+import com.intempt.intempt_android.types.IdTypeKeys
+import com.intempt.intempt_android.types.StorageKeys
 
-class StorageHandler {
+
+class StorageHandler{
     companion object{
-        fun init(context: Context) {
+        fun register(context: Context) {
             appContext = context.applicationContext
         }
 
-
         fun saveFragmentName(key: String, fragment: Fragment) {
             return appContext
-                .getSharedPreferences(FRAGMENT_PREFS, Context.MODE_PRIVATE)
+                .getSharedPreferences(StorageKeys.FragmentPrefs.key, Context.MODE_PRIVATE)
                 .edit()
                 .putString(key, fragment.javaClass.simpleName)
                 .apply()
@@ -20,38 +23,56 @@ class StorageHandler {
 
         fun getFragmentName( key: String): String? {
             return appContext
-                .getSharedPreferences(FRAGMENT_PREFS, Context.MODE_PRIVATE)
+                .getSharedPreferences(StorageKeys.FragmentPrefs.key, Context.MODE_PRIVATE)
                 .getString(key, null)
         }
 
         fun getSessionTime(): Long {
-            val sharedPreferences = appContext.getSharedPreferences(SESSION_PREFS, Context.MODE_PRIVATE)
-            val timestamp = sharedPreferences.getLong(SESSION_TIMESTAMP_KEY, 0L)
-            Logger.log("GetSessionTime: prefs=$SESSION_PREFS, key=$SESSION_TIMESTAMP_KEY, timestamp=$timestamp")
+            val prefKey = StorageKeys.SessionPrefs.key;
+            val timesKey = StorageKeys.SessionTimestamp.key;
+
+            val sharedPreferences = appContext.getSharedPreferences(prefKey, Context.MODE_PRIVATE)
+            val timestamp = sharedPreferences.getLong(timesKey, 0L)
+            Logger.log("GetSessionTime: prefs=$prefKey, key=$timesKey, timestamp=$timestamp")
             return timestamp
         }
 
         fun getPageTime(): Long {
-            val sharedPreferences = appContext.getSharedPreferences(SESSION_PREFS, Context.MODE_PRIVATE)
-            val timestamp = sharedPreferences.getLong(PAGE_TIMESTAMP_KEY, 0L)
-            Logger.log("GetSessionTime: prefs=$SESSION_PREFS, key=$PAGE_TIMESTAMP_KEY, timestamp=$timestamp")
+            val prefKey = StorageKeys.SessionPrefs.key;
+            val timeKey = StorageKeys.PageTimestamp.key;
+
+
+            val sharedPreferences = appContext.getSharedPreferences(prefKey, Context.MODE_PRIVATE)
+            val timestamp = sharedPreferences.getLong(timeKey, 0L)
+            Logger.log("GetSessionTime: prefs=$prefKey, key=$timeKey, timestamp=$timestamp")
             return timestamp
         }
 
         fun sessionIdGet(): String? {
             Logger.log("Get session Id");
-            return getId( SESSION_PREFS, SESSION_ID_KEY)
+            val prefKey = StorageKeys.SessionPrefs.key;
+            val idKey = StorageKeys.SessionId.key;
+            return getId( prefKey, idKey)
         }
 
         fun sessionIdSet() {
             Logger.log("Set session Id");
-            setId("ses", SESSION_PREFS, SESSION_ID_KEY);
-            setTimestamp(SESSION_PREFS, SESSION_TIMESTAMP_KEY)
+            val prefKey = StorageKeys.SessionPrefs.key;
+            val idKey = StorageKeys.SessionId.key;
+            val timesKey = StorageKeys.SessionTimestamp.key;
+            val idType = IdTypeKeys.SessionId.key
+
+            setId(idType, prefKey, idKey);
+            setTimestamp(prefKey, timesKey)
         }
 
         fun sessionIdClear() {
+            val prefKey = StorageKeys.SessionPrefs.key;
+            val idKey = StorageKeys.SessionId.key;
+
+
             Logger.log("Clear session Id");
-            clearId( SESSION_PREFS,SESSION_ID_KEY);
+            clearId( prefKey,idKey);
         }
 
         fun updateSessionTimestamp() {
@@ -61,54 +82,105 @@ class StorageHandler {
 
 
         fun profileIdSet() {
-            val sharedPreferences = appContext.getSharedPreferences(USER_PREFS, Context.MODE_PRIVATE)
-            val profileId = sharedPreferences.getString(PROFILE_ID_KEY, null)
+            val prefKey = StorageKeys.UserPrefs.key;
+            val idKey = StorageKeys.ProfileId.key;
+            val idType = IdTypeKeys.ProfileId.key
+
+            val sharedPreferences = appContext.getSharedPreferences(prefKey, Context.MODE_PRIVATE)
+            val profileId = sharedPreferences.getString(idKey, null)
 
             if (profileId == null) {
                 Logger.log("Set profile Id");
-                setId("prof", USER_PREFS, PROFILE_ID_KEY)
+                setId(idType, prefKey, idKey)
             }
         }
 
         fun profileIdGet(): String? {
             Logger.log("Get profile Id");
-
-            return getId(USER_PREFS, PROFILE_ID_KEY)
+            val prefKey = StorageKeys.UserPrefs.key;
+            val idKey = StorageKeys.ProfileId.key;
+            return getId(prefKey, idKey)
         }
 
         fun profileIdClear() {
             Logger.log("Clear profile Id");
-            clearId(USER_PREFS,PROFILE_ID_KEY)
+            val prefKey = StorageKeys.UserPrefs.key;
+            val idKey = StorageKeys.ProfileId.key;
+            clearId(prefKey,idKey)
         }
 
         fun pageIdSet() {
             Logger.log("Set page Id");
-            setId("pag", SESSION_PREFS, PAGE_ID_KEY);
-            setTimestamp(SESSION_PREFS, PAGE_TIMESTAMP_KEY)
+
+            val prefKey = StorageKeys.SessionPrefs.key;
+            val idKey = StorageKeys.PageId.key;
+            val timesKey = StorageKeys.PageTimestamp.key;
+            val idType = IdTypeKeys.PageId.key
+            setId(idType, prefKey, idKey);
+            setTimestamp(prefKey, timesKey)
         }
 
         fun pageIdGet(): String? {
             Logger.log("Get page Id");
-            return getId(SESSION_PREFS, PAGE_ID_KEY)
+            val prefKey = StorageKeys.SessionPrefs.key;
+            val idKey = StorageKeys.PageId.key;
+            return getId(prefKey, idKey)
         }
 
         fun pageIdClear() {
             Logger.log("Clear page Id");
-            clearId(SESSION_PREFS,PAGE_ID_KEY)
+            val prefKey = StorageKeys.SessionPrefs.key;
+            val idKey = StorageKeys.PageId.key;
+
+            clearId(prefKey,idKey)
+        }
+
+        fun getPreviousVersionCode(): Int {
+            val prefKey = StorageKeys.AppPrefs.key;
+            val versionKey = StorageKeys.PreviousVersionCode.key;
+
+            val sharedPreferences = appContext.getSharedPreferences(prefKey, Context.MODE_PRIVATE)
+            return sharedPreferences.getInt(versionKey, -1)
+        }
+
+        fun setVersionCode(versionCode: Int) {
+            val prefKey = StorageKeys.AppPrefs.key;
+            val versionKey = StorageKeys.PreviousVersionCode.key;
+
+            val sharedPreferences = appContext.getSharedPreferences(prefKey, Context.MODE_PRIVATE)
+            val editor = sharedPreferences.edit()
+            editor.putInt(versionKey, versionCode)
+            editor.apply()
+        }
+
+        fun getPreviousBuildType():String? {
+            val prefKey = StorageKeys.AppPrefs.key;
+            val buildKey = StorageKeys.PreviousBuildType.key;
+
+            val sharedPreferences = appContext.getSharedPreferences(prefKey, Context.MODE_PRIVATE)
+            return sharedPreferences.getString(buildKey, null)
+        }
+
+        fun getAppVisibilityState(): AppVisibilityState {
+            val prefKey = StorageKeys.AppPrefs.key;
+            val visibilityKey = StorageKeys.AppVisibilityState.key;
+
+            val sharedPreferences = appContext.getSharedPreferences(prefKey, Context.MODE_PRIVATE)
+            val storedState = sharedPreferences.getString(visibilityKey, null)
+            return AppVisibilityState.fromString(storedState)
+        }
+
+        fun setAppVisibilityState(visibility: AppVisibilityState) {
+            val prefKey = StorageKeys.AppPrefs.key;
+            val visibilityKey = StorageKeys.AppVisibilityState.key;
+
+            val sharedPreferences = appContext.getSharedPreferences(prefKey, Context.MODE_PRIVATE)
+            val editor = sharedPreferences.edit()
+            editor.putString(visibilityKey, visibility.state)
+            editor.apply()
         }
 
 
-
-        private const val SESSION_PREFS = "session_prefs";
-        private const val USER_PREFS = "user_prefs";
-        private const val FRAGMENT_PREFS = "fragment_prefs";
-
-        private const val SESSION_ID_KEY = "session_id";
-        private const val PROFILE_ID_KEY = "profile_id";
-        private const val PAGE_ID_KEY = "page_id";
-
-        private const val SESSION_TIMESTAMP_KEY = "session_time"
-        private const val PAGE_TIMESTAMP_KEY = "page_time"
 
         private lateinit var appContext: Context
 

@@ -110,6 +110,8 @@
 plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.android)
+
+    id("kotlin-kapt")
     `maven-publish`
 }
 
@@ -141,6 +143,10 @@ android {
 }
 
 dependencies {
+    implementation(libs.dagger)
+    implementation(libs.androidx.lifecycle.process)
+    kapt(libs.dagger.compiler)
+
     implementation(kotlin("reflect"))
     implementation(libs.ktor.client.core)
     implementation(libs.ktor.client.android)
@@ -150,6 +156,9 @@ dependencies {
     implementation(libs.ktor.client.serialization)
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.coroutines.android)
+
+
+
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)

@@ -1,8 +1,6 @@
 package com.intempt.intempt_android.autocapture.sessiontracker
 import android.content.Context
-import com.intempt.intempt_android.BaseIntemptEvent
-import com.intempt.intempt_android.DispatchEventProps
-import com.intempt.intempt_android.EventBus
+import com.intempt.intempt_android.autocapture.eventModels.BaseIntemptEvent
 import com.intempt.intempt_android.Logger
 import com.intempt.intempt_android.StorageHandler
 import com.intempt.intempt_android.autocapture.eventModels.SessionEvent
@@ -23,21 +21,21 @@ class SessionTracker {
         private const val SESSION_TIMEOUT = MINUTE_STEP * SECONDS_PER_MINUTE * MILLISECONDS_PER_SECOND
 
 
-       fun start(event:BaseIntemptEvent?, context: Context){
+       fun start(event: BaseIntemptEvent?, context: Context){
            StorageHandler.sessionIdSet();
 
            val newEvent = SessionEvent(context)
 
-           EventBus.dispatchEvent(DispatchEventProps(
-               eventName = "Session start",
-               event = newEvent,
-               entityName="sessionStart",
-               type = "session",
-               context = context
-           ))
+//           EventBus.dispatchEvent(DispatchEventProps(
+//               eventName = "Session start",
+//               event = newEvent,
+//               entityName="sessionStart",
+//               type = "session",
+//               context = context
+//           ))
        }
 
-       fun handleSession(event:BaseIntemptEvent?, context: Context){
+       fun handleSession(event: BaseIntemptEvent?, context: Context){
             if(event == null) {
                 Logger.log("handleSession | Event is null")
                 return;

@@ -1,6 +1,5 @@
 package com.intempt.intempt_android.autocapture.eventModels
-import com.intempt.intempt_android.BaseIntemptEvent
-import com.intempt.intempt_android.ScreenViewProps
+import com.intempt.intempt_android.types.ScreenViewProps
 import com.intempt.intempt_android.StorageHandler
 
 

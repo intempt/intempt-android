@@ -1,7 +1,6 @@
 package com.intempt.intempt_android.autocapture.eventModels
 import android.view.View
 import android.widget.TextView
-import com.intempt.intempt_android.BaseIntemptEvent
 
 data class UiElementEvent(private val view: View): BaseIntemptEvent() {
 

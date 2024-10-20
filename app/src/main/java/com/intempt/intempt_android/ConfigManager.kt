@@ -1,8 +1,10 @@
 package com.intempt.intempt_android
 
 import android.content.Context
-
-
+import com.intempt.intempt_android.types.ConfigKeys
+import com.intempt.intempt_android.types.IntemptConfigs
+import java.io.InputStream
+import org.json.JSONObject
 
 data class ConfigManager(val context: Context) {
     private val apiKey: String
@@ -12,17 +14,45 @@ data class ConfigManager(val context: Context) {
 
 
     init {
-        fun getBuildConfigValue(context: Context, fieldName: String): String {
-            val buildConfigClass = Class.forName(context.packageName + ".BuildConfig")
-            val field = buildConfigClass.getDeclaredField(fieldName)
-            return field.get(null) as String
+        val configs = getConfigs()
+        if (configs == null) {
+            throw Exception("Error reading config file")
+        }
+        else{
+            this.apiKey = configs.apiKey
+            this.sourceId = configs.sourceId
+            this.organizationId = configs.organizationId
+            this.projectId = configs.projectId
         }
 
 
-        this.apiKey = getBuildConfigValue(context, "INTEMPT_API_KEY")
-        this.sourceId = getBuildConfigValue(context, "INTEMPT_SOURCE_ID")
-        this.organizationId =getBuildConfigValue(context, "INTEMPT_ORGANIZATION_ID")
-        this.projectId = getBuildConfigValue(context, "INTEMPT_PROJECT_ID")
+    }
+
+    private fun getConfigs(): IntemptConfigs? {
+        return try {
+            val inputStream: InputStream = context.assets.open("intempt-config.json")
+            val size = inputStream.available()
+            val buffer = ByteArray(size)
+            inputStream.read(buffer)
+            inputStream.close()
+
+            val json = String(buffer, Charsets.UTF_8)
+
+            // Parse the JSON string into a JSONObject
+            val jsonObject = JSONObject(json)
+            val authObject = jsonObject.getJSONObject(ConfigKeys.Auth.key)
+
+            IntemptConfigs(
+                apiKey = authObject.getString(ConfigKeys.ApiKey.key),
+                sourceId = authObject.getString(ConfigKeys.SourceId.key),
+                organizationId = authObject.getString(ConfigKeys.OrganizationId.key),
+                projectId = authObject.getString(ConfigKeys.ProjectId.key)
+            )
+        }
+        catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
     }
 
     override fun toString(): String {

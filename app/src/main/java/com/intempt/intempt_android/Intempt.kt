@@ -4,15 +4,18 @@ import android.content.Context
 import com.intempt.intempt_android.autocapture.AutoCapture
 import com.intempt.intempt_android.autocapture.sessiontracker.SessionTracker
 import com.intempt.intempt_android.autocapture.eventModels.SessionUserAttributes
+import com.intempt.intempt_android.types.IntemptInitProps
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 
 class Intempt private constructor()  {
-    private var autoCapture: AutoCapture? = null
+    @Inject
+    lateinit var autoCapture: AutoCapture
 
 
     companion object {
@@ -20,34 +23,28 @@ class Intempt private constructor()  {
         private var instance: Intempt? = null
 
 
-        /**
-         * Initializes the Intempt SDK.
-         *
-         * @param context The application context.
-         * @return The singleton instance of Intempt.
-         */
         fun initialize(context: Context): Intempt = instance ?: synchronized(this) {
-            val config = ConfigManager(context)
+            val intemptComponent = DaggerIntemptComponent.builder()
+                .intemptModule(IntemptModule(context))
+                .build()
+
             instance ?: Intempt().also {
+                    intemptComponent.inject(it)
                     it.init(
-                        context,
-                        config
+                        IntemptInitProps(
+                            context = context,
+                            config = ConfigManager(context)
+                        )
                     )
                 }
             }
     }
 
 
-    /**
-     * Performs the actual initialization logic.
-     *
-     * @param context The application context.
-     */
-    private fun init(context: Context, config: ConfigManager) {
-        Logger.log("config: $config")
-        autoCapture = AutoCapture(context);
 
-        StorageHandler.init(context)
+    private fun init(props: IntemptInitProps) {
+        val (context, config) = props
+        Logger.log("config: $config")
 
         val job = Job()
         val coroutineScope = CoroutineScope(Dispatchers.Main + job)

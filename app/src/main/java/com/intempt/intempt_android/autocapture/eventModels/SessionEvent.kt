@@ -5,7 +5,6 @@ import android.content.ContentResolver
 import android.content.Context
 import android.os.Build
 import android.provider.Settings
-import com.intempt.intempt_android.BaseIntemptEvent
 
 
 @SuppressLint("HardwareIds")

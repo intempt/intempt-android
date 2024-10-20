@@ -1,17 +1,71 @@
 package com.intempt.intempt_android.autocapture.screenTracker
 
+import android.app.Activity
+import android.app.Application
 import android.content.Context
 import android.os.Bundle
 import android.view.View
+import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentManager
-import com.intempt.intempt_android.DispatchEventProps
-import com.intempt.intempt_android.EventBus
+import com.intempt.intempt_android.types.DispatchEventProps
 import com.intempt.intempt_android.Logger
 import com.intempt.intempt_android.StorageHandler
 import com.intempt.intempt_android.autocapture.touchTracker.TouchTracker
+import javax.inject.Inject
 
-class FragmentTracker(private val touchTracker: TouchTracker) : FragmentManager.FragmentLifecycleCallbacks() {
+class ScreenTracker @Inject constructor(
+    private val touchTracker: TouchTracker,
+): Application.ActivityLifecycleCallbacks,
+    FragmentManager.FragmentLifecycleCallbacks() {
+    override fun onActivityResumed(activity: Activity) {
+        Logger.log("AutoCapture | Activity viewed: ${activity.localClassName}")
+        touchTracker.registerTouchEventsForActivity(activity)
+
+        StorageHandler.pageIdSet()
+
+        touchTracker.dispatchEvent(
+            DispatchEventProps(
+                eventName = "Screen view",
+                entityName="screenView",
+                type = "screen",
+                event = null,
+                context = activity
+            )
+        )
+        if (activity is AppCompatActivity) {
+            activity.supportFragmentManager.registerFragmentLifecycleCallbacks(this, true)
+        }
+
+
+    }
+
+    override fun onActivityPaused(activity: Activity) {
+        Logger.log("AutoCapture | Screen Leave: ${activity.localClassName}")
+
+        touchTracker.dispatchEvent(
+            DispatchEventProps(
+                eventName = "Screen leave",
+                entityName="screenLeave",
+                type = "screen",
+                event = null,
+                context = activity
+            )
+        )
+        if (activity is AppCompatActivity) {
+            activity.supportFragmentManager.unregisterFragmentLifecycleCallbacks(this)
+        }
+
+
+    }
+
+
+    override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {}
+    override fun onActivityStarted(activity: Activity) {}
+    override fun onActivityStopped(activity: Activity) {}
+    override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) {}
+    override fun onActivityDestroyed(activity: Activity) {}
+
     override fun onFragmentAttached(fm: FragmentManager, fragment: Fragment, context: Context) {
         super.onFragmentAttached(fm, fragment, context);
 
@@ -31,7 +85,7 @@ class FragmentTracker(private val touchTracker: TouchTracker) : FragmentManager.
             fragment,
         )
 
-        EventBus.dispatchEvent(
+        touchTracker.dispatchEvent(
             DispatchEventProps(
                 eventName = "Fragment transition",
                 entityName="fragmentTransition",
@@ -55,8 +109,6 @@ class FragmentTracker(private val touchTracker: TouchTracker) : FragmentManager.
         Logger.log("AutoCapture | onFragmentDetached: ${fragment::class.java.simpleName}")
     }
 
-
-
     override fun onFragmentPaused(fm: FragmentManager, fragment: Fragment) {
         super.onFragmentPaused(fm, fragment)
 
@@ -66,6 +118,4 @@ class FragmentTracker(private val touchTracker: TouchTracker) : FragmentManager.
     override fun onFragmentViewCreated(fm: FragmentManager, fragment: Fragment, view: View, savedInstanceState: Bundle?) {
         touchTracker.registerTouchEventsForFragment(fragment)
     }
-
-
 }

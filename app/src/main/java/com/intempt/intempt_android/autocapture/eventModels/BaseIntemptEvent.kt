@@ -1,10 +1,11 @@
-package com.intempt.intempt_android
+package com.intempt.intempt_android.autocapture.eventModels
 
-import android.content.Context
+import com.intempt.intempt_android.StorageHandler
+import com.intempt.intempt_android.generateId
+import javax.inject.Inject
 
 
-
-open class BaseIntemptEvent() {
+open class BaseIntemptEvent  {
     protected val eventId: String = generateId("ev");
     protected val sessionId: String = StorageHandler.sessionIdGet().toString();
     protected val pageId: String = StorageHandler.pageIdGet().toString()

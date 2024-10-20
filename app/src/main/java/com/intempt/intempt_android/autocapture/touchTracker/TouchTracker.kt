@@ -7,12 +7,14 @@ import android.view.ViewGroup
 import android.view.Window
 import androidx.core.view.children
 import androidx.fragment.app.Fragment
-import com.intempt.intempt_android.DispatchEventProps
-import com.intempt.intempt_android.EventBus
+import com.intempt.intempt_android.types.DispatchEventProps
+import com.intempt.intempt_android.EventPool
+
 import com.intempt.intempt_android.Logger
+import javax.inject.Inject
 
-class TouchTracker {
 
+class TouchTracker @Inject constructor(private val eventSrv: EventPool) {
     fun registerTouchEventsForActivity(activity: Activity) {
         activity.window.callback = object : Window.Callback by activity.window.callback {
             override fun dispatchTouchEvent(event: MotionEvent?): Boolean {
@@ -24,7 +26,7 @@ class TouchTracker {
                 }
                 Logger.log("AutoCapture | Touched View: ${touchedView?.javaClass?.simpleName}")
 
-                EventBus.dispatchEvent(
+                eventSrv.dispatchEvent(
                     DispatchEventProps(
                         eventName = "TouchEvent",
                         entityName="touchEvent",
@@ -46,7 +48,7 @@ class TouchTracker {
         fragment.view?.setOnTouchListener { view, event ->
             Logger.log("AutoCapture | TouchEvents in Fragment: ${fragment::class.java.simpleName}")
 
-            EventBus.dispatchEvent(
+            eventSrv.dispatchEvent(
                 DispatchEventProps(
                     eventName = "TouchEvent",
                     entityName="touchEvent",
@@ -68,6 +70,9 @@ class TouchTracker {
 
     }
 
+    fun dispatchEvent(props: DispatchEventProps){
+        return eventSrv.dispatchEvent(props)
+    }
 
     private fun View.findViewAtLocation(rawX: Float, rawY: Float): View? {
         val location = IntArray(2)
