@@ -1,8 +1,7 @@
 package com.intempt.intempt_android.autocapture.eventModels
-
 import com.intempt.intempt_android.StorageHandler
 import com.intempt.intempt_android.generateId
-import javax.inject.Inject
+
 
 
 open class BaseIntemptEvent  {

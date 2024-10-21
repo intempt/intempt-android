@@ -2,8 +2,10 @@ package com.intempt.intempt_android
 
 import android.content.Context
 import com.intempt.intempt_android.autocapture.AutoCapture
+import com.intempt.intempt_android.autocapture.changeTracker.ChangeTracker
 import com.intempt.intempt_android.autocapture.screenTracker.ScreenTracker
 import com.intempt.intempt_android.autocapture.touchTracker.TouchTracker
+import com.intempt.intempt_android.eventPool.EventPool
 import dagger.Component
 import dagger.Module
 import dagger.Provides
@@ -40,14 +42,28 @@ class IntemptModule(private val consumerContext: Context) {
 
     @Provides
     @Singleton
+    fun provideChangeTracker(eventSrv: EventPool): ChangeTracker {
+        return ChangeTracker(eventSrv)
+    }
+
+    @Provides
+    @Singleton
     fun provideEventPool(): EventPool {
         return EventPool()
     }
 
     @Provides
     @Singleton
-    fun provideActivityTracker(touchTracker: TouchTracker): ScreenTracker {
-        return ScreenTracker(touchTracker)  // Ensure TouchTracker is injected
+    fun provideActivityTracker(
+        touchTracker: TouchTracker,
+        changeTracker: ChangeTracker,
+        eventSrv: EventPool
+    ): ScreenTracker {
+        return ScreenTracker(
+            touchTracker,
+            changeTracker,
+            eventSrv
+        )  // Ensure TouchTracker is injected
     }
 }
 

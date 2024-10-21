@@ -8,14 +8,16 @@ import android.view.Window
 import androidx.core.view.children
 import androidx.fragment.app.Fragment
 import com.intempt.intempt_android.types.DispatchEventProps
-import com.intempt.intempt_android.EventPool
+import com.intempt.intempt_android.eventPool.EventPool
 
 import com.intempt.intempt_android.Logger
 import javax.inject.Inject
 
 
-class TouchTracker @Inject constructor(private val eventSrv: EventPool) {
-    fun registerTouchEventsForActivity(activity: Activity) {
+class TouchTracker @Inject constructor(
+    private val eventSrv: EventPool
+) {
+    fun registerForActivity(activity: Activity) {
         activity.window.callback = object : Window.Callback by activity.window.callback {
             override fun dispatchTouchEvent(event: MotionEvent?): Boolean {
                 Logger.log("AutoCapture | TouchEvents: ${activity.localClassName}")
@@ -34,7 +36,6 @@ class TouchTracker @Inject constructor(private val eventSrv: EventPool) {
                         event = null,
                         context = activity,
                         view = touchedView
-
                     )
                 )
 
@@ -44,7 +45,7 @@ class TouchTracker @Inject constructor(private val eventSrv: EventPool) {
         }
     }
 
-    fun registerTouchEventsForFragment(fragment: Fragment) {
+    fun registerForFragment(fragment: Fragment) {
         fragment.view?.setOnTouchListener { view, event ->
             Logger.log("AutoCapture | TouchEvents in Fragment: ${fragment::class.java.simpleName}")
 
@@ -59,7 +60,6 @@ class TouchTracker @Inject constructor(private val eventSrv: EventPool) {
             )
 
             if (event?.action == MotionEvent.ACTION_UP) {
-                // Call performClick for accessibility
                 view.performClick()
             }
 
@@ -68,10 +68,6 @@ class TouchTracker @Inject constructor(private val eventSrv: EventPool) {
         }
 
 
-    }
-
-    fun dispatchEvent(props: DispatchEventProps){
-        return eventSrv.dispatchEvent(props)
     }
 
     private fun View.findViewAtLocation(rawX: Float, rawY: Float): View? {

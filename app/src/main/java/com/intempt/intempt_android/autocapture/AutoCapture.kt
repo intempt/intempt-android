@@ -6,7 +6,7 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
 import com.intempt.intempt_android.types.AppVisibilityState
 import com.intempt.intempt_android.types.DispatchEventProps
-import com.intempt.intempt_android.EventPool
+import com.intempt.intempt_android.eventPool.EventPool
 import com.intempt.intempt_android.Logger
 import com.intempt.intempt_android.StorageHandler
 import com.intempt.intempt_android.autocapture.screenTracker.ScreenTracker

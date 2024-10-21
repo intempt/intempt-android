@@ -220,8 +220,6 @@ class StorageHandler{
 
             Logger.log("ClearId: prefs=$prefs, keyType=$keyType")
         }
-
-
     }
 
 }
