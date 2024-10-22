@@ -143,8 +143,16 @@ android {
 }
 
 dependencies {
+
+    implementation(libs.compose.ui)
+    implementation(libs.compose.material)
+    implementation(libs.compose.ui.tooling.preview)
+    debugImplementation(libs.compose.ui.tooling)
+    implementation(libs.activity.compose)
+
     implementation(libs.dagger)
     implementation(libs.androidx.lifecycle.process)
+    implementation(libs.androidx.ui.android)
     kapt(libs.dagger.compiler)
 
     implementation(kotlin("reflect"))

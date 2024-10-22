@@ -2,7 +2,7 @@ package com.intempt.intempt_android
 
 import android.content.Context
 import com.intempt.intempt_android.autocapture.AutoCapture
-import com.intempt.intempt_android.autocapture.changeTracker.ChangeTracker
+import com.intempt.intempt_android.autocapture.changeTracker.ChangeTrackerModule
 import com.intempt.intempt_android.autocapture.screenTracker.ScreenTracker
 import com.intempt.intempt_android.autocapture.touchTracker.TouchTracker
 import com.intempt.intempt_android.eventPool.EventPool
@@ -12,7 +12,8 @@ import dagger.Provides
 import javax.inject.Singleton
 
 
-@Module
+//@Module
+@Module(includes = [ChangeTrackerModule::class])
 class IntemptModule(private val consumerContext: Context) {
 
     @Provides
@@ -42,12 +43,6 @@ class IntemptModule(private val consumerContext: Context) {
 
     @Provides
     @Singleton
-    fun provideChangeTracker(eventSrv: EventPool): ChangeTracker {
-        return ChangeTracker(eventSrv)
-    }
-
-    @Provides
-    @Singleton
     fun provideEventPool(): EventPool {
         return EventPool()
     }
@@ -56,12 +51,12 @@ class IntemptModule(private val consumerContext: Context) {
     @Singleton
     fun provideActivityTracker(
         touchTracker: TouchTracker,
-        changeTracker: ChangeTracker,
+//        changeTracker: ChangeTracker,
         eventSrv: EventPool
     ): ScreenTracker {
         return ScreenTracker(
             touchTracker,
-            changeTracker,
+//            changeTracker,
             eventSrv
         )  // Ensure TouchTracker is injected
     }

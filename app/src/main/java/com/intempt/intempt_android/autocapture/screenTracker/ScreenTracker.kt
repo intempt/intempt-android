@@ -11,21 +11,20 @@ import androidx.fragment.app.FragmentManager
 import com.intempt.intempt_android.types.DispatchEventProps
 import com.intempt.intempt_android.Logger
 import com.intempt.intempt_android.StorageHandler
-import com.intempt.intempt_android.autocapture.changeTracker.ChangeTracker
 import com.intempt.intempt_android.autocapture.touchTracker.TouchTracker
 import com.intempt.intempt_android.eventPool.EventPool
 import javax.inject.Inject
 
 class ScreenTracker @Inject constructor(
     private val touchTracker: TouchTracker,
-    private val changeTracker: ChangeTracker,
+//    private val changeTracker: ChangeTracker,
     private val eventSrv: EventPool
 ): Application.ActivityLifecycleCallbacks,
     FragmentManager.FragmentLifecycleCallbacks() {
     override fun onActivityResumed(activity: Activity) {
         Logger.log("AutoCapture | Activity viewed: ${activity.localClassName}")
         touchTracker.registerForActivity(activity)
-        changeTracker.registerForActivity(activity)
+        //changeTracker.registerForActivity(activity)
 
         StorageHandler.pageIdSet()
 
@@ -122,6 +121,6 @@ class ScreenTracker @Inject constructor(
 
     override fun onFragmentViewCreated(fm: FragmentManager, fragment: Fragment, view: View, savedInstanceState: Bundle?) {
         touchTracker.registerForFragment(fragment)
-        changeTracker.registerForFragment(fragment)
+        //changeTracker.registerForFragment(fragment)
     }
 }

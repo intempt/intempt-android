@@ -5,5 +5,11 @@ class Logger {
         fun log(message: String) {
             Log.i("Intempt", message)
         }
+
+        fun error(message: String) {
+            Log.e("Intempt", message)
+        }
+
+
     }
 }

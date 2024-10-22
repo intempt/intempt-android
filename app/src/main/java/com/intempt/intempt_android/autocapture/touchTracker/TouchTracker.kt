@@ -26,18 +26,11 @@ class TouchTracker @Inject constructor(
                     val rootView = activity.window.decorView
                     rootView.findViewAtLocation(ev.rawX, ev.rawY)
                 }
-                Logger.log("AutoCapture | Touched View: ${touchedView?.javaClass?.simpleName}")
 
-                eventSrv.dispatchEvent(
-                    DispatchEventProps(
-                        eventName = "TouchEvent",
-                        entityName="touchEvent",
-                        type = "touch",
-                        event = null,
-                        context = activity,
-                        view = touchedView
-                    )
-                )
+
+                Logger.log("AutoCapture | Touched View: ${touchedView?.javaClass?.simpleName}")
+                dispatchTouchEvent(touchedView, activity)
+
 
                 return activity.dispatchTouchEvent(event)
 
@@ -48,16 +41,8 @@ class TouchTracker @Inject constructor(
     fun registerForFragment(fragment: Fragment) {
         fragment.view?.setOnTouchListener { view, event ->
             Logger.log("AutoCapture | TouchEvents in Fragment: ${fragment::class.java.simpleName}")
+            dispatchTouchEvent(view, fragment.requireActivity())
 
-            eventSrv.dispatchEvent(
-                DispatchEventProps(
-                    eventName = "TouchEvent",
-                    entityName="touchEvent",
-                    type = "touch",
-                    event = null,
-                    context = fragment.requireActivity()
-                )
-            )
 
             if (event?.action == MotionEvent.ACTION_UP) {
                 view.performClick()
@@ -85,5 +70,20 @@ class TouchTracker @Inject constructor(
                 it.findViewAtLocation(rawX, rawY)
             }?.firstOrNull()
         }
+    }
+
+
+
+    private fun dispatchTouchEvent(view: View?, activity: Activity){
+        eventSrv.dispatchEvent(
+            DispatchEventProps(
+                eventName = "TouchEvent",
+                entityName="touchEvent",
+                type = "touch",
+                event = null,
+                context = activity,
+                view = view
+            )
+        )
     }
 }
