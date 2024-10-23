@@ -1,4 +1,4 @@
-package com.intempt.intempt_android.autocapture.eventModels
+package com.intempt.intempt_android.eventModels
 import com.intempt.intempt_android.StorageHandler
 
 class FragmentTransitionEvent: BaseIntemptEvent() {

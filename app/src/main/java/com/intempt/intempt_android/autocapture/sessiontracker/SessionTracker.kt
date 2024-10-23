@@ -1,9 +1,9 @@
 package com.intempt.intempt_android.autocapture.sessiontracker
 import android.content.Context
-import com.intempt.intempt_android.autocapture.eventModels.BaseIntemptEvent
+import com.intempt.intempt_android.eventModels.BaseIntemptEvent
 import com.intempt.intempt_android.Logger
 import com.intempt.intempt_android.StorageHandler
-import com.intempt.intempt_android.autocapture.eventModels.SessionEvent
+import com.intempt.intempt_android.eventModels.SessionEvent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -49,7 +49,7 @@ class SessionTracker {
 
                 if (eventTimestamp - sessionTimestamp > SESSION_TIMEOUT) {
                     Logger.log("Session expired. Creating new session.")
-                    start(event,context)  // Create a new session ID
+                    start(event,context)
                 } else {
                     Logger.log("Session active. Updating last activity timestamp.")
                     StorageHandler.updateSessionTimestamp()

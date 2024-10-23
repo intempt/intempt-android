@@ -119,9 +119,16 @@ android {
     namespace = "com.intempt.sdk"
     compileSdk = 34
 
+    buildFeatures {
+        buildConfig = true
+    }
+
     defaultConfig {
         minSdk = 31
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        buildConfigField("String", "sdkVersion", "\"${project.property("VERSION")}\"")
+
     }
 
     buildTypes {

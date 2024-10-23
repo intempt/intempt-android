@@ -52,5 +52,12 @@ sealed class ConfigKeys(val key: String){
     data object OrganizationId : ConfigKeys("INTEMPT_ORGANIZATION_ID")
     data object ProjectId : ConfigKeys("INTEMPT_PROJECT_ID")
     data object Auth : ConfigKeys("auth")
-
+    data object Options : ConfigKeys("options")
+    data object IsLoggingEnabledOpt : ConfigKeys("isLoggingEnabled")
+    data object IsTouchEnabledOpt : ConfigKeys("isTouchEnabled")
+    data object IsTextCaptureEnabled : ConfigKeys("isTextCaptureEnabled")
+    data object IsQueueEnabled : ConfigKeys("isQueueEnabled")
+    data object IsAutoCaptureEnabled : ConfigKeys("isAutoCaptureEnabled")
+    data object ItemsInQueue : ConfigKeys("itemsInQueue")
+    data object TimeBuffer : ConfigKeys("timeBuffer")
 }

@@ -1,10 +1,8 @@
 package com.intempt.intempt_android
 
 import android.content.Context
-import com.intempt.intempt_android.autocapture.AutoCapture
-import com.intempt.intempt_android.autocapture.changeTracker.ChangeTrackerModule
-import com.intempt.intempt_android.autocapture.screenTracker.ScreenTracker
-import com.intempt.intempt_android.autocapture.touchTracker.TouchTracker
+import com.intempt.intempt_android.autocapture.AutoCaptureModule
+import com.intempt.intempt_android.configManager.ConfigManagerModule
 import com.intempt.intempt_android.eventPool.EventPool
 import dagger.Component
 import dagger.Module
@@ -12,53 +10,25 @@ import dagger.Provides
 import javax.inject.Singleton
 
 
-//@Module
-@Module(includes = [ChangeTrackerModule::class])
-class IntemptModule(private val consumerContext: Context) {
+
+@Module(includes = [
+    ConfigManagerModule::class,
+    AutoCaptureModule::class
+])
+class IntemptModule(
+    private val consumerContext: Context
+) {
 
     @Provides
     fun provideContext(): Context {
         return consumerContext.applicationContext
     }
 
-    @Provides
-    @Singleton
-    fun provideAutoCapture(
-        context: Context,
-        activityTracker: ScreenTracker,
-        eventSrv: EventPool,
-    ): AutoCapture {
-        return AutoCapture(
-            context,
-            activityTracker,
-            eventSrv,
-        )
-    }
-
-    @Provides
-    @Singleton
-    fun provideTouchTracker(eventSrv: EventPool): TouchTracker {
-        return TouchTracker(eventSrv)
-    }
 
     @Provides
     @Singleton
     fun provideEventPool(): EventPool {
         return EventPool()
-    }
-
-    @Provides
-    @Singleton
-    fun provideActivityTracker(
-        touchTracker: TouchTracker,
-//        changeTracker: ChangeTracker,
-        eventSrv: EventPool
-    ): ScreenTracker {
-        return ScreenTracker(
-            touchTracker,
-//            changeTracker,
-            eventSrv
-        )  // Ensure TouchTracker is injected
     }
 }
 
@@ -67,6 +37,12 @@ class IntemptModule(private val consumerContext: Context) {
 @Component(modules = [IntemptModule::class])
 interface IntemptComponent {
     fun inject(intempt: Intempt)
-    fun inject(activityTracker: ScreenTracker)
+
+
+
+    @Component.Factory
+    interface Factory {
+        fun create(intemptModule: IntemptModule): IntemptComponent
+    }
 
 }

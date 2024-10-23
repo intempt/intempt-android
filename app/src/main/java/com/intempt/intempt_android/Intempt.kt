@@ -1,10 +1,11 @@
 package com.intempt.intempt_android
 
 import android.content.Context
-import com.intempt.intempt_android.autocapture.AutoCapture
+import com.intempt.intempt_android.autocapture.AutoCaptureComponent
 import com.intempt.intempt_android.autocapture.sessiontracker.SessionTracker
-import com.intempt.intempt_android.autocapture.eventModels.SessionUserAttributes
-import com.intempt.intempt_android.types.IntemptInitProps
+import com.intempt.intempt_android.configManager.ConfigManagerService
+import com.intempt.intempt_android.eventModels.SessionUserAttributes
+import com.intempt.sdk.BuildConfig
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -15,7 +16,10 @@ import javax.inject.Inject
 
 class Intempt private constructor()  {
     @Inject
-    lateinit var autoCapture: AutoCapture
+    lateinit var configManager: ConfigManagerService
+
+    @Inject
+    lateinit var autoCapture: AutoCaptureComponent
 
 
     companion object {
@@ -24,28 +28,21 @@ class Intempt private constructor()  {
 
 
         fun initialize(context: Context): Intempt = instance ?: synchronized(this) {
-            val intemptComponent = DaggerIntemptComponent.builder()
-                .intemptModule(IntemptModule(context))
-                .build()
+            val intemptComponent = DaggerIntemptComponent.factory()
+                .create(IntemptModule(context))
+
+
 
             instance ?: Intempt().also {
-                    intemptComponent.inject(it)
-                    it.init(
-                        IntemptInitProps(
-                            context = context,
-                            config = ConfigManager(context)
-                        )
-                    )
-                }
+                intemptComponent.inject(it)
+                it.init(context)
             }
+        }
     }
 
 
 
-    private fun init(props: IntemptInitProps) {
-        val (context, config) = props
-        Logger.log("config: $config")
-
+    private fun init(context: Context) {
         val job = Job()
         val coroutineScope = CoroutineScope(Dispatchers.Main + job)
 
@@ -65,6 +62,7 @@ class Intempt private constructor()  {
 
 
             Logger.log("Intempt SDK initialized")
+            Logger.log("VERSION: ${BuildConfig.sdkVersion}")
         }
     }
 }

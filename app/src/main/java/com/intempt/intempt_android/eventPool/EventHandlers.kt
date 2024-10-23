@@ -3,11 +3,11 @@ package com.intempt.intempt_android.eventPool
 import android.app.Activity
 import android.view.View
 import com.intempt.intempt_android.Logger
-import com.intempt.intempt_android.autocapture.eventModels.BaseIntemptEvent
-import com.intempt.intempt_android.autocapture.eventModels.FragmentTransitionEvent
-import com.intempt.intempt_android.autocapture.eventModels.InstallOrUpgradeEvent
-import com.intempt.intempt_android.autocapture.eventModels.ScreenViewEvent
-import com.intempt.intempt_android.autocapture.eventModels.UiElementEvent
+import com.intempt.intempt_android.eventModels.BaseIntemptEvent
+import com.intempt.intempt_android.eventModels.FragmentTransitionEvent
+import com.intempt.intempt_android.eventModels.InstallOrUpgradeEvent
+import com.intempt.intempt_android.eventModels.ScreenViewEvent
+import com.intempt.intempt_android.eventModels.UiElementEvent
 import com.intempt.intempt_android.types.HandleEventTypeProps
 import com.intempt.intempt_android.types.ScreenViewProps
 

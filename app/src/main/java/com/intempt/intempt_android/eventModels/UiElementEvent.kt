@@ -1,4 +1,4 @@
-package com.intempt.intempt_android.autocapture.eventModels
+package com.intempt.intempt_android.eventModels
 import android.view.View
 import android.widget.TextView
 

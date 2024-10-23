@@ -1,6 +1,7 @@
 package com.intempt.intempt_android
 
 import android.os.Handler
+import android.os.Looper
 import java.util.UUID
 
 
@@ -37,4 +38,3 @@ fun withTryCatch(
         Logger.error("$errorMessage; Error: ${e.message}")
     }
 }
-

@@ -1,6 +1,6 @@
 package com.intempt.intempt_android.eventPool
 import com.intempt.intempt_android.Logger
-import com.intempt.intempt_android.autocapture.eventModels.BaseIntemptEvent
+import com.intempt.intempt_android.eventModels.BaseIntemptEvent
 import com.intempt.intempt_android.autocapture.sessiontracker.SessionTracker
 import com.intempt.intempt_android.types.DispatchEventProps
 import com.intempt.intempt_android.types.HandleEventTypeProps

@@ -9,7 +9,5 @@ class Logger {
         fun error(message: String) {
             Log.e("Intempt", message)
         }
-
-
     }
 }

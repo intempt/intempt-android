@@ -1,5 +1,6 @@
 package com.intempt.intempt_android.autocapture.changeTracker
 
+import com.intempt.intempt_android.configManager.ConfigManagerService
 import com.intempt.intempt_android.eventPool.EventPool
 import dagger.Module
 import dagger.Provides
@@ -10,13 +11,13 @@ import javax.inject.Singleton
 internal class ChangeTrackerModule {
     @Provides
     @Singleton
-    fun provideChangeTrackerService(eventSrv: EventPool): ChangeTrackerService {
-        return ChangeTrackerService(eventSrv)
+    fun service(eventSrv: EventPool, config: ConfigManagerService): ChangeTrackerService {
+        return ChangeTrackerService(eventSrv, config)
     }
 
     @Provides
     @Singleton
-    fun provideChangeTracker(service: ChangeTrackerService): ChangeTrackerComponent {
+    fun component(service: ChangeTrackerService): ChangeTrackerComponent {
         return ChangeTrackerComponent(service)
     }
 }
