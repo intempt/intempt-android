@@ -22,10 +22,7 @@ import androidx.core.widget.doAfterTextChanged
 import com.google.android.material.materialswitch.MaterialSwitch
 import com.intempt.core.types.Constants
 import com.intempt.core.services.Logger
-import com.intempt.core.services.ConfigManagerService
 import com.intempt.core.services.debounce
-import com.intempt.core.services.eventPool.EventPool
-import com.intempt.core.types.DispatchEventProps
 import com.intempt.core.services.withTryCatch
 import com.intempt.core.types.UiEventProps
 import javax.inject.Inject
@@ -34,7 +31,7 @@ import javax.inject.Singleton
 
 @Singleton
 internal class ChangeTrackerService @Inject constructor(
-    private val eventSrv: EventPool,
+  //  private val eventSrv: EventPool,
 ) {
 
     private val debounceDelay = Constants.DEBOUNCE_DELAY
@@ -46,7 +43,8 @@ internal class ChangeTrackerService @Inject constructor(
             dispatchEvent(
                 UiEventProps(
                     view = view,
-                    activity = activity
+                    activity = activity,
+                    listenerType = "change"
                 )
             )
         }
@@ -62,16 +60,16 @@ internal class ChangeTrackerService @Inject constructor(
 
     private fun dispatchEvent(props: UiEventProps) {
         val (activity, view) = props;
-        eventSrv.dispatchEvent(
-            DispatchEventProps(
-                eventName = Constants.CHANGE.EVENT_NAME,
-                entityName = Constants.CHANGE.ENTITY_NAME,
-                type = Constants.CHANGE.EVENT_TYPE,
-                event = null,
-                context = activity,
-                view = view
-            )
-        )
+//        eventSrv.dispatchEvent(
+//            DispatchEventProps(
+//                eventName = Constants.CHANGE.EVENT_NAME,
+//                entityName = Constants.CHANGE.ENTITY_NAME,
+//                type = Constants.CHANGE.EVENT_TYPE,
+//                event = null,
+//                context = activity,
+//                view = view
+//            )
+//        )
     }
 
 
@@ -82,7 +80,7 @@ internal class ChangeTrackerService @Inject constructor(
     //SwitchCompat, MaterialSwitch, CheckBox, RadioButton, and ToggleButton
     fun handleCompoundButton(view: CompoundButton, activity:Activity){
         setupHandler { handler, runnableWrapper ->
-            view.setOnCheckedChangeListener { _, isChecked ->
+            view.setOnCheckedChangeListener { _, _ ->
                 runnableWrapper[0] = debounce(handler, debounceDelay, runnableWrapper[0]) {
                     val buttonType = when (view) {
                         is Switch -> "Switch"
@@ -99,6 +97,19 @@ internal class ChangeTrackerService @Inject constructor(
         }
     }
 
+    fun handleRadioButton(view: CompoundButton, activity:Activity){
+        setupHandler { handler, runnableWrapper ->
+            view.setOnCheckedChangeListener { _, isChecked  ->
+                if (isChecked) {
+                    runnableWrapper[0] = debounce(handler, debounceDelay, runnableWrapper[0]) {
+
+                        logAndDispatch(view, activity, "RadioButton")
+                    }
+                }
+            }
+        }
+    }
+
     fun handleEditText(view: EditText, activity:Activity){
         setupHandler { handler, runnableWrapper ->
             view.doAfterTextChanged  { text ->
@@ -110,12 +121,17 @@ internal class ChangeTrackerService @Inject constructor(
     }
 
     fun handleSeekBar(view: SeekBar, activity:Activity){
+        var isInitialized = false
         setupHandler { handler, runnableWrapper ->
             view.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                    runnableWrapper[0] = debounce(handler, debounceDelay,  runnableWrapper[0]){
-                        logAndDispatch(view, activity, "SeekBar")
+                    if (isInitialized) {
+                        runnableWrapper[0] = debounce(handler, debounceDelay,  runnableWrapper[0]){
+                            logAndDispatch(view, activity, "SeekBar")
+                        }
                     }
+                    isInitialized = true
+
                 }
 
                 override fun onStartTrackingTouch(seekBar: SeekBar?) {}
@@ -125,12 +141,17 @@ internal class ChangeTrackerService @Inject constructor(
     }
 
     fun handleSpinner(view: Spinner, activity:Activity){
+        var isInitialized = false
         setupHandler { handler, runnableWrapper ->
             view.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
                 override fun onItemSelected(parent: AdapterView<*>?, childView: View, position: Int, id: Long) {
-                    runnableWrapper[0] = debounce(handler, debounceDelay, runnableWrapper[0]){
-                        logAndDispatch(childView, activity, "Spinner")
-                    }
+//                    if (isInitialized) {
+                        runnableWrapper[0] = debounce(handler, debounceDelay, runnableWrapper[0]){
+                            logAndDispatch(childView, activity, "Spinner")
+                        }
+//                    }
+
+                    isInitialized = true
                 }
 
                 override fun onNothingSelected(parent: AdapterView<*>?) {}
@@ -149,11 +170,15 @@ internal class ChangeTrackerService @Inject constructor(
     }
 
     fun handleRatingBar(view: RatingBar, activity: Activity) {
+        var isInitialized = false
         setupHandler { handler, runnableWrapper ->
-            view.setOnRatingBarChangeListener { _, rating, _ ->
-                runnableWrapper[0] = debounce(handler, debounceDelay, runnableWrapper[0]){
-                    logAndDispatch(view, activity, "RatingBar")
-                }
+            view.setOnRatingBarChangeListener { _, _, _ ->
+//                if (isInitialized) {
+                    runnableWrapper[0] = debounce(handler, debounceDelay, runnableWrapper[0]){
+                        logAndDispatch(view, activity, "RatingBar")
+                    }
+//                }
+                isInitialized = true
             }
         }
     }
@@ -171,17 +196,28 @@ internal class ChangeTrackerService @Inject constructor(
     fun handleListView(view: ListView, activity: Activity) {
         setupHandler { handler, runnableWrapper ->
             view.setOnItemClickListener { parent, childView, position, id ->
-                runnableWrapper[0] = debounce(handler, debounceDelay, runnableWrapper[0]) {
-                    logAndDispatch(childView, activity, "ListView Item Clicked at $position")
+                if (childView != null) {
+                    runnableWrapper[0] = debounce(handler, debounceDelay, runnableWrapper[0]) {
+                        logAndDispatch(childView, activity, "ListView Item Clicked at $position")
+                    }
+                }
+                else {
+                    Logger.error("setOnItemClickListener | Error: childView is null for ListView item at position $position")
                 }
             }
 
             //TODO: if ListView supports focus-based selection
             view.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-                override fun onItemSelected(parent: AdapterView<*>?, childView: View, position: Int, id: Long) {
-                    runnableWrapper[0] = debounce(handler, debounceDelay, runnableWrapper[0]) {
-                        logAndDispatch(childView, activity, "ListView Item Selected at $position")
+                override fun onItemSelected(parent: AdapterView<*>?, childView: View?, position: Int, id: Long) {
+                    if (childView != null) {
+                        runnableWrapper[0] = debounce(handler, debounceDelay, runnableWrapper[0]) {
+                            logAndDispatch(childView, activity, "ListView Item Selected at $position")
+                        }
                     }
+                    else {
+                        Logger.error("onItemSelected | Error: childView is null for ListView item selected at position $position")
+                    }
+
                 }
                 override fun onNothingSelected(parent: AdapterView<*>?) {}
             }

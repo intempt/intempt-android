@@ -35,6 +35,17 @@ object Constants {
 
     }
 
+    object SESSION {
+        val EVENT_NAME = "Session start"
+        val ENTITY_NAME = "sessionStart"
+        val EVENT_TYPE = "session"
+        val MINUTE_STEP = 30;
+        val SECONDS_PER_MINUTE = 60;
+        val MILLISECONDS_PER_SECOND = 1000L;
+        val SESSION_TIMEOUT = MINUTE_STEP * SECONDS_PER_MINUTE * MILLISECONDS_PER_SECOND
+        val LOCATON_API = "https://ipapi.co/json/"
+    }
+
     object INSTALL_UPGRADE {
         val EVENT_NAME = "App install/upgrade"
         val ENTITY_NAME = "installUpgrade"

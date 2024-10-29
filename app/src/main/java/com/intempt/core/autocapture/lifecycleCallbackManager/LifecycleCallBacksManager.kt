@@ -7,6 +7,8 @@ import android.view.View
 import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentManager
+import com.intempt.core.autocapture.BaseComponent
+import com.intempt.core.services.Logger
 import javax.inject.Singleton
 
 @Singleton

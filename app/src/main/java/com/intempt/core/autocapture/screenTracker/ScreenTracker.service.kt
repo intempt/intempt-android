@@ -3,28 +3,28 @@ package com.intempt.core.autocapture.screenTracker
 import android.app.Activity
 import androidx.fragment.app.Fragment
 import com.intempt.core.services.Logger
-import com.intempt.core.services.StorageService
-import com.intempt.core.services.eventPool.EventPool
-import com.intempt.core.types.DispatchEventProps
+import com.intempt.core.services.StorageManagerService
+import com.intempt.core.services.eventPool.EventPoolManagerService
 import com.intempt.core.services.withTryCatch
+import com.intempt.core.types.DispatchEventProps
 import com.intempt.core.types.ScreenEventProps
 import javax.inject.Inject
 
 internal class ScreenTrackerService @Inject constructor(
-    private val eventSrv: EventPool,
-    private val storage: StorageService,
+    private val eventSrv: EventPoolManagerService,
+   // private val storage: StorageManagerService,
 ) {
 
 
 
 
     fun setPageId(){
-        return storage.pageIdSet()
+       // return storage.pageIdSet()
     }
 
 
     fun handleFragmentCallbacks(callBackName:String, key:String, fragment: Fragment) {
-        storage.saveFragmentName(key, fragment)
+       // storage.saveFragmentName(key, fragment)
 
         Logger.log("AutoCapture | $callBackName: ${fragment::class.java.simpleName}")
     }

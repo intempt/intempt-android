@@ -1,7 +1,7 @@
 package com.intempt.core.autocapture.screenTracker
 
-import com.intempt.core.services.eventPool.EventPool
-import com.intempt.core.services.StorageService
+import com.intempt.core.services.StorageManagerService
+import com.intempt.core.services.eventPool.EventPoolManagerService
 import dagger.Module
 import dagger.Provides
 import javax.inject.Singleton
@@ -11,10 +11,11 @@ internal class ScreenTrackerModule {
     @Provides
     @Singleton
     fun service(
-        eventSrv: EventPool,
-        storage: StorageService,
+        eventSrv: EventPoolManagerService,
+        storage: StorageManagerService,
     ): ScreenTrackerService {
-        return ScreenTrackerService(eventSrv, storage)
+//        return ScreenTrackerService(eventSrv, storage)
+        return ScreenTrackerService(eventSrv)
     }
 
 

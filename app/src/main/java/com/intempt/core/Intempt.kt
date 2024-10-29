@@ -28,8 +28,7 @@ object Intempt  {
     }
 
     fun autoCapture(listenerType: String, param: AutoCaptureParam) {
-       intemptCoreService.autoCapture(listenerType, param)
+       intemptCoreService.track.autoCapture(listenerType, param)
     }
-
 
 }

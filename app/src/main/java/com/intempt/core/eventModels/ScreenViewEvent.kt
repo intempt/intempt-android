@@ -4,7 +4,7 @@ import com.intempt.core.types.ScreenViewProps
 
 
 internal class ScreenViewEvent(props: ScreenViewProps): BaseIntemptEvent() {
-    private val activity = props.activity.localClassName ?: "";
+    private val activity = props.activity.localClassName;
     private val fullActivity = props.activity.javaClass.name ?: "";
     private val screenName = props.activity.javaClass.name ?: "";
     private var timeOnScreen:Long? = null;

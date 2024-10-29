@@ -2,9 +2,6 @@
 agp = "8.6.1"
 kotlin = "1.9.22"
 coreKtx = "1.13.1"
-junit = "4.13.2"
-junitVersion = "1.2.1"
-espressoCore = "3.6.1"
 appcompat = "1.7.0"
 kotlinxCoroutinesCore = "1.9.0"
 ktorClientAndroid = "2.3.11"
@@ -17,13 +14,29 @@ dagger="2.52"
 lifecycleProcess="2.8.6"
 uiAndroid = "1.7.4"
 compose = "1.7.4"
-activity-compose = "1.9.3"
 
+junit = "4.13.2"
+junitVersion = "1.2.1"
+espressoCore = "3.6.1"
+activity-compose = "1.9.3"
+mockitoCore="5.5.0"
+mockitoKt="4.0.0"
+archTest="2.2.0"
+coroutinesTest="1.9.0"
+robolectricVersion="4.12.2"
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
+
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
 androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }
+mockito-core = { group = "org.mockito", name = "mockito-core", version.ref = "mockitoCore" }
+mockito-kotlin = { group = "org.mockito.kotlin", name = "mockito-kotlin", version.ref = "mockitoKt" }
+robolectric = {group = "org.robolectric", name = "robolectric",  version.ref ="robolectricVersion"}
+mockito-android = { group = "org.mockito", name = "mockito-android", version.ref = "mockitoCore" }
+androidx-arch-core-testing = { group = "androidx.arch.core", name = "core-testing", version.ref = "archTest" }
+kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutinesTest" }
+
 androidx-appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "appcompat" }
 kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "kotlinxCoroutinesCore" }
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinxCoroutinesCore" }

@@ -42,14 +42,14 @@ class ConfigManagerService  @Inject constructor(
 
     init {
         val (configs, options) = getConfigs()
-        if (configs == null) {
-            throw Exception("Error reading config file")
-        }
-        else{
-            apiKey = configs.apiKey
-            sourceId = configs.sourceId
-            organizationId = configs.organizationId
-            projectId = configs.projectId
+//        if (configs == null) {
+//            Logger.log("Error reading config file")
+//        }
+//        else{
+            apiKey = configs?.apiKey ?: ""
+            sourceId = configs?.sourceId ?: ""
+            organizationId = configs?.organizationId ?: ""
+            projectId = configs?.projectId ?: ""
 
             _isLoggingEnabled = options?.isLoggingEnabled ?: false
             _isTouchEnabled = options?.isTouchEnabled ?: true
@@ -58,7 +58,7 @@ class ConfigManagerService  @Inject constructor(
             _isAutoCaptureEnabled = options?.isAutoCaptureEnabled ?: true
             _itemsInQueue = options?.itemsInQueue ?: 5
             _timeBuffer = options?.timeBuffer ?: 5000
-        }
+//        }
 
     }
 
@@ -96,7 +96,7 @@ class ConfigManagerService  @Inject constructor(
             ConfigResult(configs, options)
         }
         catch (e: Exception) {
-            e.printStackTrace()
+           Logger.log("Error reading config file: ${e.message}")
             ConfigResult(configs = null, options = null)
         }
 

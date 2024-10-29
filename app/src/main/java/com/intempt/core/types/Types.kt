@@ -38,7 +38,7 @@ internal data class ConfigResult(
 //Public types
 sealed class AutoCaptureParam
 
-data class UiEventProps(val activity: Activity, val view: View):AutoCaptureParam();
+data class UiEventProps(val activity: Activity, val view: View, val listenerType:String):AutoCaptureParam();
 data class ScreenEventProps(
     val activity: Activity,
     val eventName:String,

@@ -31,7 +31,7 @@ internal class ChangeTrackerComponent @Inject constructor(
     private val srv: ChangeTrackerService
 ): BaseAutoCaptureComponent() {
 
-    override fun onActivityPaused(activity: Activity) {}
+
 
     override fun onActivityResumed(activity: Activity) {
         registerForActivity(activity)
@@ -45,6 +45,8 @@ internal class ChangeTrackerComponent @Inject constructor(
     ) {
         registerForFragment(fragment)
     }
+
+    override fun onActivityPaused(activity: Activity) {}
 
     override fun onFragmentResumed(fm: FragmentManager, fragment: Fragment) {
         TODO("Not yet implemented")
@@ -79,8 +81,8 @@ internal class ChangeTrackerComponent @Inject constructor(
             val view = viewGroup.getChildAt(i);
             withTryCatch("AutoCapture | ChangeTracker Error handling view: ${view::class.simpleName}"){
                 when (view) {
+                    is RadioButton -> srv.handleRadioButton(view, activity)
                     is CheckBox,
-                    is RadioButton,
                     is ToggleButton,
                     is CompoundButton -> srv.handleCompoundButton(view as CompoundButton, activity)
                     is SeekBar -> srv.handleSeekBar(view, activity)

@@ -4,12 +4,11 @@ import android.content.Context
 import com.intempt.core.Intempt
 import com.intempt.core.autocapture.AutoCaptureComponent
 import com.intempt.core.autocapture.AutoCaptureModule
-import com.intempt.core.autocapture.sessiontracker.SessionTrackerService
-//import com.intempt.intempt_android.configManager.ConfigManagerModule
+import com.intempt.core.customCapture.CustomCaptureModule
+import com.intempt.core.customCapture.CustomCaptureService
 import com.intempt.core.services.ConfigManagerService
-import com.intempt.core.services.eventPool.EventPool
-//import com.intempt.intempt_android.storage.StorageModule
-import com.intempt.core.services.StorageService
+import com.intempt.core.services.eventPool.EventPoolManagerService
+import com.intempt.core.services.StorageManagerService
 import dagger.Component
 import dagger.Module
 import dagger.Provides
@@ -18,9 +17,8 @@ import javax.inject.Singleton
 
 
 @Module(includes = [
-//    StorageModule::class,
-   // ConfigManagerModule::class,
-    AutoCaptureModule::class
+    AutoCaptureModule::class,
+    CustomCaptureModule::class
 ])
 internal class IntemptCoreModule(
     private val consumerContext: Context
@@ -31,40 +29,19 @@ internal class IntemptCoreModule(
         return consumerContext.applicationContext
     }
 
-    @Provides
-    @Singleton
-    fun provideEventPool(srv: SessionTrackerService): EventPool {
-        return EventPool(srv)
-    }
 
-
-    @Provides
-    @Singleton
-    fun provideStorageService(): StorageService {
-        return StorageService(consumerContext)
-    }
-
-    @Provides
-    @Singleton
-    fun provideConfigManagerService(): ConfigManagerService {
-        return ConfigManagerService(consumerContext)
-    }
 
 
     @Provides
     @Singleton
     fun provideIntemptService(
-        eventPool: EventPool,
-        //storageService: StorageService,
-        configManagerService: ConfigManagerService,
-        autoCaptureComponent: AutoCaptureComponent
+        storage: StorageManagerService,
+        config: ConfigManagerService,
+        eventPool: EventPoolManagerService,
+        autoCaptureComponent: AutoCaptureComponent,
+        customCaptureComponent: CustomCaptureService
     ): IntemptCoreService {
-        return IntemptCoreService(
-            eventPool,
-           // storageService,
-            configManagerService,
-            autoCaptureComponent
-        )
+        return IntemptCoreService(customCaptureComponent)
     }
 
 }
@@ -82,3 +59,4 @@ internal interface IntemptCoreComponent {
         fun create(intemptModule: IntemptCoreModule): IntemptCoreComponent
     }
 }
+

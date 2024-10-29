@@ -5,23 +5,33 @@ import android.content.ContentResolver
 import android.content.Context
 import android.os.Build
 import android.provider.Settings
+import com.intempt.core.types.Constants
 
 
 @SuppressLint("HardwareIds")
-internal data class SessionEvent(val context: Context): BaseIntemptEvent() {
-    private val userAttributes: SessionUserAttributes = SessionUserAttributes(context);
+internal data class SessionEvent(
+    val context: Context,
+    val sessionStartEventName: String,
+    val ipAddress: String = "",
+    val city: String = "",
+    val region: String = "",
+    val country: String = ""
+): BaseIntemptEvent(Constants.SESSION.EVENT_TYPE) {
+    private val userAttributes: SessionUserAttributes = SessionUserAttributes(
+        context,
+        ipAddress,
+        city,
+        region,
+        country
+    );
 
-    private val data = mapOf(
-        "deviceName" to "${Build.MANUFACTURER} ${Build.MODEL}",
-        "source" to "android",
-        "appName" to context.applicationInfo?.loadLabel(context.packageManager).toString(),
-        "appVersion" to context.packageManager?.getPackageInfo(context.packageName, 0)?.versionName.toString(),
-        "appIdentifier" to (context.packageName ?: ""),
-        "androidId" to Settings.Secure.getString((context.contentResolver ?: "") as ContentResolver?, Settings.Secure.ANDROID_ID)
-        //TODO: need to check
-        //advertiserId ?
-        //sessionStartEventName
-    )
+    private val deviceName = "${Build.MANUFACTURER} ${Build.MODEL}"
+    private val source = "android"
+    private val appName = context.applicationInfo?.loadLabel(context.packageManager).toString()
+    private val appVersion = context.packageManager?.getPackageInfo(context.packageName, 0)?.versionName.toString()
+    private val appIdentifier = context.packageName
+    private val androidId = Settings.Secure.getString((context.contentResolver ?: "") as ContentResolver?, Settings.Secure.ANDROID_ID)
+
 
     override fun toString(): String {
         val output = """
@@ -32,12 +42,12 @@ internal data class SessionEvent(val context: Context): BaseIntemptEvent() {
                 profileId: $profileId,
                 timestamp: $timestamp,
                 data: {
-                    deviceName: ${data["deviceName"]},
-                    source: ${data["source"]},
-                    appName: ${data["appName"]},
-                    appVersion: ${data["appVersion"]},
-                    appIdentifier: ${data["appIdentifier"]},
-                    androidId: ${data["androidId"]}
+                    deviceName: $deviceName,
+                    source: $source,
+                    appName: $appName,
+                    appVersion: $appVersion,
+                    appIdentifier: $appIdentifier,
+                    androidId: $androidId
                 },
                 userAttributes: {
                     deviceType: ${userAttributes.deviceType},

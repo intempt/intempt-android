@@ -8,13 +8,16 @@ import com.intempt.core.eventModels.FragmentTransitionEvent
 import com.intempt.core.eventModels.InstallOrUpgradeEvent
 import com.intempt.core.eventModels.ScreenViewEvent
 import com.intempt.core.eventModels.UiElementEvent
+import com.intempt.core.services.ConfigManagerService
 import com.intempt.core.types.HandleEventTypeProps
 import com.intempt.core.types.ScreenViewProps
 
 
-internal class EventHandlers {
+internal class EventHandlers(
+    private val config: ConfigManagerService
+) {
 
-    internal fun screen(props: HandleEventTypeProps): BaseIntemptEvent {
+    fun screen(props: HandleEventTypeProps): BaseIntemptEvent {
         Logger.log("EventPool | Screen called")
         val newEvent = ScreenViewEvent(
             ScreenViewProps(
@@ -26,31 +29,39 @@ internal class EventHandlers {
         return newEvent
     }
 
-    internal fun fragment(props: HandleEventTypeProps): BaseIntemptEvent {
+    fun fragment(props: HandleEventTypeProps): BaseIntemptEvent {
         Logger.log("EventPool | Fragment called")
         val newEvent = FragmentTransitionEvent()
         Logger.log("EventPool | Fragment Event: $newEvent")
         return newEvent
     }
 
-    internal fun touch(props: HandleEventTypeProps): BaseIntemptEvent {
+    fun touch(props: HandleEventTypeProps): BaseIntemptEvent {
         Logger.log("EventPool | Touch called")
         val view: View = props.view!!
-        val newEvent = UiElementEvent(view)
+        val newEvent = UiElementEvent(view, config)
+
         Logger.log("EventPool | Touch Event: $newEvent")
         return newEvent
     }
 
-    internal fun change(props: HandleEventTypeProps): BaseIntemptEvent {
-        Logger.log("EventPool | Change called");
-        val view: View = props.view!!
-        val newEvent = UiElementEvent(view);
+    fun change(props: HandleEventTypeProps): BaseIntemptEvent {
+        try {
+            Logger.log("EventPool | Change called");
+            val view: View = props.view!!
+            val newEvent = UiElementEvent(view, config);
 
-        Logger.log("EventPool | Change Event: $newEvent");
-        return newEvent
+
+            Logger.log("EventPool | Change Event: $newEvent");
+            return newEvent
+
+        }catch (e: Exception) {
+            Logger.error("Error in change function: ${e.message}")
+            throw e // Re-throw to ensure the exception is logged properly
+        }
     }
 
-    internal fun installOrUpgrade(props: HandleEventTypeProps): BaseIntemptEvent {
+    fun installOrUpgrade(props: HandleEventTypeProps): BaseIntemptEvent {
         Logger.log("EventPool | InstallOrUpgrade called")
         val newEvent = InstallOrUpgradeEvent(props.context)
 
