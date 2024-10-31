@@ -7,12 +7,10 @@ import android.view.View
 import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentManager
-import com.intempt.core.autocapture.BaseComponent
-import com.intempt.core.services.Logger
 import javax.inject.Singleton
 
 @Singleton
-class LifecycleCallBacksManager(
+class LifecycleCallBacksComponent(
     private val activityLifecycleListeners: List<ActivityLifecycleListener>,
     private val fragmentLifecycleListeners: List<FragmentLifecycleListener>
 ): Application.ActivityLifecycleCallbacks, FragmentManager.FragmentLifecycleCallbacks() {

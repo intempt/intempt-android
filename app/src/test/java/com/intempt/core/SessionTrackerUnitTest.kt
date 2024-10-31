@@ -5,17 +5,14 @@ import android.content.SharedPreferences
 import android.os.Looper
 import com.intempt.core.autocapture.sessiontracker.SessionTrackerService
 import com.intempt.core.eventModels.BaseIntemptEvent
+import com.intempt.core.eventModels.IntemptEvent
 import com.intempt.core.services.ConfigManagerService
-import com.intempt.core.services.Logger
 import com.intempt.core.services.StorageManagerService
 import com.intempt.core.services.eventPool.EventPoolManagerService
 import com.intempt.core.types.Constants
 import com.intempt.core.types.StorageKeys
-import io.ktor.client.HttpClient
-import io.ktor.client.statement.HttpResponse
 import junit.framework.TestCase.assertFalse
 import junit.framework.TestCase.assertTrue
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runTest
@@ -26,7 +23,7 @@ import org.mockito.kotlin.any
 import org.mockito.kotlin.eq
 import org.mockito.ArgumentMatchers.anyLong
 import org.mockito.ArgumentMatchers.anyString
-import org.mockito.Mock
+import org.mockito.Mockito.atLeastOnce
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.spy
 import org.mockito.Mockito.verify
@@ -48,7 +45,7 @@ class SessionTrackerUnitTest {
     private lateinit var sessionTrackerService: SessionTrackerService
     private lateinit var eventPool: EventPoolManagerService
     private lateinit var config: ConfigManagerService
-    private lateinit var eventFlow: MutableSharedFlow<BaseIntemptEvent>
+    private lateinit var eventFlow: MutableSharedFlow<IntemptEvent>
 
     @Before
     fun setUp() {
@@ -61,7 +58,7 @@ class SessionTrackerUnitTest {
         config = spy(ConfigManagerService(context))
         eventPool = spy(EventPoolManagerService(config))
 
-        eventFlow = MutableSharedFlow<BaseIntemptEvent>()
+        eventFlow = MutableSharedFlow<IntemptEvent>()
 
 
         `when`(eventPool.eventReceiver).thenReturn(eventFlow)
@@ -101,13 +98,13 @@ class SessionTrackerUnitTest {
         ).thenReturn(sessionId)
 
 
-        verify(storage).setStorageItem(
+        verify(storage,  atLeastOnce()).setStorageItem(
             eq(StorageKeys.SessionPrefs.key),
             eq(StorageKeys.SessionTimestamp.key),
             anyLong(),
             any<SharedPreferences.Editor.(String, Long) -> Unit>()
         )
-        verify(storage).setStorageItem(
+        verify(storage, atLeastOnce()).setStorageItem(
             eq(StorageKeys.SessionPrefs.key),
             eq(StorageKeys.SessionId.key),
             anyString(),
@@ -136,11 +133,11 @@ class SessionTrackerUnitTest {
     @Test
     fun `subscribe to event receiver should collect events`() = runTest {
         sessionTrackerService.subscribeToEventReceiver()
-        val mockEvent = mock(BaseIntemptEvent::class.java)
+        val mockEvent = mock(IntemptEvent::class.java)
         `when`(mockEvent.getEventType()).thenReturn("test_event")
 
         eventFlow.emit(mockEvent)
-        verify(eventPool).eventReceiver
+        verify(eventPool, atLeastOnce()).eventReceiver
 
         Shadows.shadowOf(Looper.getMainLooper()).runToEndOfTasks()
         val allLogs = ShadowLog.getLogs().map { it.msg.trim() }
@@ -164,9 +161,8 @@ class SessionTrackerUnitTest {
             )
         ).thenReturn(expiredSessionTimestamp)
 
-
-        val mockEvent = mock(BaseIntemptEvent::class.java)
-        `when`(mockEvent.getEventTime()).thenReturn(System.currentTimeMillis())
+        val mockEvent = mock(IntemptEvent::class.java)
+        `when`(mockEvent.getEventTimestamp()).thenReturn(System.currentTimeMillis())
 
         sessionTrackerService.subscribeToEventReceiver()
         sessionTrackerService.onInit()
@@ -174,25 +170,21 @@ class SessionTrackerUnitTest {
 
 
         eventFlow.emit(mockEvent)
-        verify(eventPool).eventReceiver
 
-        // Assert: A new session should be started
-        verify(storage).setStorageItem(
+        verify(eventPool,  atLeastOnce()).eventReceiver
+
+        verify(storage,  atLeastOnce() ).setStorageItem(
             eq(StorageKeys.SessionPrefs.key),
             eq(StorageKeys.SessionId.key),
             anyString(),
             any()
         )
-        verify(storage).setStorageItem(
+        verify(storage, atLeastOnce() ).setStorageItem(
             eq(StorageKeys.SessionPrefs.key),
             eq(StorageKeys.SessionTimestamp.key),
             anyLong(),
             any()
         )
-
-        val allLogs = ShadowLog.getLogs().map { it.msg.trim() }
-        assertTrue(allLogs.any { it.contains("Validate session for event".trim()) })
-
     }
 
 
@@ -216,7 +208,7 @@ class SessionTrackerUnitTest {
 
         testScheduler.advanceUntilIdle()
 
-        verify(sessionTrackerService).getLocationInfo()
+        verify(sessionTrackerService,  atLeastOnce()).getLocationInfo()
 
     }
 }

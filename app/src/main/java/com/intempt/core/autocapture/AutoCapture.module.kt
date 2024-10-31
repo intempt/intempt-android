@@ -4,7 +4,7 @@ import android.content.Context
 import com.intempt.core.autocapture.changeTracker.ChangeTrackerModule
 import com.intempt.core.autocapture.installUpgradeTracker.InstallUpgradeTrackerComponent
 import com.intempt.core.autocapture.installUpgradeTracker.InstallUpgradeTrackerModule
-import com.intempt.core.autocapture.lifecycleCallbackManager.LifecycleCallBacksManager
+import com.intempt.core.autocapture.lifecycleCallbackManager.LifecycleCallBacksComponent
 import com.intempt.core.autocapture.lifecycleCallbackManager.LifecycleCallbackModule
 import com.intempt.core.autocapture.screenTracker.ScreenTrackerModule
 import com.intempt.core.autocapture.sessiontracker.SessionTrackerComponent
@@ -30,7 +30,7 @@ internal class AutoCaptureModule {
         context: Context,
         session: SessionTrackerComponent,
         installUpgrade: InstallUpgradeTrackerComponent,
-        lifecycleCallBacksManager: LifecycleCallBacksManager,
+        lifecycleCallBacksManager: LifecycleCallBacksComponent,
     ): AutoCaptureComponent {
         return AutoCaptureComponent(
             context,

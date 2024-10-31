@@ -43,6 +43,52 @@ internal class StorageManagerService @Inject constructor(
 
     }
 
+    fun getSessionId():String {
+        return getStorageItem(
+            prefs = StorageKeys.SessionPrefs.key,
+            key = StorageKeys.SessionId.key
+        ){ key, fallBack ->
+            getString(key,fallBack ?: "")
+        } ?: ""
+    }
+
+    fun getPageId(): String {
+        Logger.log("Get page Id");
+        return getStorageItem(
+            prefs = StorageKeys.SessionPrefs.key,
+            key = StorageKeys.PageId.key
+        ){ key, fallBack ->
+            getString(key,fallBack ?: "")
+        } ?: ""
+    }
+
+    fun getProfileId():String {
+        return getStorageItem(
+            prefs = StorageKeys.UserPrefs.key,
+            key = StorageKeys.ProfileId.key
+        ){key, fallBack ->
+            getString(key,fallBack ?: "")
+        } ?: ""
+    }
+
+
+    fun getPreviousBuildType():String? {
+        val prefKey = StorageKeys.AppPrefs.key;
+        val buildKey = StorageKeys.PreviousBuildType.key;
+
+        val sharedPreferences = context.getSharedPreferences(prefKey, Context.MODE_PRIVATE)
+        return sharedPreferences.getString(buildKey, null)
+    }
+
+    fun getAppVisibilityState(): AppVisibilityState {
+        val prefKey = StorageKeys.AppPrefs.key;
+        val visibilityKey = StorageKeys.AppVisibilityState.key;
+
+        val sharedPreferences = context.getSharedPreferences(prefKey, Context.MODE_PRIVATE)
+        val storedState = sharedPreferences.getString(visibilityKey, null)
+        return AppVisibilityState.fromString(storedState)
+    }
+
 
     private fun profileIdSet() {
         val prefKey = StorageKeys.UserPrefs.key;
@@ -60,6 +106,10 @@ internal class StorageManagerService @Inject constructor(
 
 
 
+
+
+
+
     fun getId(prefs:String, keyType:String): String?{
         val sharedPreferences = context.getSharedPreferences(prefs, Context.MODE_PRIVATE);
         val id = sharedPreferences.getString(keyType, null)
@@ -68,16 +118,7 @@ internal class StorageManagerService @Inject constructor(
         return id
     }
 
-    fun pageIdSet() {
-        Logger.log("Set page Id");
 
-        val prefKey = StorageKeys.SessionPrefs.key;
-        val idKey = StorageKeys.PageId.key;
-        val timesKey = StorageKeys.PageTimestamp.key;
-        val idType = IdTypeKeys.PageId.key
-       // setId(idType, prefKey, idKey);
-       // setTimestamp(prefKey, timesKey)
-    }
 
     fun getFragmentName( key: String): String? {
         return context
@@ -113,35 +154,6 @@ internal class StorageManagerService @Inject constructor(
 
 
 
-    fun pageIdGet(): String {
-        Logger.log("Get page Id");
-        val prefKey = StorageKeys.SessionPrefs.key;
-        val idKey = StorageKeys.PageId.key;
-        //return getId(prefKey, idKey)
-        return ""
-    }
-
-
-
-
-
-
-    fun getPreviousBuildType():String? {
-        val prefKey = StorageKeys.AppPrefs.key;
-        val buildKey = StorageKeys.PreviousBuildType.key;
-
-        val sharedPreferences = context.getSharedPreferences(prefKey, Context.MODE_PRIVATE)
-        return sharedPreferences.getString(buildKey, null)
-    }
-
-    fun getAppVisibilityState(): AppVisibilityState {
-        val prefKey = StorageKeys.AppPrefs.key;
-        val visibilityKey = StorageKeys.AppVisibilityState.key;
-
-        val sharedPreferences = context.getSharedPreferences(prefKey, Context.MODE_PRIVATE)
-        val storedState = sharedPreferences.getString(visibilityKey, null)
-        return AppVisibilityState.fromString(storedState)
-    }
 
 
 

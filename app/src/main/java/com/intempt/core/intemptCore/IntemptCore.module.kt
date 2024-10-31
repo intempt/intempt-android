@@ -4,8 +4,8 @@ import android.content.Context
 import com.intempt.core.Intempt
 import com.intempt.core.autocapture.AutoCaptureComponent
 import com.intempt.core.autocapture.AutoCaptureModule
+import com.intempt.core.customCapture.CustomCaptureComponent
 import com.intempt.core.customCapture.CustomCaptureModule
-import com.intempt.core.customCapture.CustomCaptureService
 import com.intempt.core.services.ConfigManagerService
 import com.intempt.core.services.eventPool.EventPoolManagerService
 import com.intempt.core.services.StorageManagerService
@@ -39,9 +39,11 @@ internal class IntemptCoreModule(
         config: ConfigManagerService,
         eventPool: EventPoolManagerService,
         autoCaptureComponent: AutoCaptureComponent,
-        customCaptureComponent: CustomCaptureService
+        customCaptureComponent: CustomCaptureComponent
     ): IntemptCoreService {
-        return IntemptCoreService(customCaptureComponent)
+        return IntemptCoreService(
+            customCaptureComponent,
+        )
     }
 
 }
@@ -51,6 +53,7 @@ internal class IntemptCoreModule(
 @Component(modules = [IntemptCoreModule::class])
 internal interface IntemptCoreComponent {
     fun inject(intempt: Intempt)
+
 
     fun initService(): IntemptCoreService
 

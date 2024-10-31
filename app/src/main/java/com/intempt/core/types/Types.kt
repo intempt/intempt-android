@@ -45,3 +45,4 @@ data class ScreenEventProps(
     val entityName:String,
     val eventType:String,
 ):AutoCaptureParam();
+

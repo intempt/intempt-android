@@ -1,20 +1,21 @@
 package com.intempt.core.eventModels
 import com.intempt.core.services.StorageManagerService
 import com.intempt.core.services.generateId
-import com.intempt.core.types.AppVisibilityState
-import com.intempt.core.types.Constants
 import javax.inject.Inject
 
 
-internal open class BaseIntemptEvent(private val eventType:String = "") {
+internal open class BaseIntemptEvent(
+    private val eventType:String = ""
+) {
+
     object storage {
-        fun sessionIdGet(): String {
+        fun getSessionId(): String {
             return "-001"
         }
-        fun pageIdGet(): String {
+        fun getPageId(): String {
             return "-001"
-    }
-        fun profileIdGet(): String {
+        }
+        fun getProfileId(): String {
             return "-001"
         }
 
@@ -27,17 +28,18 @@ internal open class BaseIntemptEvent(private val eventType:String = "") {
         fun getPageTime(): Int{
             return -1
         }
-        fun getPreviousBuildType(): String{
-            return "-001"
-        }
-        fun getAppVisibilityState(): AppVisibilityState {
-            return  "Foreground" as AppVisibilityState
-        }
+//        fun getPreviousBuildType(): String{
+//            return "-001"
+//        }
+//        fun getAppVisibilityState(): AppVisibilityState {
+//            return  "Foreground" as AppVisibilityState
+//        }
     }
+
     protected val eventId: String = generateId("ev");
-    protected val sessionId: String = storage.sessionIdGet()
-    protected val pageId: String = storage.pageIdGet()
-    protected val profileId: String = storage.profileIdGet()
+    protected val sessionId: String = storage.getSessionId()
+    protected val pageId: String = storage.getPageId()
+    protected val profileId: String = storage.getProfileId()
     protected val timestamp: Long = System.currentTimeMillis();
 
 

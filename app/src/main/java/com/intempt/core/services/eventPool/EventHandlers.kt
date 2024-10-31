@@ -61,11 +61,11 @@ internal class EventHandlers(
         }
     }
 
-    fun installOrUpgrade(props: HandleEventTypeProps): BaseIntemptEvent {
-        Logger.log("EventPool | InstallOrUpgrade called")
-        val newEvent = InstallOrUpgradeEvent(props.context)
-
-        Logger.log("EventPool | App installation/upgrade Event: $newEvent")
-        return newEvent
-    }
+//    fun installOrUpgrade(props: HandleEventTypeProps): BaseIntemptEvent {
+//        Logger.log("EventPool | InstallOrUpgrade called")
+//        val newEvent = InstallOrUpgradeEvent(props.context)
+//
+//        Logger.log("EventPool | App installation/upgrade Event: $newEvent")
+//        return newEvent
+//    }
 }

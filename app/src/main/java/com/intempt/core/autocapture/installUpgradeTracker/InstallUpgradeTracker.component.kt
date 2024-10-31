@@ -56,7 +56,6 @@ internal class InstallUpgradeTrackerComponent @Inject constructor(
             }
         }
         srv.storeVersionCode(currentVersionCode);
-
     }
 
 

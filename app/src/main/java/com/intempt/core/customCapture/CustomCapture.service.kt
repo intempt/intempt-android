@@ -11,9 +11,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-internal class CustomCaptureService @Inject constructor(
-    //private val eventPool: EventPool
-): BaseComponent(){
+internal class CustomCaptureService: BaseComponent(){
     internal fun autoCapture(listenerType: String, param: AutoCaptureParam){
         Logger.log("autoCapture | Is $listenerType listener")
 
@@ -24,6 +22,83 @@ internal class CustomCaptureService @Inject constructor(
 
        // eventPool.dispatchEvent(payload)
     }
+
+
+
+
+    internal fun isIdentifyValid(
+        userId: String,
+        eventTitle: String?,
+        userAttributes: Map<String, String>?,
+    ):Boolean{
+
+        if(userId.isEmpty()){
+            Logger.error("Identify parameters are invalid: set 'userId' to use 'identify'.")
+            return false
+        }
+
+        if(eventTitle == null && userAttributes != null){
+            Logger.error("Identify parameters are invalid: set 'eventTitle' to use 'userAttributes'.")
+            return false
+        }
+
+        if(eventTitle != null && forbiddenEventNames.contains(eventTitle)){
+            Logger.error("The '$eventTitle' event title is forbidden")
+            return false
+        }
+
+        return true
+    }
+
+    internal fun isGroupValid(
+        accountId: String,
+        eventTitle: String?,
+        accountAttributes: Map<String, String>?,
+    ):Boolean{
+        if(accountId.isEmpty()){
+            Logger.error("Group parameters are invalid: 'accountId' is required.")
+            return false
+        }
+
+        if(eventTitle != null && forbiddenEventNames.contains(eventTitle)){
+            Logger.error("The '$eventTitle' event title is forbidden")
+            return false
+        }
+
+        if(eventTitle == null && accountAttributes != null){
+            Logger.error("Group parameters are invalid: set 'eventTitle' to use 'accountAttributes'.")
+            return false
+        }
+
+
+        return true
+    }
+
+    internal fun isTrackValid(eventTitle: String?):Boolean{
+        if(eventTitle.isNullOrEmpty()){
+            Logger.error("Track parameters are invalid: eventTitle is required.")
+            return false
+        }
+
+
+        if(forbiddenEventNames.contains(eventTitle)){
+            Logger.error("The '$eventTitle' event title is forbidden")
+            return false
+        }
+        return true
+    }
+
+    private val forbiddenEventNames: Array<String> = arrayOf(
+        "auto-track",
+        "view page",
+        "leave page",
+        "change on",
+        "click on",
+        "submit on",
+        "identify",
+        "consent"
+    )
+
 
     private  fun onUiEventReceive(
         props: UiEventProps
@@ -77,81 +152,10 @@ internal class CustomCaptureService @Inject constructor(
 //        this.doNotTrack = true
 //    }
 //
-//    fun identify(params: IdentifyParams) {
-//        if (!isUserOptIn()) return
-//        if (!isIdentifyValid(params)) return
-//
-//        val profileId = getProfileId()
-//        val sessionId = getSessionId()
-//        val pageId = getPageId()
-//
-//        val eventData = IdentifyModel(
-//            params,
-//            profileId,
-//            sessionId,
-//            pageId
-//        )
-//
-//        dispatchIntemptEvent("intempt:identify", mapOf("eventName" to eventData.name))
-//        dispatchIntemptEvent("intempt:event", mapOf("event" to eventData))
-//    }
-//
-//    fun group(params: GroupParams) {
-//        if (!isUserOptIn()) return
-//        if (!isGroupValid(params)) return
-//
-//        val profileId = getProfileId()
-//        val sessionId = getSessionId()
-//        val pageId = getPageId()
-//
-//        val eventData = GroupModel(
-//            params,
-//            profileId,
-//            sessionId,
-//            pageId
-//        )
-//
-//        dispatchIntemptEvent("intempt:group", mapOf("eventName" to eventData.name))
-//        dispatchIntemptEvent("intempt:event", mapOf("event" to eventData))
-//    }
-//
-//    fun track(params: TrackParams) {
-//        if (!isUserOptIn()) return
-//        if (!isTrackValid(params)) return
-//
-//        val profileId = getProfileId()
-//        val sessionId = getSessionId()
-//        val pageId = getPageId()
-//
-//        val eventData = TrackModel(
-//            params,
-//            profileId,
-//            sessionId,
-//            pageId
-//        )
-//
-//        dispatchIntemptEvent("intempt:track", mapOf("eventName" to eventData.name))
-//        dispatchIntemptEvent("intempt:event", mapOf("event" to eventData))
-//    }
-//
-//    fun record(params: RecordParams) {
-//        if (!isUserOptIn()) return
-//        if (!isRecordValid(params)) return
-//
-//        val profileId = getProfileId()
-//        val sessionId = getSessionId()
-//        val pageId = getPageId()
-//
-//        val eventData = RecordModel(
-//            params,
-//            profileId,
-//            sessionId,
-//            pageId
-//        )
-//
-//        dispatchIntemptEvent("intempt:record", mapOf("eventName" to eventData.name))
-//        dispatchIntemptEvent("intempt:event", mapOf("event" to eventData))
-//    }
+
+
+
+
 //
 //    fun alias(params: AliasParams) {
 //        if (!isUserOptIn()) return
@@ -187,61 +191,3 @@ internal class CustomCaptureService @Inject constructor(
 //        dispatchIntemptEvent("intempt:event", mapOf("event" to eventData))
 //    }
 //
-//    private fun isUserOptIn(): Boolean {
-//        // Implementation here
-//        return true
-//    }
-//
-//    private fun isIdentifyValid(params: IdentifyParams): Boolean {
-//        // Implementation here
-//        return true
-//    }
-//
-//    private fun isGroupValid(params: GroupParams): Boolean {
-//        // Implementation here
-//        return true
-//    }
-//
-//    private fun isTrackValid(params: TrackParams): Boolean {
-//        // Implementation here
-//        return true
-//    }
-//
-//    private fun isRecordValid(params: RecordParams): Boolean {
-//        // Implementation here
-//        return true
-//    }
-//
-//    private fun isAliasValid(params: AliasParams): Boolean {
-//        // Implementation here
-//        return true
-//    }
-//
-//    private fun isConsentValid(params: ConsentParams): Boolean {
-//        // Implementation here
-//        return true
-//    }
-//
-//    private fun getProfileId(): String {
-//        // Implementation here
-//        return ""
-//    }
-//
-//    private fun getSessionId(): String {
-//        // Implementation here
-//        return ""
-//    }
-//
-//    private fun getPageId(): String {
-//        // Implementation here
-//        return ""
-//    }
-//
-//    private fun dispatchIntemptEvent(eventName: String, data: Map<String, Any>) {
-//        // Implementation here
-//    }
-//
-//    // Assuming necessary data classes are defined elsewhere
-
-//
-//// Define the data classes here (IdentifyModel, GroupModel, TrackModel, RecordModel, AliasModel, ConsentModel) as per your requirements.

@@ -1,10 +1,8 @@
 package com.intempt.core.autocapture.lifecycleCallbackManager
 
-import android.util.Log
 import com.intempt.core.autocapture.changeTracker.ChangeTrackerComponent
 import com.intempt.core.autocapture.screenTracker.ScreenTrackerComponent
 import com.intempt.core.autocapture.touchTracker.TouchTrackerComponent
-import com.intempt.core.services.ConfigManagerService
 import dagger.Module
 import dagger.Provides
 import javax.inject.Singleton
@@ -19,7 +17,7 @@ internal class LifecycleCallbackModule  {
         screenTrackerComponent: ScreenTrackerComponent,
         changeTrackerComponent: ChangeTrackerComponent,
         touchTrackerComponent: TouchTrackerComponent
-    ): LifecycleCallBacksManager {
+    ): LifecycleCallBacksComponent {
         val activityLifecycleListenersList = mutableListOf<ActivityLifecycleListener>()
         val fragmentLifecycleListenersList = mutableListOf<FragmentLifecycleListener>()
 
@@ -48,7 +46,7 @@ internal class LifecycleCallbackModule  {
         activityLifecycleListenersList.add(changeTrackerComponent)
         fragmentLifecycleListenersList.add(changeTrackerComponent)
 
-        return LifecycleCallBacksManager(
+        return LifecycleCallBacksComponent(
             activityLifecycleListeners = activityLifecycleListenersList,
             fragmentLifecycleListeners = fragmentLifecycleListenersList
         )

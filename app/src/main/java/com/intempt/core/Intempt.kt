@@ -6,7 +6,6 @@ import com.intempt.core.intemptCore.IntemptCoreComponent
 import com.intempt.core.intemptCore.IntemptCoreModule
 import com.intempt.core.intemptCore.IntemptCoreService
 import com.intempt.core.services.Logger
-import com.intempt.core.types.AutoCaptureParam
 import com.intempt.sdk.BuildConfig
 
 
@@ -27,8 +26,27 @@ object Intempt  {
         Logger.log("VERSION: ${BuildConfig.sdkVersion}")
     }
 
-    fun autoCapture(listenerType: String, param: AutoCaptureParam) {
-       intemptCoreService.track.autoCapture(listenerType, param)
+    fun identify(userId: String, eventTitle: String?, userAttributes: Map<String, String>?, data: Map<String, String>?) {
+        intemptCoreService.track.identify(userId, eventTitle, userAttributes, data)
+    }
+
+    fun group(accountId: String, eventTitle: String?, accountAttributes: Map<String, String>?) {
+        intemptCoreService.track.group(accountId, eventTitle, accountAttributes)
+    }
+
+    fun track( eventTitle: String, data: Map<String, String>) {
+        intemptCoreService.track.track( eventTitle, data)
+    }
+
+    fun record(eventTitle: String, accountId: String?, userId: String?, accountAttributes: Map<String, String>?, userAttributes: Map<String, String>?, data: Map<String, String>?) {
+        intemptCoreService.track.record(
+            eventTitle,
+            accountId,
+            userId,
+            accountAttributes,
+            userAttributes,
+            data
+        )
     }
 
 }

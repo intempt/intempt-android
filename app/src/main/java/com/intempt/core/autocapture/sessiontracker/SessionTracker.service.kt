@@ -2,6 +2,7 @@ package com.intempt.core.autocapture.sessiontracker
 import android.content.Context
 import com.intempt.core.autocapture.BaseComponent
 import com.intempt.core.eventModels.BaseIntemptEvent
+import com.intempt.core.eventModels.IntemptEvent
 import com.intempt.core.services.Logger
 import com.intempt.core.services.StorageManagerService
 import com.intempt.core.eventModels.SessionEvent
@@ -64,15 +65,11 @@ internal class SessionTrackerService @Inject constructor(
     }
 
     fun subscribeToEventReceiver() {
-        eventReceiverJob?.cancel()
-        eventReceiverJob = CoroutineScope(Dispatchers.IO).launch {
-            Logger.log("SessionTrackerService | Started collecting events")
-            eventPool.eventReceiver.collect{ value ->
-                Logger.log("SessionTrackerService | eventReceiver $value");
-                Logger.log("SessionTrackerService | getEventType ${value.getEventType()}");
-                if(value.getEventType() != Constants.SESSION.EVENT_TYPE){
-                    validateSession(value)
-                }
+        eventPool.subscribe(Job()) { value ->
+            Logger.log("SessionTrackerService | eventReceiver $value");
+            Logger.log("SessionTrackerService | getEventType ${value.getEventType()}");
+            if(value.getEventType() != Constants.SESSION.EVENT_TYPE){
+                validateSession(value)
             }
         }
     }
@@ -187,10 +184,10 @@ internal class SessionTrackerService @Inject constructor(
     }
 
     //TODO: need to pass event start name
-    private fun validateSession(event: BaseIntemptEvent){
+    private fun validateSession(event: IntemptEvent){
         Logger.log("SessionTrackerService | Validate session for event: $event");
         val sessionTime = getSessionTime()
-        val eventTimestamp = event.getEventTime()
+        val eventTimestamp = event.getEventTimestamp()
         if (eventTimestamp - sessionTime > Constants.SESSION.SESSION_TIMEOUT) {
             initSessionInStorage()
             dispatchEvent("Test Event")

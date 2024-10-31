@@ -23,6 +23,7 @@ class ConfigManagerService  @Inject constructor(
 
     private val _isLoggingEnabled : Boolean;
     private val _isTouchEnabled: Boolean;
+    private val _isUserOptIn: Boolean;
     private val _isTextCaptureEnabled: Boolean;
     private val _isQueueEnabled: Boolean;
     private val _isAutoCaptureEnabled: Boolean;
@@ -38,14 +39,13 @@ class ConfigManagerService  @Inject constructor(
     val isAutoCaptureEnabled: Boolean get() = _isAutoCaptureEnabled;
     val itemsInQueue: Int get() = _itemsInQueue;
     val timeBuffer: Long get() = _timeBuffer;
+    val isUserOptIn : Boolean get() = _isUserOptIn;
 
 
     init {
         val (configs, options) = getConfigs()
-//        if (configs == null) {
-//            Logger.log("Error reading config file")
-//        }
-//        else{
+
+
             apiKey = configs?.apiKey ?: ""
             sourceId = configs?.sourceId ?: ""
             organizationId = configs?.organizationId ?: ""
@@ -58,7 +58,8 @@ class ConfigManagerService  @Inject constructor(
             _isAutoCaptureEnabled = options?.isAutoCaptureEnabled ?: true
             _itemsInQueue = options?.itemsInQueue ?: 5
             _timeBuffer = options?.timeBuffer ?: 5000
-//        }
+            _isUserOptIn = true
+
 
     }
 

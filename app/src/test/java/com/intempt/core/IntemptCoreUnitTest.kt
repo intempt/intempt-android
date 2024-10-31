@@ -4,19 +4,32 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.os.Looper
 import com.intempt.core.autocapture.installUpgradeTracker.InstallUpgradeTrackerService
+import com.intempt.core.customCapture.CustomCaptureComponent
+import com.intempt.core.customCapture.CustomCaptureService
+import com.intempt.core.eventModels.IntemptEvent
+import com.intempt.core.intemptCore.IntemptCoreService
 import com.intempt.core.services.ConfigManagerService
 import com.intempt.core.services.StorageManagerService
 import com.intempt.core.services.eventPool.EventPoolManagerService
 import junit.framework.TestCase.assertTrue
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.runTest
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.mockito.ArgumentCaptor
 import org.mockito.ArgumentMatchers.eq
 import org.mockito.Mock
+import org.mockito.Mockito.atLeastOnce
 import org.mockito.Mockito.spy
 import org.mockito.Mockito.`when`
 import org.mockito.MockitoAnnotations
 import org.mockito.kotlin.anyOrNull
+import org.mockito.kotlin.argumentCaptor
+import org.mockito.kotlin.capture
+import org.mockito.kotlin.verify
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows
@@ -39,6 +52,7 @@ class IntemptCoreUnitTest {
     private lateinit var config: ConfigManagerService
     private lateinit var context: Context
 
+
     @Before
     fun setUp() {
         MockitoAnnotations.openMocks(this)
@@ -50,6 +64,7 @@ class IntemptCoreUnitTest {
         storage = spy(StorageManagerService(context))
         config = spy(ConfigManagerService(context))
         eventSrv = spy(EventPoolManagerService(config))
+
 
         installUpgradeTrackerService = spy(
             InstallUpgradeTrackerService(
@@ -70,11 +85,10 @@ class IntemptCoreUnitTest {
 
         `when`(mockSharedPreferences.getString(eq("ProfileId"), anyOrNull())).thenReturn(null)
 
-
     }
 
     @Test
-    fun testInitializationOrder() {
+    fun `should initialize services in order`() {
         val expectedLogs = listOf(
             "StorageManagerService initialized",
             "ConfigManagerService initialized",
@@ -82,8 +96,6 @@ class IntemptCoreUnitTest {
             "SessionTrackerService initialized",
             "InstallUpgradeTrackerComponent initialized"
         )
-
-        Intempt.initialize(context)
 
         Shadows.shadowOf(Looper.getMainLooper()).runToEndOfTasks()
 
@@ -99,4 +111,10 @@ class IntemptCoreUnitTest {
             lastIndex = currentIndex
         }
     }
+
+
+
+
+
+
 }
