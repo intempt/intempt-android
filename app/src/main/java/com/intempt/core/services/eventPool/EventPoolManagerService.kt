@@ -1,21 +1,24 @@
 package com.intempt.core.services.eventPool
 import com.intempt.core.autocapture.BaseComponent
-import com.intempt.core.services.Logger
 import com.intempt.core.eventModels.BaseIntemptEvent
 import com.intempt.core.eventModels.IntemptEvent
-import com.intempt.core.eventModels.TrackEvent
 import com.intempt.core.services.ConfigManagerService
+import com.intempt.core.services.HttpManagerService
+import com.intempt.core.services.LoggerManagerService
+import com.intempt.core.types.Constants
 import com.intempt.core.types.DispatchEventProps
 import com.intempt.core.types.HandleEventTypeProps
+import io.ktor.client.statement.HttpResponse
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
-import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import org.json.JSONArray
+import org.json.JSONObject
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.reflect.full.declaredFunctions
@@ -23,31 +26,41 @@ import kotlin.reflect.jvm.isAccessible
 
 @Singleton
 internal class EventPoolManagerService @Inject constructor(
-    config: ConfigManagerService,
-    private val dispatcher: CoroutineDispatcher = Dispatchers.IO
-): BaseComponent(){
+    private val config: ConfigManagerService,
+    private val logger: LoggerManagerService,
+    private val http: HttpManagerService,
+    private val dispatcher: CoroutineDispatcher = Dispatchers.Main.immediate
+): BaseComponent(logger){
 
-    init {
-        subscribe(Job()) { value ->
-            Logger.log("IntemptCoreService | Received event of type: ${value.getEventType()}");
-            handleIntemptEvent(value)
-        }
-    }
+    private val coroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
+    private val eventQueue: MutableList<IntemptEvent> = mutableListOf();
 
+    private var lastDispatchTime: Long = System.currentTimeMillis();
+
+    private val eventHandlers = EventHandlers(config, logger);
     private var eventReceiverJob: Job? = null
     private val _eventReceiver = MutableSharedFlow<IntemptEvent>(replay = 10)
+
     val eventReceiver: SharedFlow<IntemptEvent> = _eventReceiver;
-    private val eventHandlers = EventHandlers(config);
 
     @Volatile
     var lastEvent: IntemptEvent? = null
 
+
+
+    init {
+        subscribe(Job()) { value ->
+            logger.log("IntemptCoreService | Received event of type: ${value.getEventType()}");
+            handleIntemptEvent(value)
+        }
+    }
+
     fun dispatchEvent(props: DispatchEventProps) {
         val (eventName,entityName, event, type, context, view) = props
 
-        Logger.log("AutoCapture | Received Event: $eventName")
-        Logger.log("AutoCapture | Received Type: $type")
+        logger.log("AutoCapture | Received Event: $eventName")
+        logger.log("AutoCapture | Received Type: $type")
 
         val newEvent = event
             ?: handleEventType(
@@ -76,58 +89,115 @@ internal class EventPoolManagerService @Inject constructor(
 
     fun emitEvent(event: IntemptEvent) {
         val isEmitted = _eventReceiver.tryEmit(event)
-        Logger.log("EventPool | Event is emitted: $isEmitted")
-        Logger.log("EventPool | $event")
+        if(isEmitted){
+            lastEvent = event
+        }
+
+        logger.log("EventPool | Event is emitted: $isEmitted")
+        logger.log("EventPool | $event")
     }
 
     fun subscribe(job:Job, callback: (value: IntemptEvent) -> Unit) {
-        eventReceiverJob = CoroutineScope(dispatcher + job).launch {
-            Logger.log("EventPoolManagerService | Started collecting events")
-            eventReceiver.collect { value ->
-                callback(value)
+        try {
+            eventReceiverJob = CoroutineScope(dispatcher + job).launch {
+                logger.log("EventPoolManagerService | Started collecting events")
+                eventReceiver.collect { value ->
+                    callback(value)
+                }
             }
         }
+        catch (e: Exception) {
+            logger.log("Error during collection: ${e.message}")
+        }
+
     }
 
 
     private fun handleEventType(props: HandleEventTypeProps): BaseIntemptEvent? {
-        Logger.log("handleEventType | $props")
+        logger.log("handleEventType | $props")
         try {
             val handler = eventHandlers::class.declaredFunctions.find { it.name == props.type }
 
             if(handler != null) {
                 handler.isAccessible = true;
 
-                Logger.log("AutoCapture | Successfully called function '${props.type}' on EventTypeHandler.")
+                logger.log("AutoCapture | Successfully called function '${props.type}' on EventTypeHandler.")
 
                 return handler.call(eventHandlers, props) as BaseIntemptEvent;
             }
             else{
-                Logger.log("AutoCapture | Function '${props.type}' not found on EventTypeHandler.")
+                logger.log("AutoCapture | Function '${props.type}' not found on EventTypeHandler.")
                 return null
             }
         } catch (e: Exception) {
-            Logger.log("AutoCapture | Error invoking function '${props.type}' on EventTypeHandler: ${e}")
+            logger.error("AutoCapture | Error invoking function '${props.type}' on EventTypeHandler: ${e.message}")
             return null
         }
     }
 
     private fun handleIntemptEvent(event: IntemptEvent){
-        Logger.log("handleIntemptEvent | $event")
-        Logger.log("handleIntemptEvent type | ${event.getEventType()}")
-        lastEvent = event
-
-        Logger.log("handleIntemptEvent lastEvent | ${lastEvent?.getEventType()}")
+        logger.log("handleIntemptEvent | Received event: $event")
+        eventQueue.add(event)
+        logger.log("EventPoolManagerService | eventQueue size: ${eventQueue.size}")
+        validateEventCall {
+            sendEvents()
+        }
     }
 
-    private fun sendEvents(event: IntemptEvent) {}
+    private fun sendEvents() {
+        if(eventQueue.isEmpty()) return
 
-    private fun validateEventCall() {}
+        val requestBodyJson = generateRequestBody()
+
+        coroutineScope.launch {
+                try {
+                    val response: HttpResponse = http.post(config.eventsUrl, requestBodyJson)
+                    handleResponse(response)
+                }
+                catch (e: Exception) {
+                    logger.error("sendEvents | Exception occurred while sending events: ${e.message}")
+                }
+        }
+    }
+
+    private fun generateRequestBody(): JSONObject {
+        val trackArray = JSONArray()
+        for (event in eventQueue) {
+            val eventJsonObject = JSONObject().apply {
+                put("name", event.name)
+                put("payload", JSONArray(event.payload))
+            }
+            trackArray.put(eventJsonObject)
+        }
+        return JSONObject().apply {
+            put("track", trackArray)
+        }
+    }
+
+    private fun handleResponse(response: HttpResponse){
+        if (response.status.value == Constants.SUCCES_CODE) {
+
+            logger.log("Successfully sent events to server")
+            eventQueue.clear()
+            lastDispatchTime = System.currentTimeMillis()
+        } else {
+            logger.error("Failed to send events: ${response.status}")
+        }
+    }
+
+    private fun validateEventCall( callback: () -> Unit) {
+        if(config.isQueueEnabled){
+            if (eventQueue.size >= config.itemsInQueue || System.currentTimeMillis() - lastDispatchTime >= config.timeBuffer) {
+                callback()
+            }
+        }
+        else {
+            callback()
+        }
+    }
 
 
-    private val eventQueue: MutableList<IntemptEvent> = mutableListOf();
 
-    private var lastDispatchTime: Long = System.currentTimeMillis();
 
 
 

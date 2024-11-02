@@ -1,16 +1,13 @@
 package com.intempt.core.autocapture.installUpgradeTracker
 
 import android.content.Context
-import com.intempt.core.autocapture.BaseComponent
-import com.intempt.core.services.Logger
+import com.intempt.core.services.LoggerManagerService
 import com.intempt.core.services.StorageManagerService
+import com.intempt.core.services.UtilsService
 import com.intempt.core.services.eventPool.EventPoolManagerService
-import com.intempt.core.services.generateId
 import com.intempt.core.types.AppVisibilityState
-import com.intempt.core.services.withTryCatch
 import com.intempt.core.types.Constants
 import com.intempt.core.types.DispatchEventProps
-import com.intempt.core.types.IdTypeKeys
 import com.intempt.core.types.StorageKeys
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -21,11 +18,13 @@ internal class InstallUpgradeTrackerService @Inject constructor(
     private val context: Context,
     private val eventSrv: EventPoolManagerService,
     private val storage: StorageManagerService,
+    private val logger: LoggerManagerService,
+    private val utils: UtilsService
 ){
 
 
     fun handleVisibilityState(state: AppVisibilityState){
-        Logger.log("InstallUpgradeTrackerService | App is now in the $state state")
+        logger.log("InstallUpgradeTrackerService | App is now in the $state state")
         storage.setStorageItem(
             prefs = StorageKeys.AppPrefs.key,
             key = StorageKeys.AppVisibilityState.key,
@@ -43,13 +42,13 @@ internal class InstallUpgradeTrackerService @Inject constructor(
         ){ key, fallBack ->
             getInt(key, fallBack ?: fallbackVersion)
         } ?: fallbackVersion
-        Logger.log("InstallUpgradeTrackerService | Received version code: $versionCode")
+        logger.log("InstallUpgradeTrackerService | Received version code: $versionCode")
 
         return versionCode
     }
 
     fun storeVersionCode(versionCode: Int) {
-        Logger.log("InstallUpgradeTrackerService | Store version code: $versionCode")
+        logger.log("InstallUpgradeTrackerService | Store version code: $versionCode")
         storage.setStorageItem(
             prefs = StorageKeys.AppPrefs.key,
             key = StorageKeys.PreviousVersionCode.key,
@@ -64,18 +63,18 @@ internal class InstallUpgradeTrackerService @Inject constructor(
             val buildConfigClass = Class.forName("${context.packageName}.BuildConfig")
             val versionCodeField = buildConfigClass.getField("VERSION_CODE")
             val consumerCode = versionCodeField.get(null) as Int
-            Logger.log("InstallUpgradeTrackerService | Consumer App version code: $consumerCode")
+            logger.log("InstallUpgradeTrackerService | Consumer App version code: $consumerCode")
             return consumerCode
         } catch (e: Exception) {
-            Logger.error("InstallUpgradeTrackerService | Error getting consumer app version code: ${e.message}")
+            logger.error("InstallUpgradeTrackerService | Error getting consumer app version code: ${e.message}")
             -1
         }
     }
 
     fun logAndDispatch( logMessage:String) {
         val errorMessage = "AutoCapture | InstallUpgradeTracker Error handling";
-        withTryCatch(errorMessage) {
-            Logger.log("InstallUpgradeTrackerComponent | $logMessage")
+        utils.withTryCatch(errorMessage) {
+            logger.log("InstallUpgradeTrackerComponent | $logMessage")
             dispatchEvent()
         }
     }

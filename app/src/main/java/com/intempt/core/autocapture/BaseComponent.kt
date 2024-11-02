@@ -1,16 +1,13 @@
 package com.intempt.core.autocapture
-import com.intempt.core.services.Logger
+
+import com.intempt.core.services.LoggerManagerService
 
 
-open class BaseComponent() {
-    var isInitialized: Boolean = false;
-
-
-
+open class BaseComponent(logger: LoggerManagerService? = null) {
+    private var _isInitialized: Boolean = false;
     init {
-        isInitialized = true;
-
+        _isInitialized = true;
         val componentName = this::class.simpleName ?: "UnknownComponent"
-        Logger.log("$componentName initialized")
+        logger?.log("$componentName initialized")
     }
 }

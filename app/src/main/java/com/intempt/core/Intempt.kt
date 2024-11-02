@@ -5,13 +5,13 @@ import com.intempt.core.intemptCore.DaggerIntemptCoreComponent
 import com.intempt.core.intemptCore.IntemptCoreComponent
 import com.intempt.core.intemptCore.IntemptCoreModule
 import com.intempt.core.intemptCore.IntemptCoreService
-import com.intempt.core.services.Logger
-import com.intempt.sdk.BuildConfig
+import com.intempt.core.modifications.ModificationComponent
 
 
 object Intempt  {
     private lateinit var component: IntemptCoreComponent
-    private lateinit var intemptCoreService: IntemptCoreService
+    private lateinit var intemptCore: IntemptCoreService
+    private lateinit var modification: ModificationComponent
 
     fun initialize(context: Context) {
         component = DaggerIntemptCoreComponent.factory()
@@ -19,27 +19,42 @@ object Intempt  {
 
         component.inject(this);
 
-        intemptCoreService = component.initService()
-
-
-        Logger.log("Intempt SDK initialized")
-        Logger.log("VERSION: ${BuildConfig.sdkVersion}")
+        intemptCore = component.initService()
+        modification = component.modification()
     }
 
-    fun identify(userId: String, eventTitle: String?, userAttributes: Map<String, String>?, data: Map<String, String>?) {
-        intemptCoreService.track.identify(userId, eventTitle, userAttributes, data)
+
+
+    fun identify(
+        userId: String,
+        eventTitle: String? = null,
+        userAttributes: Map<String, String>? = null,
+        data: Map<String, String>?= null,
+    ) {
+        intemptCore.capture.identify(userId, eventTitle, userAttributes, data)
     }
 
-    fun group(accountId: String, eventTitle: String?, accountAttributes: Map<String, String>?) {
-        intemptCoreService.track.group(accountId, eventTitle, accountAttributes)
+    fun group(
+        accountId: String,
+        eventTitle: String? = null,
+        accountAttributes: Map<String, String>? = null
+    ) {
+        intemptCore.capture.group(accountId, eventTitle, accountAttributes)
     }
 
     fun track( eventTitle: String, data: Map<String, String>) {
-        intemptCoreService.track.track( eventTitle, data)
+        intemptCore.capture.track( eventTitle, data)
     }
 
-    fun record(eventTitle: String, accountId: String?, userId: String?, accountAttributes: Map<String, String>?, userAttributes: Map<String, String>?, data: Map<String, String>?) {
-        intemptCoreService.track.record(
+    fun record(
+        eventTitle: String,
+        accountId: String? = null,
+        userId: String? = null,
+        accountAttributes: Map<String, String>? = null,
+        userAttributes: Map<String, String>? = null,
+        data: Map<String, String>? = null
+    ) {
+        intemptCore.capture.record(
             eventTitle,
             accountId,
             userId,
@@ -48,5 +63,54 @@ object Intempt  {
             data
         )
     }
+
+    fun alias(userId: String, anotherUserId: String) {
+        intemptCore.capture.alias(userId, anotherUserId)
+    }
+
+    fun consent(
+        action: String,
+        validUntil: Long,
+        email: String? = null,
+        message: String? = null,
+        category: String? = null
+    ) {
+        intemptCore.capture.consent(action, validUntil, email, message, category)
+    }
+
+    fun logOut() {
+        intemptCore.capture.logOut()
+    }
+
+    object Logging {
+       fun start(){
+           intemptCore.capture.enableLogging()
+       }
+       fun stop(){
+           intemptCore.capture.disableLogging()
+
+       }
+       fun isLoggingEnabled(): Boolean{
+            return intemptCore.capture.isLoggingEnabled()
+        }
+
+    }
+
+    object Tracking {
+        fun start(){
+            intemptCore.capture.optIn()
+        }
+        fun stop() {
+            intemptCore.capture.optOut()
+        }
+        fun isTrackingEnabled(): Boolean{
+            return intemptCore.capture.isLoggingEnabled()
+        }
+
+    }
+
+    val experiment = modification.experimentHandler
+
+    val personalization = modification.personalizationHandler
 
 }

@@ -2,16 +2,18 @@ package com.intempt.core.autocapture.screenTracker
 
 import android.app.Activity
 import androidx.fragment.app.Fragment
-import com.intempt.core.services.Logger
+import com.intempt.core.services.LoggerManagerService
 import com.intempt.core.services.StorageManagerService
+import com.intempt.core.services.UtilsService
 import com.intempt.core.services.eventPool.EventPoolManagerService
-import com.intempt.core.services.withTryCatch
 import com.intempt.core.types.DispatchEventProps
 import com.intempt.core.types.ScreenEventProps
 import javax.inject.Inject
 
 internal class ScreenTrackerService @Inject constructor(
     private val eventSrv: EventPoolManagerService,
+    private val logger: LoggerManagerService,
+    private val utils: UtilsService
    // private val storage: StorageManagerService,
 ) {
 
@@ -26,7 +28,7 @@ internal class ScreenTrackerService @Inject constructor(
     fun handleFragmentCallbacks(callBackName:String, key:String, fragment: Fragment) {
        // storage.saveFragmentName(key, fragment)
 
-        Logger.log("AutoCapture | $callBackName: ${fragment::class.java.simpleName}")
+        logger.log("AutoCapture | $callBackName: ${fragment::class.java.simpleName}")
     }
 
     fun logAndDispatch(
@@ -38,8 +40,8 @@ internal class ScreenTrackerService @Inject constructor(
 
     ) {
         val errorMessage = "AutoCapture | ScreenTracker $viewType Error handling: ${activity.localClassName}";
-        withTryCatch(errorMessage) {
-            Logger.log("AutoCapture | ${eventName}: ${activity.localClassName}")
+        utils.withTryCatch(errorMessage) {
+            logger.log("AutoCapture | ${eventName}: ${activity.localClassName}")
             dispatchEvent(
                 ScreenEventProps(
                     activity = activity,

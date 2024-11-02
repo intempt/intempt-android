@@ -9,9 +9,12 @@ import androidx.fragment.app.FragmentManager
 
 import com.intempt.core.autocapture.lifecycleCallbackManager.ActivityLifecycleListener
 import com.intempt.core.autocapture.lifecycleCallbackManager.FragmentLifecycleListener
+import com.intempt.core.services.LoggerManagerService
 
 
-open class BaseAutoCaptureComponent:BaseComponent(), ActivityLifecycleListener, FragmentLifecycleListener {
+open class BaseAutoCaptureComponent(
+    logger: LoggerManagerService? = null
+):BaseComponent(logger), ActivityLifecycleListener, FragmentLifecycleListener {
     override fun onActivityResumed(activity: Activity) {}
 
     override fun onActivityPaused(activity: Activity) {}

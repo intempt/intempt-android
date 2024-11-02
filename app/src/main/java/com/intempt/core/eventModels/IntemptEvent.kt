@@ -1,9 +1,9 @@
 package com.intempt.core.eventModels
 
 internal class IntemptEvent(
-    private val name: String,
+    val name: String,
     private val type: String,
-    private val payload: Array<BaseIntemptEvent>,
+    val payload: Array<BaseIntemptEvent>,
 ) {
 
     fun getEventType(): String {
@@ -40,3 +40,17 @@ internal open class RecordEvent(
     userAttributes: Map<String, String>?,
     data: Map<String, String>?
 ) : BaseIntemptEvent() {}
+
+internal open class AliasEvent(
+    userId: String,
+    anotherUserId: String,
+) : BaseIntemptEvent() {}
+
+internal open class ConsentEvent(
+    action: String?,
+    email: String? = null,
+    message: String? = null,
+    category: String?= null,
+    sourceId: String,
+    validUntil: Long,
+): BaseIntemptEvent() {}

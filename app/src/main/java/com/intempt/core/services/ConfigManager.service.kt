@@ -4,63 +4,80 @@ import android.content.Context
 import com.intempt.core.autocapture.BaseComponent
 import com.intempt.core.types.ConfigKeys
 import com.intempt.core.types.ConfigResult
+import com.intempt.core.types.Constants
 import com.intempt.core.types.IntemptConfigs
 import com.intempt.core.types.IntemptOptions
 import java.io.InputStream
 import org.json.JSONObject
 import javax.inject.Inject
 import javax.inject.Singleton
+import java.util.Base64
 
 
 @Singleton
 class ConfigManagerService  @Inject constructor(
-    private val context: Context
+    private val context: Context,
 ):BaseComponent() {
-    private val apiKey: String
-    private val sourceId: String;
-    private val organizationId: String;
-    private val projectId: String;
+    private val _apiKey: String
+    private val _sourceId: String;
+    private val _organizationId: String;
+    private val _projectId: String;
 
-    private val _isLoggingEnabled : Boolean;
+    var isLoggingEnabled : Boolean;
+    var isUserOptIn: Boolean;
+    val isQueueEnabled: Boolean;
+    val itemsInQueue: Int;
+    val timeBuffer: Long;
+
     private val _isTouchEnabled: Boolean;
-    private val _isUserOptIn: Boolean;
     private val _isTextCaptureEnabled: Boolean;
-    private val _isQueueEnabled: Boolean;
     private val _isAutoCaptureEnabled: Boolean;
-    private val _itemsInQueue: Int;
-    private val _timeBuffer: Long;
 
-
-
+    val apiKey: String get() = _apiKey;
+    val sourceId: String get() = _sourceId;
     val isTextCaptureEnabled: Boolean get() = _isTextCaptureEnabled;
-    val isLoggingEnabled: Boolean get() = _isLoggingEnabled;
     val isTouchEnabled: Boolean get() = _isTouchEnabled;
-    val isQueueEnabled: Boolean get() = _isQueueEnabled;
     val isAutoCaptureEnabled: Boolean get() = _isAutoCaptureEnabled;
-    val itemsInQueue: Int get() = _itemsInQueue;
-    val timeBuffer: Long get() = _timeBuffer;
-    val isUserOptIn : Boolean get() = _isUserOptIn;
+
+
+
+
+    val eventsUrl:String
+        get() = "${Constants.API_URL}/${_organizationId}/projects/${_projectId}/sources/${_sourceId}/track"
+
+    val optimizationUrl:String
+        get() = "${Constants.API_URL}/${_organizationId}/projects/${_projectId}/optimization/choose-api"
+
+
+
+
 
 
     init {
         val (configs, options) = getConfigs()
+            _apiKey = configs?.apiKey ?: ""
+            _sourceId = configs?.sourceId ?: ""
+            _organizationId = configs?.organizationId ?: ""
+            _projectId = configs?.projectId ?: ""
 
 
-            apiKey = configs?.apiKey ?: ""
-            sourceId = configs?.sourceId ?: ""
-            organizationId = configs?.organizationId ?: ""
-            projectId = configs?.projectId ?: ""
-
-            _isLoggingEnabled = options?.isLoggingEnabled ?: false
             _isTouchEnabled = options?.isTouchEnabled ?: true
             _isTextCaptureEnabled = options?.isTextCaptureEnabled ?: true
-            _isQueueEnabled = options?.isQueueEnabled ?: true
             _isAutoCaptureEnabled = options?.isAutoCaptureEnabled ?: true
-            _itemsInQueue = options?.itemsInQueue ?: 5
-            _timeBuffer = options?.timeBuffer ?: 5000
-            _isUserOptIn = true
+
+            itemsInQueue = options?.itemsInQueue ?: 5
+            timeBuffer = options?.timeBuffer ?: 5000
+            isUserOptIn = true
+            isLoggingEnabled = options?.isLoggingEnabled ?: false
+            isQueueEnabled = options?.isQueueEnabled ?: true
 
 
+    }
+
+    fun token(): String {
+        if (_apiKey.isEmpty()) return ""
+        val (username, password) = _apiKey.split(".")
+        return Base64.getEncoder().encodeToString("$username:$password".toByteArray())
     }
 
     private fun getConfigs(): ConfigResult {
@@ -97,7 +114,7 @@ class ConfigManagerService  @Inject constructor(
             ConfigResult(configs, options)
         }
         catch (e: Exception) {
-           Logger.log("Error reading config file: ${e.message}")
+           // logger.error("Error reading config file: ${e.message}")
             ConfigResult(configs = null, options = null)
         }
 
@@ -106,10 +123,10 @@ class ConfigManagerService  @Inject constructor(
     override fun toString(): String {
         val output = """
             {
-                apiKey: '$apiKey',
-                sourceId: '$sourceId',
-                organizationId: '$organizationId',
-                projectId: '$projectId'
+                apiKey: '$_apiKey',
+                sourceId: '$_sourceId',
+                organizationId: '$_organizationId',
+                projectId: '$_projectId'
             }
         """
         return output.trimIndent()

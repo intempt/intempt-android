@@ -1,4 +1,4 @@
-package com.intempt.core.autocapture.sessiontracker
+package com.intempt.core.autocapture.sessionTracker
 
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -7,7 +7,7 @@ import javax.inject.Singleton
 @Singleton
 internal
 class SessionTrackerComponent @Inject constructor(
-    private val srv:SessionTrackerService
+    srv:SessionTrackerService
 ) {
 
     init{

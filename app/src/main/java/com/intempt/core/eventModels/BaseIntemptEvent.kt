@@ -1,7 +1,7 @@
 package com.intempt.core.eventModels
 import com.intempt.core.services.StorageManagerService
-import com.intempt.core.services.generateId
-import javax.inject.Inject
+import java.util.UUID
+
 
 
 internal open class BaseIntemptEvent(
@@ -43,7 +43,13 @@ internal open class BaseIntemptEvent(
     protected val timestamp: Long = System.currentTimeMillis();
 
 
+    private fun generateId(
+        type: String? = null
+    ):String{
+        val uuid = UUID.randomUUID().toString();
 
+        return type?.let { it + "_" + uuid} ?: uuid
+    }
 
     fun getEventType():String{
         return eventType

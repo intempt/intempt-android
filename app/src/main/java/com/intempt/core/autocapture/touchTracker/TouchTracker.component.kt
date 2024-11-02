@@ -13,7 +13,6 @@ import androidx.core.view.children
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentManager
 import com.intempt.core.autocapture.BaseAutoCaptureComponent
-import com.intempt.core.services.debounce
 import com.intempt.core.types.Constants
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -44,6 +43,7 @@ internal class TouchTrackerComponent @Inject constructor(
     private val handler = Handler(Looper.getMainLooper())
 
     private fun registerForActivity(activity: Activity) {
+        if(!srv.isTouchEnabled) return;
         srv.setupHandler(handler, runnableWrapper) { handler, runnableWrapper ->
             val originalCallback = activity.window.callback;
             activity.window.callback = object : Window.Callback by originalCallback {
@@ -53,10 +53,10 @@ internal class TouchTrackerComponent @Inject constructor(
                             val rootView = activity.window.decorView
                             rootView.findViewAtLocation(ev.rawX, ev.rawY)
                         }
-
-                        runnableWrapper[0] = debounce(handler, debounceDelay, runnableWrapper[0]) {
-                            srv.logAndDispatch(touchedView, activity, "Activity")
-                        }
+                        runnableWrapper[0] = srv.debounceAndLog(handler, runnableWrapper[0], touchedView, activity, "Activity")
+//                        runnableWrapper[0] = debounce(handler, debounceDelay, runnableWrapper[0]) {
+//                            srv.logAndDispatch(touchedView, activity, "Activity")
+//                        }
                     }
 
                     return originalCallback.dispatchTouchEvent(event)
@@ -66,16 +66,27 @@ internal class TouchTrackerComponent @Inject constructor(
     }
 
     private fun registerForFragment(fragment: Fragment) {
+        if(!srv.isTouchEnabled) return;
         srv.setupHandler(handler, runnableWrapper) { handler, runnableWrapper ->
             fragment.view?.setOnTouchListener { view, event ->
-                runnableWrapper[0] = debounce(handler, debounceDelay, runnableWrapper[0]) {
-                    srv.logAndDispatch(view, fragment.requireActivity(), "Fragment")
-
+                runnableWrapper[0] = srv.debounceAndLog(
+                    handler,
+                    runnableWrapper[0],
+                    view,
+                    fragment.requireActivity(),
+                    "Fragment"
+                ){
                     if (event?.action == MotionEvent.ACTION_UP) {
                         view.performClick()
                     }
                 }
-                // Return false to allow normal event processing to continue
+//                runnableWrapper[0] = debounce(handler, debounceDelay, runnableWrapper[0]) {
+//                    srv.logAndDispatch(view, fragment.requireActivity(), "Fragment")
+//
+//                    if (event?.action == MotionEvent.ACTION_UP) {
+//                        view.performClick()
+//                    }
+//                }
                 false
             }
         }

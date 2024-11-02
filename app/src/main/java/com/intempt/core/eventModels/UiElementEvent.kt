@@ -13,13 +13,14 @@ import android.widget.SeekBar
 import android.widget.Spinner
 import android.widget.TimePicker
 import com.intempt.core.services.ConfigManagerService
-import com.intempt.core.services.Logger
+import com.intempt.core.services.LoggerManagerService
 import java.util.Locale
 
 
 internal data class UiElementEvent(
     private val view: View,
-    private val config: ConfigManagerService
+    private val config: ConfigManagerService,
+    private val logger: LoggerManagerService,
 ): BaseIntemptEvent() {
     private val targetElement = view.javaClass.simpleName
     private val hierarchy = getViewHierarchy()
@@ -42,7 +43,7 @@ internal data class UiElementEvent(
             return hierarchyList.reversed().joinToString(" -> ")
         }
         catch(e: Exception){
-            Logger.error("Error getting view hierarchy: ${e.message}")
+            logger.error("Error getting view hierarchy: ${e.message}")
             return ""
         }
     }
@@ -60,7 +61,7 @@ internal data class UiElementEvent(
         }
         catch (e: Exception){
 
-            Logger.error("Error getting text from view: ${e.message}")
+            logger.error("Error getting text from view: ${e.message}")
             return ""
         }
 
@@ -87,7 +88,7 @@ internal data class UiElementEvent(
                     else -> ""
                 }
             } catch (e: Exception) {
-                Logger.error("Error getting value from view: ${e.message}")
+                logger.error("Error getting value from view: ${e.message}")
                 ""
             }
         }

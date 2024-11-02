@@ -7,9 +7,11 @@ import com.intempt.core.autocapture.installUpgradeTracker.InstallUpgradeTrackerM
 import com.intempt.core.autocapture.lifecycleCallbackManager.LifecycleCallBacksComponent
 import com.intempt.core.autocapture.lifecycleCallbackManager.LifecycleCallbackModule
 import com.intempt.core.autocapture.screenTracker.ScreenTrackerModule
-import com.intempt.core.autocapture.sessiontracker.SessionTrackerComponent
-import com.intempt.core.autocapture.sessiontracker.SessionTrackerModule
+import com.intempt.core.autocapture.sessionTracker.SessionTrackerComponent
+import com.intempt.core.autocapture.sessionTracker.SessionTrackerModule
 import com.intempt.core.autocapture.touchTracker.TouchTrackerModule
+import com.intempt.core.services.ConfigManagerService
+import com.intempt.core.services.LoggerManagerService
 import dagger.Module
 import dagger.Provides
 import javax.inject.Singleton
@@ -28,6 +30,8 @@ internal class AutoCaptureModule {
     @Singleton
     fun provideAutoCapture(
         context: Context,
+        config: ConfigManagerService,
+        logger: LoggerManagerService,
         session: SessionTrackerComponent,
         installUpgrade: InstallUpgradeTrackerComponent,
         lifecycleCallBacksManager: LifecycleCallBacksComponent,
@@ -35,6 +39,8 @@ internal class AutoCaptureModule {
         return AutoCaptureComponent(
             context,
             lifecycleCallBacksManager,
+            logger,
+            config
         )
     }
 }

@@ -1,23 +1,19 @@
-package com.intempt.core.autocapture.sessiontracker
+package com.intempt.core.autocapture.sessionTracker
 import android.content.Context
 import com.intempt.core.autocapture.BaseComponent
-import com.intempt.core.eventModels.BaseIntemptEvent
 import com.intempt.core.eventModels.IntemptEvent
-import com.intempt.core.services.Logger
 import com.intempt.core.services.StorageManagerService
 import com.intempt.core.eventModels.SessionEvent
+import com.intempt.core.services.HttpManagerService
+import com.intempt.core.services.LoggerManagerService
+import com.intempt.core.services.UtilsService
 import com.intempt.core.services.eventPool.EventPoolManagerService
-import com.intempt.core.services.generateId
 import com.intempt.core.types.Constants
 import com.intempt.core.types.DispatchEventProps
 import com.intempt.core.types.IdTypeKeys
 import com.intempt.core.types.StorageKeys
-import io.ktor.client.HttpClient
-import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
-import io.ktor.client.request.get
 import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
-import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -34,14 +30,17 @@ import javax.inject.Singleton
 @Singleton
 internal class SessionTrackerService @Inject constructor(
     private val context: Context,
+    private val logger: LoggerManagerService,
     private val storage: StorageManagerService,
     private val eventPool: EventPoolManagerService,
+    private val http: HttpManagerService,
+    private val utils: UtilsService,
     private val dispatcher: CoroutineDispatcher = Dispatchers.IO
-):BaseComponent(){
+
+):BaseComponent(logger){
 
     private var coroutineJob: Job? = null
-    private var eventReceiverJob: Job? = null
-     var ip: String = "";
+    private var ip: String = "";
     private var city: String = ""
     private var region: String = ""
     private var country: String = ""
@@ -50,24 +49,19 @@ internal class SessionTrackerService @Inject constructor(
         val sessionTime = getSessionTime();
         val currentTimestamp = System.currentTimeMillis();
 
-
-        Logger.log("IF sessionTime: $sessionTime");
-        Logger.log("IF currentTimestamp: $currentTimestamp");
-
         if (currentTimestamp - sessionTime > Constants.SESSION.SESSION_TIMEOUT) {
             initSessionInStorage()
             runSessionStart()
         }
         else {
-            Logger.log("SessionTrackerService | Session is active");
+            logger.log("SessionTrackerService | Session is active");
             storeSessionTime()
         }
     }
 
     fun subscribeToEventReceiver() {
         eventPool.subscribe(Job()) { value ->
-            Logger.log("SessionTrackerService | eventReceiver $value");
-            Logger.log("SessionTrackerService | getEventType ${value.getEventType()}");
+            logger.log("SessionTrackerService | Received event type ${value.getEventType()}");
             if(value.getEventType() != Constants.SESSION.EVENT_TYPE){
                 validateSession(value)
             }
@@ -75,7 +69,7 @@ internal class SessionTrackerService @Inject constructor(
     }
 
     private fun runSessionStart(){
-        Logger.log("SessionTrackerService | Run session in start");
+        logger.log("SessionTrackerService | Run session in start");
         coroutineJob?.cancel();
         coroutineJob = CoroutineScope(dispatcher).launch {
             val locationDeferred = async { getLocationInfo() }
@@ -85,20 +79,11 @@ internal class SessionTrackerService @Inject constructor(
         }
     }
 
-     suspend fun getLocationInfo() {
-        Logger.log("SessionTrackerService | Get Location");
+    suspend fun getLocationInfo() {
+         logger.log("SessionTrackerService | Get Location");
         withContext(dispatcher) {
-            val apiUrl = Constants.SESSION.LOCATON_API;
-            val client = HttpClient {
-                install(ContentNegotiation) {
-                    json(Json {
-                        prettyPrint = true
-                        isLenient = true
-                    })
-                }
-            }
             try{
-                val response: HttpResponse = client.get(apiUrl);
+                val response: HttpResponse = http.get(Constants.SESSION.LOCATON_API);
                 val locationInfo = response.bodyAsText();
 
                 val jsonElement = Json.parseToJsonElement(locationInfo).jsonObject
@@ -109,16 +94,14 @@ internal class SessionTrackerService @Inject constructor(
                 country = jsonElement["country_name"]?.jsonPrimitive?.content ?: "";
             }
             catch (e: Exception) {
-                Logger.error("getLocationInfo Error: ${e.message}")
+                logger.error("getLocationInfo Error: ${e.message}")
             }
-            finally {
-                client.close()
-            }
+
         };
     }
 
     private fun initSessionInStorage() {
-        Logger.log("SessionTrackerService | Initialize Session in storage");
+        logger.log("SessionTrackerService | Initialize Session in storage");
         storeSessionId()
         storeSessionTime()
     }
@@ -147,22 +130,22 @@ internal class SessionTrackerService @Inject constructor(
             )
         )
 
-        Logger.log("SessionTrackerService | Dispatch session event: $newEvent");
+        logger.log("SessionTrackerService | Dispatch session event: $newEvent");
     }
 
     private fun storeSessionId(){
-        Logger.log("SessionTrackerService | Store session id");
+        logger.log("SessionTrackerService | Store session id");
         storage.setStorageItem(
             prefs = StorageKeys.SessionPrefs.key,
             key = StorageKeys.SessionId.key,
-            value = generateId(IdTypeKeys.SessionId.key)
+            value = utils.generateId(IdTypeKeys.SessionId.key)
         ) { key, value ->
             putString(key, value)
         }
     }
 
     private fun storeSessionTime(){
-        Logger.log("SessionTrackerService | Store session time");
+        logger.log("SessionTrackerService | Store session time");
         storage.setStorageItem(
             prefs = StorageKeys.SessionPrefs.key,
             key = StorageKeys.SessionTimestamp.key,
@@ -173,7 +156,7 @@ internal class SessionTrackerService @Inject constructor(
     }
 
     fun getSessionTime(): Long {
-        Logger.log("SessionTrackerService | Get session timestamp");
+        logger.log("SessionTrackerService | Get session timestamp");
         val fallbackTime = 0L
         return storage.getStorageItem(
             prefs = StorageKeys.SessionPrefs.key,
@@ -185,7 +168,7 @@ internal class SessionTrackerService @Inject constructor(
 
     //TODO: need to pass event start name
     private fun validateSession(event: IntemptEvent){
-        Logger.log("SessionTrackerService | Validate session for event: $event");
+        logger.log("SessionTrackerService | Validate session for event: $event");
         val sessionTime = getSessionTime()
         val eventTimestamp = event.getEventTimestamp()
         if (eventTimestamp - sessionTime > Constants.SESSION.SESSION_TIMEOUT) {

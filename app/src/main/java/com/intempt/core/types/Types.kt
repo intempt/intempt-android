@@ -34,6 +34,20 @@ internal data class ConfigResult(
     val options: IntemptOptions?
 )
 
+internal data class ModificationBodyParam(
+    val optimizationType:String,
+    val data:List<String>,
+    val paramType:String
+//    val names:List<String>? = null,
+//    val groups:List<String>? = null
+)
+
+internal data class ModificationGetParam(
+    val optimizationType:String,
+    val data:List<String>,
+    val isNameType: Boolean
+)
+
 
 //Public types
 sealed class AutoCaptureParam

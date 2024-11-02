@@ -13,8 +13,9 @@ import javax.inject.Singleton
 
 @Singleton
 internal class StorageManagerService @Inject constructor(
-    private val context: Context
-):BaseComponent(){
+    private val context: Context,
+    private val logger: LoggerManagerService
+):BaseComponent(logger){
 
     init{
         profileIdSet()
@@ -53,7 +54,7 @@ internal class StorageManagerService @Inject constructor(
     }
 
     fun getPageId(): String {
-        Logger.log("Get page Id");
+        logger.log("Get page Id");
         return getStorageItem(
             prefs = StorageKeys.SessionPrefs.key,
             key = StorageKeys.PageId.key
@@ -63,6 +64,7 @@ internal class StorageManagerService @Inject constructor(
     }
 
     fun getProfileId():String {
+        logger.log("Get profile Id");
         return getStorageItem(
             prefs = StorageKeys.UserPrefs.key,
             key = StorageKeys.ProfileId.key
@@ -99,7 +101,7 @@ internal class StorageManagerService @Inject constructor(
         val profileId = sharedPreferences.getString(idKey, null)
 
         if (profileId == null) {
-            Logger.log("Set profile Id");
+//            Logger.log("Set profile Id");
            // setId(idType, prefKey, idKey)
         }
     }
@@ -114,7 +116,7 @@ internal class StorageManagerService @Inject constructor(
         val sharedPreferences = context.getSharedPreferences(prefs, Context.MODE_PRIVATE);
         val id = sharedPreferences.getString(keyType, null)
 
-        Logger.log("GetId: prefs=$prefs, keyType=$keyType, id=$id")
+       // Logger.log("GetId: prefs=$prefs, keyType=$keyType, id=$id")
         return id
     }
 
@@ -145,7 +147,7 @@ internal class StorageManagerService @Inject constructor(
 
         val sharedPreferences = context.getSharedPreferences(prefKey, Context.MODE_PRIVATE)
         val timestamp = sharedPreferences.getLong(timeKey, 0L)
-        Logger.log("GetSessionTime: prefs=$prefKey, key=$timeKey, timestamp=$timestamp")
+        //Logger.log("GetSessionTime: prefs=$prefKey, key=$timeKey, timestamp=$timestamp")
         return timestamp
     }
 

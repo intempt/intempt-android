@@ -55,4 +55,10 @@ object Constants {
 
     val DEBOUNCE_DELAY = 320L
 
+    val API_URL = "https://api.staging.intempt.com/v1"
+    //val API_URL = "https://api.intempt.com/v1"
+
+    val SUCCES_CODE = 200
+
+
 }

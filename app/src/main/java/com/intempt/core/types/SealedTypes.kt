@@ -62,3 +62,5 @@ internal sealed class ConfigKeys(val key: String){
     data object TimeBuffer : ConfigKeys("timeBuffer")
 }
 
+internal sealed class DefaultConfigs(val key: String, val value: Any){}
+
