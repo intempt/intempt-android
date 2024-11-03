@@ -4,7 +4,6 @@ import android.app.Activity
 import android.os.Handler
 import android.os.Looper
 import android.view.View
-import android.view.ViewGroup
 import android.widget.AdapterView
 import android.widget.CheckBox
 import android.widget.CompoundButton
@@ -24,7 +23,9 @@ import androidx.core.widget.doAfterTextChanged
 import com.google.android.material.materialswitch.MaterialSwitch
 import com.intempt.core.services.LoggerManagerService
 import com.intempt.core.services.UtilsService
+import com.intempt.core.services.eventPool.EventPoolManagerService
 import com.intempt.core.types.Constants
+import com.intempt.core.types.DispatchEventProps
 import com.intempt.core.types.UiEventProps
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -32,6 +33,7 @@ import javax.inject.Singleton
 
 @Singleton
 internal class ChangeTrackerService @Inject constructor(
+    private val eventPool: EventPoolManagerService,
     private val logger: LoggerManagerService,
     private val utils: UtilsService,
 ) {
@@ -65,16 +67,15 @@ internal class ChangeTrackerService @Inject constructor(
 
     private fun dispatchEvent(props: UiEventProps) {
         val (activity, view) = props;
-//        eventSrv.dispatchEvent(
-//            DispatchEventProps(
-//                eventName = Constants.CHANGE.EVENT_NAME,
-//                entityName = Constants.CHANGE.ENTITY_NAME,
-//                type = Constants.CHANGE.EVENT_TYPE,
-//                event = null,
-//                context = activity,
-//                view = view
-//            )
-//        )
+        eventPool.dispatchEvent(
+            DispatchEventProps(
+                eventName = Constants.CHANGE.EVENT_NAME,
+                entityName = Constants.CHANGE.ENTITY_NAME,
+                type = Constants.CHANGE.EVENT_TYPE,
+                context = activity,
+                view = view
+            )
+        )
     }
 
     fun handleChangeListenerRegistration(view: View, activity:Activity) {
@@ -94,7 +95,7 @@ internal class ChangeTrackerService @Inject constructor(
                 is ComposeView  -> handleComposeView()
 
                 // Recursively check child views if it's a ViewGroup
-                is ViewGroup -> handleChangeListenerRegistration(view, activity)
+               // is ViewGroup -> handleChangeListenerRegistration(view, activity)
             }
         }
 

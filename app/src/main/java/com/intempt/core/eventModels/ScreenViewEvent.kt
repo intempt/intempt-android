@@ -1,23 +1,47 @@
 package com.intempt.core.eventModels
-import com.intempt.core.types.ScreenViewProps
+import com.intempt.core.types.IntemptEventProvider
 
 
 
-internal class ScreenViewEvent(props: ScreenViewProps): BaseIntemptEvent() {
-    private val activity = props.activity.localClassName;
-    private val fullActivity = props.activity.javaClass.name ?: "";
-    private val screenName = props.activity.javaClass.name ?: "";
-    private var timeOnScreen:Long? = null;
 
+internal data class ScreenViewEvent(
+    override val eventId: String,
+    override val sessionId: String,
+    override val pageId: String,
+    override val profileId: String,
+    override val timestamp: Long = System.currentTimeMillis(),
+    private val activity:String,
+    private val fullActivity:String,
+    private val screenName:String,
+    private val timeOnScreen:Long?,
+): IntemptEventProvider {
 
-    init{
-        if (props.entityName == "screenLeave") {
-            val durationInSeconds = (System.currentTimeMillis() - storage.getPageTime()) / 1000
-            this.timeOnScreen = durationInSeconds
-        }
+    override fun getEventTime(): Long {
+        return timestamp
     }
 
+    override fun toFormatted(): Map<String, Any> {
+        val timeOnScreenString = timeOnScreen?.let { "timeOnScreen: $timeOnScreen," } ?: ""
+        return mapOf(
+            "sessionId" to sessionId,
+            "eventId" to eventId,
+            "pageId" to pageId,
+            "profileId" to profileId,
+            "timestamp" to timestamp,
+            "data" to mapOf(
+                "activity" to activity,
+                "fullActivity" to fullActivity,
+                "screenName" to screenName,
+                "timeOnScreen" to timeOnScreenString,
+            )
+        )
+
+
+    }
+
+
     override fun toString(): String {
+
         val timeOnScreenString = timeOnScreen?.let { "timeOnScreen: $timeOnScreen," } ?: ""
 
         val output = """
@@ -37,4 +61,5 @@ internal class ScreenViewEvent(props: ScreenViewProps): BaseIntemptEvent() {
         """
         return output.trimIndent()
     }
+
 }

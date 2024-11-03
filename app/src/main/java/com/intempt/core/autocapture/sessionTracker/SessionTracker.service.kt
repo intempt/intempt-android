@@ -3,8 +3,8 @@ import android.content.Context
 import com.intempt.core.autocapture.BaseComponent
 import com.intempt.core.eventModels.IntemptEvent
 import com.intempt.core.services.StorageManagerService
-import com.intempt.core.eventModels.SessionEvent
 import com.intempt.core.services.HttpManagerService
+import com.intempt.core.services.IntemptEventManagerService
 import com.intempt.core.services.LoggerManagerService
 import com.intempt.core.services.UtilsService
 import com.intempt.core.services.eventPool.EventPoolManagerService
@@ -35,7 +35,10 @@ internal class SessionTrackerService @Inject constructor(
     private val eventPool: EventPoolManagerService,
     private val http: HttpManagerService,
     private val utils: UtilsService,
+    private val intemptEvent: IntemptEventManagerService,
     private val dispatcher: CoroutineDispatcher = Dispatchers.IO
+
+
 
 ):BaseComponent(logger){
 
@@ -109,22 +112,19 @@ internal class SessionTrackerService @Inject constructor(
 
 
     private fun dispatchEvent(sessionStartEventName:String) {
-
-        val newEvent = SessionEvent(
-            context,
+        val newEvent = intemptEvent.generateSessionEventPayload(
             sessionStartEventName = sessionStartEventName,
             ipAddress = ip,
             city = city,
             region = region,
             country = country,
-
         )
 
         eventPool.dispatchEvent(
             DispatchEventProps(
                 eventName = Constants.SESSION.EVENT_NAME,
                 event = newEvent,
-                entityName=Constants.SESSION.ENTITY_NAME,
+                entityName = Constants.SESSION.ENTITY_NAME,
                 type = Constants.SESSION.EVENT_TYPE,
                 context = context
             )
@@ -166,14 +166,13 @@ internal class SessionTrackerService @Inject constructor(
         } ?: fallbackTime
     }
 
-    //TODO: need to pass event start name
     private fun validateSession(event: IntemptEvent){
         logger.log("SessionTrackerService | Validate session for event: $event");
         val sessionTime = getSessionTime()
         val eventTimestamp = event.getEventTimestamp()
         if (eventTimestamp - sessionTime > Constants.SESSION.SESSION_TIMEOUT) {
             initSessionInStorage()
-            dispatchEvent("Test Event")
+            dispatchEvent(event.getEventName())
         }
     }
 

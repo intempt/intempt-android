@@ -3,9 +3,41 @@ package com.intempt.core.types
 import android.app.Activity
 import android.content.Context
 import android.view.View
-import com.intempt.core.eventModels.BaseIntemptEvent
 
-internal data class DispatchEventProps(val eventName:String, val entityName:String, val event: BaseIntemptEvent?, val type:String, val context: Context, val view: View? = null)
+internal data class DispatchEventProps(
+    val eventName:String,
+    val entityName:String,
+    val event: Array<IntemptEventProvider>? = null,
+    val type:String,
+    val context: Context,
+    val view: View? = null
+) {
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (javaClass != other?.javaClass) return false
+
+        other as DispatchEventProps
+
+        if (eventName != other.eventName) return false
+        if (entityName != other.entityName) return false
+        if (!event.contentEquals(other.event)) return false
+        if (type != other.type) return false
+        if (context != other.context) return false
+        if (view != other.view) return false
+
+        return true
+    }
+
+    override fun hashCode(): Int {
+        var result = eventName.hashCode()
+        result = 31 * result + entityName.hashCode()
+        result = 31 * result + event.contentHashCode()
+        result = 31 * result + type.hashCode()
+        result = 31 * result + context.hashCode()
+        result = 31 * result + (view?.hashCode() ?: 0)
+        return result
+    }
+}
 
 internal data class HandleEventTypeProps(val type:String,val entityName:String,  val context: Context,  val view: View? = null )
 
@@ -38,8 +70,6 @@ internal data class ModificationBodyParam(
     val optimizationType:String,
     val data:List<String>,
     val paramType:String
-//    val names:List<String>? = null,
-//    val groups:List<String>? = null
 )
 
 internal data class ModificationGetParam(
@@ -47,6 +77,8 @@ internal data class ModificationGetParam(
     val data:List<String>,
     val isNameType: Boolean
 )
+
+
 
 
 //Public types

@@ -10,16 +10,16 @@ import javax.inject.Singleton
 
 @Module
 internal class ChangeTrackerModule {
-    @Provides
-    @Singleton
-    fun service(
-       // eventSrv: EventPool
-        logger: LoggerManagerService,
-        utils: UtilsService
-    ): ChangeTrackerService {
-       // return ChangeTrackerService(eventSrv)
-        return ChangeTrackerService(logger,utils)
-    }
+//    @Provides
+//    @Singleton
+//    fun service(
+//       // eventSrv: EventPool
+//        logger: LoggerManagerService,
+//        utils: UtilsService
+//    ): ChangeTrackerService {
+//       // return ChangeTrackerService(eventSrv)
+//        return ChangeTrackerService(logger,utils)
+//    }
 
     @Provides
     @Singleton

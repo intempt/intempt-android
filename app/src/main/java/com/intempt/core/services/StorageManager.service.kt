@@ -17,10 +17,6 @@ internal class StorageManagerService @Inject constructor(
     private val logger: LoggerManagerService
 ):BaseComponent(logger){
 
-    init{
-        profileIdSet()
-    }
-
     fun <T> setStorageItem(
         prefs: String,
         key: String,
@@ -73,8 +69,7 @@ internal class StorageManagerService @Inject constructor(
         } ?: ""
     }
 
-
-    fun getPreviousBuildType():String? {
+    fun getStoredBuildType():String? {
         val prefKey = StorageKeys.AppPrefs.key;
         val buildKey = StorageKeys.PreviousBuildType.key;
 
@@ -91,54 +86,11 @@ internal class StorageManagerService @Inject constructor(
         return AppVisibilityState.fromString(storedState)
     }
 
-
-    private fun profileIdSet() {
-        val prefKey = StorageKeys.UserPrefs.key;
-        val idKey = StorageKeys.ProfileId.key;
-        val idType = IdTypeKeys.ProfileId.key
-
-        val sharedPreferences = context.getSharedPreferences(prefKey, Context.MODE_PRIVATE)
-        val profileId = sharedPreferences.getString(idKey, null)
-
-        if (profileId == null) {
-//            Logger.log("Set profile Id");
-           // setId(idType, prefKey, idKey)
-        }
-    }
-
-
-
-
-
-
-
-    fun getId(prefs:String, keyType:String): String?{
-        val sharedPreferences = context.getSharedPreferences(prefs, Context.MODE_PRIVATE);
-        val id = sharedPreferences.getString(keyType, null)
-
-       // Logger.log("GetId: prefs=$prefs, keyType=$keyType, id=$id")
-        return id
-    }
-
-
-
     fun getFragmentName( key: String): String? {
         return context
             .getSharedPreferences(StorageKeys.FragmentPrefs.key, Context.MODE_PRIVATE)
             .getString(key, null)
     }
-
-    fun saveFragmentName(key: String, fragment: Fragment) {
-        return context
-            .getSharedPreferences(StorageKeys.FragmentPrefs.key, Context.MODE_PRIVATE)
-            .edit()
-            .putString(key, fragment.javaClass.simpleName)
-            .apply()
-    }
-
-
-
-
 
     fun getPageTime(): Long {
         val prefKey = StorageKeys.SessionPrefs.key;
@@ -151,7 +103,18 @@ internal class StorageManagerService @Inject constructor(
         return timestamp
     }
 
+    fun getStoredVersionCode():Int {
+        val fallbackVersion = -1
+        val versionCode = getStorageItem(
+            prefs = StorageKeys.AppPrefs.key,
+            key = StorageKeys.PreviousVersionCode.key,
+        ){ key, fallBack ->
+            getInt(key, fallBack ?: fallbackVersion)
+        } ?: fallbackVersion
+        logger.log("InstallUpgradeTrackerService | Received version code: $versionCode")
 
+        return versionCode
+    }
 
 
 

@@ -16,7 +16,7 @@ internal class ScreenTrackerComponent @Inject constructor(
 
 
     override fun onActivityResumed(activity: Activity) {
-        srv.setPageId()
+        srv.storePageId()
 
         srv.logAndDispatch(
             activity,

@@ -1,13 +1,17 @@
 package com.intempt.core.services.eventPool
+import android.content.Context
 import com.intempt.core.autocapture.BaseComponent
 import com.intempt.core.eventModels.BaseIntemptEvent
 import com.intempt.core.eventModels.IntemptEvent
 import com.intempt.core.services.ConfigManagerService
 import com.intempt.core.services.HttpManagerService
+import com.intempt.core.services.IntemptEventManagerService
 import com.intempt.core.services.LoggerManagerService
+import com.intempt.core.services.StorageManagerService
 import com.intempt.core.types.Constants
 import com.intempt.core.types.DispatchEventProps
 import com.intempt.core.types.HandleEventTypeProps
+import com.intempt.core.types.IntemptEventProvider
 import io.ktor.client.statement.HttpResponse
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -26,9 +30,12 @@ import kotlin.reflect.jvm.isAccessible
 
 @Singleton
 internal class EventPoolManagerService @Inject constructor(
+    private val context: Context,
     private val config: ConfigManagerService,
     private val logger: LoggerManagerService,
     private val http: HttpManagerService,
+    private val storage: StorageManagerService,
+    private val intemptEvent: IntemptEventManagerService,
     private val dispatcher: CoroutineDispatcher = Dispatchers.Main.immediate
 ): BaseComponent(logger){
 
@@ -38,7 +45,7 @@ internal class EventPoolManagerService @Inject constructor(
 
     private var lastDispatchTime: Long = System.currentTimeMillis();
 
-    private val eventHandlers = EventHandlers(config, logger);
+    private val eventHandlers = EventHandlers(logger, intemptEvent);
     private var eventReceiverJob: Job? = null
     private val _eventReceiver = MutableSharedFlow<IntemptEvent>(replay = 10)
 
@@ -62,7 +69,7 @@ internal class EventPoolManagerService @Inject constructor(
         logger.log("AutoCapture | Received Event: $eventName")
         logger.log("AutoCapture | Received Type: $type")
 
-        val newEvent = event
+        val payload = event
             ?: handleEventType(
                 HandleEventTypeProps(
                     type = type,
@@ -74,15 +81,11 @@ internal class EventPoolManagerService @Inject constructor(
 
 
 
-        if(newEvent != null){
-            //lastEvent = newEvent
-
+        if(payload != null){
             lastEvent = IntemptEvent(
                 name = eventName,
                 type = entityName,
-                payload =  arrayOf(
-                    newEvent
-                )
+                payload = payload
             )
         }
     }
@@ -113,7 +116,7 @@ internal class EventPoolManagerService @Inject constructor(
     }
 
 
-    private fun handleEventType(props: HandleEventTypeProps): BaseIntemptEvent? {
+    private fun handleEventType(props: HandleEventTypeProps): Array<IntemptEventProvider>? {
         logger.log("handleEventType | $props")
         try {
             val handler = eventHandlers::class.declaredFunctions.find { it.name == props.type }
@@ -123,7 +126,7 @@ internal class EventPoolManagerService @Inject constructor(
 
                 logger.log("AutoCapture | Successfully called function '${props.type}' on EventTypeHandler.")
 
-                return handler.call(eventHandlers, props) as BaseIntemptEvent;
+                return handler.call(eventHandlers, props) as Array<IntemptEventProvider>;
             }
             else{
                 logger.log("AutoCapture | Function '${props.type}' not found on EventTypeHandler.")

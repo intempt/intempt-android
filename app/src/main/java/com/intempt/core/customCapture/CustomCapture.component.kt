@@ -1,13 +1,8 @@
 package com.intempt.core.customCapture
 
-import com.intempt.core.eventModels.AliasEvent
-import com.intempt.core.eventModels.ConsentEvent
-import com.intempt.core.eventModels.GroupEvent
-import com.intempt.core.eventModels.IdentifyEvent
 import com.intempt.core.eventModels.IntemptEvent
-import com.intempt.core.eventModels.RecordEvent
-import com.intempt.core.eventModels.TrackEvent
 import com.intempt.core.services.ConfigManagerService
+import com.intempt.core.services.IntemptEventManagerService
 import com.intempt.core.services.LoggerManagerService
 import com.intempt.core.services.eventPool.EventPoolManagerService
 import com.intempt.core.types.AutoCaptureParam
@@ -23,7 +18,8 @@ internal class CustomCaptureComponent @Inject constructor(
     private val srv: CustomCaptureService,
     private val config: ConfigManagerService,
     private val eventPool: EventPoolManagerService,
-    private val logger: LoggerManagerService
+    private val logger: LoggerManagerService,
+    private val intemptEvent: IntemptEventManagerService
 ) {
 
     fun autoCapture(listenerType: String, param: AutoCaptureParam){
@@ -78,12 +74,10 @@ internal class CustomCaptureComponent @Inject constructor(
          val newEvent = IntemptEvent(
              name = eventTitle ?: "Identify",
              type = "identify",
-             payload =  arrayOf(
-                 IdentifyEvent(
-                     userId,
-                     userAttributes,
-                     data
-                 )
+             payload = intemptEvent.generateIdentifyEventPayload(
+                 userId,
+                 userAttributes,
+                 data
              )
          )
 
@@ -103,11 +97,9 @@ internal class CustomCaptureComponent @Inject constructor(
         val newEvent = IntemptEvent(
             name = eventTitle ?: "Identify",
             type = "group",
-            payload =  arrayOf(
-                GroupEvent(
-                    accountId,
-                    accountAttributes,
-                )
+            payload = intemptEvent.generateGroupEventPayload(
+                accountId,
+                accountAttributes
             )
         )
 
@@ -123,11 +115,7 @@ internal class CustomCaptureComponent @Inject constructor(
         val newEvent = IntemptEvent(
             name = eventTitle,
             type = "track",
-            payload =  arrayOf(
-                TrackEvent(
-                    data
-                )
-            )
+            payload = intemptEvent.generateTrackEventPayload(data)
         )
 
         eventPool.emitEvent(newEvent)
@@ -149,17 +137,19 @@ internal class CustomCaptureComponent @Inject constructor(
         val newEvent = IntemptEvent(
             name = eventTitle,
             type = "record",
-            payload =  arrayOf(
-                RecordEvent(
-                    accountId, userId,accountAttributes, userAttributes, data
-                )
+            payload = intemptEvent.generateRecordEventPayload(
+                accountId,
+                userId,
+                accountAttributes,
+                userAttributes,
+                data
             )
         )
 
         eventPool.emitEvent(newEvent)
     }
 
-    fun alias(userId: String, anotherUserId: String, ){
+    fun alias(userId: String, anotherUserId: String){
         if (!config.isUserOptIn) return
 
         logger.log("Invoke alias")
@@ -167,9 +157,7 @@ internal class CustomCaptureComponent @Inject constructor(
         val newEvent = IntemptEvent(
             name = "Identify",
             type = "alias",
-            payload =  arrayOf(
-                AliasEvent(userId, anotherUserId)
-            )
+            payload = intemptEvent.generateAliasEventPayload(userId, anotherUserId)
         )
 
         eventPool.emitEvent(newEvent)
@@ -181,7 +169,7 @@ internal class CustomCaptureComponent @Inject constructor(
         email: String ? = null,
         message: String ? = null,
         category: String ? = null,
-        ){
+    ){
         if (!config.isUserOptIn) return
         if (!srv.isConsentValid(action)) return
 
@@ -190,15 +178,13 @@ internal class CustomCaptureComponent @Inject constructor(
         val newEvent = IntemptEvent(
             name = "Identify",
             type = "consent",
-            payload =  arrayOf(
-                ConsentEvent(
-                    action,
-                    email,
-                    message,
-                    category,
-                    sourceId = config.sourceId,
-                    validUntil,
-                )
+            payload = intemptEvent.generateConsentEventPayload(
+                action,
+                email,
+                message,
+                category,
+                validUntil,
+                config.sourceId
             )
         )
 
@@ -217,5 +203,8 @@ internal class CustomCaptureComponent @Inject constructor(
         eventPool.emitEvent(newEvent)
 
     }
+
+
+
 
 }

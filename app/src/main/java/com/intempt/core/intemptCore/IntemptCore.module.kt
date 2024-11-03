@@ -10,9 +10,11 @@ import com.intempt.core.modifications.ModificationComponent
 import com.intempt.core.modifications.ModificationsModule
 import com.intempt.core.services.ConfigManagerService
 import com.intempt.core.services.HttpManagerService
+import com.intempt.core.services.IntemptEventManagerService
 import com.intempt.core.services.LoggerManagerService
 import com.intempt.core.services.eventPool.EventPoolManagerService
 import com.intempt.core.services.StorageManagerService
+import com.intempt.core.services.UtilsService
 import dagger.Component
 import dagger.Module
 import dagger.Provides
@@ -34,6 +36,13 @@ internal class IntemptCoreModule(
         return consumerContext.applicationContext
     }
 
+    @Provides
+    @Singleton
+    fun provideUtilsService(
+        logger: LoggerManagerService
+    ): UtilsService{
+        return UtilsService(logger)
+    }
 
     @Provides
     @Singleton
@@ -52,22 +61,64 @@ internal class IntemptCoreModule(
         return LoggerManagerService(config)
     }
 
+    @Provides
+    @Singleton
+    fun provideStorageManagerService(
+        logger: LoggerManagerService,
+    ): StorageManagerService{
+        return StorageManagerService(
+            consumerContext.applicationContext,
+            logger
+        )
+    }
 
     @Provides
     @Singleton
-    fun provideIntemptService(
-        storage: StorageManagerService,
+    fun provideEventPoolManagerService(
         config: ConfigManagerService,
         logger: LoggerManagerService,
-        eventPool: EventPoolManagerService,
-        autoCaptureComponent: AutoCaptureComponent,
-        customCaptureComponent: CustomCaptureComponent
-    ): IntemptCoreService {
-        return IntemptCoreService(
+        http: HttpManagerService,
+        storage: StorageManagerService,
+        intemptEvent: IntemptEventManagerService,
+    ): EventPoolManagerService{
+        return EventPoolManagerService(
+            consumerContext.applicationContext,
+            config,
             logger,
-            customCaptureComponent,
+            http,
+            storage,
+            intemptEvent
         )
     }
+    @Provides
+    @Singleton
+    fun provideIntemptEventManagerService(
+        storage: StorageManagerService,
+        utils: UtilsService,
+        config: ConfigManagerService,
+    ):IntemptEventManagerService{
+        return IntemptEventManagerService(
+            consumerContext.applicationContext,
+            storage,
+            utils,
+            config
+        )
+    }
+
+
+//    @Provides
+//    @Singleton
+//    fun provideIntemptService(
+//        autoCaptureComponent: AutoCaptureComponent,
+//        customCaptureComponent: CustomCaptureComponent,
+//        modificationComponent: ModificationComponent
+//    ): IntemptCoreService {
+//        return IntemptCoreService(
+//            autoCaptureComponent,
+//            customCaptureComponent,
+//            modificationComponent
+//        )
+//    }
 
 }
 
@@ -79,7 +130,6 @@ internal interface IntemptCoreComponent {
 
     fun initService(): IntemptCoreService
 
-    fun modification(): ModificationComponent
 
     @Component.Factory
     interface Factory {

@@ -85,7 +85,6 @@ internal class InstallUpgradeTrackerService @Inject constructor(
                 eventName = Constants.INSTALL_UPGRADE.EVENT_NAME,
                 entityName = Constants.INSTALL_UPGRADE.ENTITY_NAME,
                 type = Constants.INSTALL_UPGRADE.EVENT_TYPE,
-                event = null,
                 context = context,
             )
         )

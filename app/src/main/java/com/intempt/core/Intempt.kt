@@ -1,17 +1,21 @@
 package com.intempt.core
 
 import android.content.Context
+import com.intempt.core.customCapture.CustomCaptureComponent
 import com.intempt.core.intemptCore.DaggerIntemptCoreComponent
 import com.intempt.core.intemptCore.IntemptCoreComponent
 import com.intempt.core.intemptCore.IntemptCoreModule
 import com.intempt.core.intemptCore.IntemptCoreService
-import com.intempt.core.modifications.ModificationComponent
+import com.intempt.core.types.ModificationProvider
 
 
 object Intempt  {
     private lateinit var component: IntemptCoreComponent
     private lateinit var intemptCore: IntemptCoreService
-    private lateinit var modification: ModificationComponent
+
+
+    private lateinit var experiment: ModificationProvider
+    private lateinit var personalization: ModificationProvider
 
     fun initialize(context: Context) {
         component = DaggerIntemptCoreComponent.factory()
@@ -20,7 +24,9 @@ object Intempt  {
         component.inject(this);
 
         intemptCore = component.initService()
-        modification = component.modification()
+
+        experiment = intemptCore.modification.experimentHandler
+        personalization = intemptCore.modification.personalizationHandler
     }
 
 
@@ -109,8 +115,5 @@ object Intempt  {
 
     }
 
-    val experiment = modification.experimentHandler
-
-    val personalization = modification.personalizationHandler
 
 }

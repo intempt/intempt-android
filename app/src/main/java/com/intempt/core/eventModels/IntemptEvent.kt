@@ -1,9 +1,12 @@
 package com.intempt.core.eventModels
 
+import com.intempt.core.types.IntemptEventProvider
+
+
 internal class IntemptEvent(
     val name: String,
     private val type: String,
-    val payload: Array<BaseIntemptEvent>,
+    val payload: Array<IntemptEventProvider>,
 ) {
 
     fun getEventType(): String {
@@ -14,43 +17,45 @@ internal class IntemptEvent(
         return payload[0].getEventTime()
     }
 
+    fun getEventName(): String {
+        return name
+    }
 
+    fun toFormated(): Map<String, Any>{
+        val formattedPayload = payload.map { it.toFormatted() }
 
+        return mapOf(
+            "name" to name,
+            "type" to type,
+            "payload" to formattedPayload
+        )
+    }
+
+    override fun toString(): String {
+        // Convert toFormatted() to a JSON-like string
+        val formattedPayload = payload.joinToString(
+            separator = ",\n    ", // Adds indentation for readability
+            prefix = "[\n    ",
+            postfix = "\n  ]"
+        ) { it.toFormatted().toString() }
+
+        return """
+        {
+            "name": "$name",
+            "type": "$type",
+            "payload": $formattedPayload
+        }
+    """.trimIndent()
+    }
 }
 
-internal open class IdentifyEvent(
-    private val userId: String,
-    private val userAttributes: Map<String, String>?,
-    private val data: Map<String, String>?
-) : BaseIntemptEvent() {}
 
-internal open class GroupEvent(
-    private val accountId: String,
-    private val accountAttributes: Map<String, String>?,
-) : BaseIntemptEvent() {}
 
-internal open class TrackEvent(
-    private val data: Map<String, String>,
-) : BaseIntemptEvent() {}
 
-internal open class RecordEvent(
-    accountId: String?,
-    userId: String?,
-    accountAttributes: Map<String, String>?,
-    userAttributes: Map<String, String>?,
-    data: Map<String, String>?
-) : BaseIntemptEvent() {}
 
-internal open class AliasEvent(
-    userId: String,
-    anotherUserId: String,
-) : BaseIntemptEvent() {}
 
-internal open class ConsentEvent(
-    action: String?,
-    email: String? = null,
-    message: String? = null,
-    category: String?= null,
-    sourceId: String,
-    validUntil: Long,
-): BaseIntemptEvent() {}
+
+
+
+
+

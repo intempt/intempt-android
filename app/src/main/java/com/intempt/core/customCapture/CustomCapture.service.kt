@@ -2,7 +2,6 @@ package com.intempt.core.customCapture
 
 import com.intempt.core.autocapture.BaseComponent
 import com.intempt.core.services.LoggerManagerService
-
 import com.intempt.core.types.Constants
 import com.intempt.core.types.DispatchEventProps
 import com.intempt.core.types.ScreenEventProps
@@ -12,9 +11,18 @@ import javax.inject.Singleton
 
 @Singleton
 internal class CustomCaptureService @Inject constructor(
-    private val logger: LoggerManagerService
+    private val logger: LoggerManagerService,
 ): BaseComponent(logger){
-
+    private val forbiddenEventNames: Array<String> = arrayOf(
+        "auto-track",
+        "view page",
+        "leave page",
+        "change on",
+        "click on",
+        "submit on",
+        "identify",
+        "consent"
+    )
 
 
 
@@ -24,7 +32,6 @@ internal class CustomCaptureService @Inject constructor(
         eventTitle: String?,
         userAttributes: Map<String, String>?,
     ):Boolean{
-
         if(userId.isEmpty()){
             logger.error("Identify parameters are invalid: set 'userId' to use 'identify'.")
             return false
@@ -88,18 +95,6 @@ internal class CustomCaptureService @Inject constructor(
         }
         return true
     }
-
-    private val forbiddenEventNames: Array<String> = arrayOf(
-        "auto-track",
-        "view page",
-        "leave page",
-        "change on",
-        "click on",
-        "submit on",
-        "identify",
-        "consent"
-    )
-
 
     internal fun onUiEventReceive(
         props: UiEventProps

@@ -43,6 +43,7 @@ internal sealed class IdTypeKeys(val key: String){
     data object SessionId : IdTypeKeys("ses")
     data object ProfileId : IdTypeKeys("prof")
     data object PageId : IdTypeKeys("pag")
+    data object EventId : IdTypeKeys("ev")
 
 }
 

@@ -1,5 +1,7 @@
 package com.intempt.core.modifications
 
+import com.intempt.core.types.ModificationProvider
+import com.intempt.core.autocapture.BaseComponent
 import com.intempt.core.services.ConfigManagerService
 import com.intempt.core.services.HttpManagerService
 import com.intempt.core.services.LoggerManagerService
@@ -24,14 +26,15 @@ internal class ModificationsService @Inject constructor(
     private val logger: LoggerManagerService,
     private val http: HttpManagerService,
     private val utils: UtilsService
-) {
+): BaseComponent(logger) {
 
-    fun modificationFactory(optimizationType: String) = object {
-        suspend fun getByGroup(data: List<String>): JsonArray? {
+    fun modificationFactory(optimizationType: String): ModificationProvider = object:
+        ModificationProvider {
+        override suspend fun getByGroup(data: List<String>): JsonArray? {
             return getModification(ModificationGetParam(optimizationType, data, isNameType = false))
         }
 
-        suspend fun getByName(data: List<String>): JsonArray? {
+        override suspend fun getByName(data: List<String>): JsonArray? {
             return getModification(ModificationGetParam(optimizationType, data, isNameType = true))
         }
     }

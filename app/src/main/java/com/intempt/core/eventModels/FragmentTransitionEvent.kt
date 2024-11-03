@@ -1,13 +1,19 @@
 package com.intempt.core.eventModels
+import com.intempt.core.types.IntemptEventProvider
 
 
-internal class FragmentTransitionEvent: BaseIntemptEvent() {
-    private val visibleFragment = storage.getFragmentName("visibleFragment") ?: ""
-    private val addedFragment = storage.getFragmentName("addedFragment") ?: ""
-    private val removedFragment = storage.getFragmentName("removedFragment") ?: ""
+internal data class FragmentTransitionEvent(
+    override val eventId: String,
+    override val sessionId: String,
+    override val pageId: String,
+    override val profileId: String,
+    override val timestamp: Long = System.currentTimeMillis(),
+    private val visibleFragment:String,
+    private val addedFragment:String,
+    private val removedFragment:String,
+): IntemptEventProvider {
 
     override fun toString(): String {
-
         val output = """
             {
                 sessionId: $sessionId,
@@ -23,5 +29,25 @@ internal class FragmentTransitionEvent: BaseIntemptEvent() {
             }
         """
         return output.trimIndent()
+    }
+
+    override fun toFormatted(): Map<String, Any> {
+        return mapOf(
+            "sessionId" to sessionId,
+            "eventId" to eventId,
+            "pageId" to pageId,
+            "profileId" to profileId,
+            "timestamp" to timestamp,
+            "data" to mapOf(
+                "visibleFragment" to visibleFragment,
+                "addedFragment" to addedFragment,
+                "removedFragment" to removedFragment,
+            )
+        )
+
+    }
+
+    override fun getEventTime(): Long {
+        return timestamp
     }
 }

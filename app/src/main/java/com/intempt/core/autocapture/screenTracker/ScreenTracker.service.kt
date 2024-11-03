@@ -7,26 +7,42 @@ import com.intempt.core.services.StorageManagerService
 import com.intempt.core.services.UtilsService
 import com.intempt.core.services.eventPool.EventPoolManagerService
 import com.intempt.core.types.DispatchEventProps
+import com.intempt.core.types.IdTypeKeys
 import com.intempt.core.types.ScreenEventProps
+import com.intempt.core.types.StorageKeys
 import javax.inject.Inject
 
 internal class ScreenTrackerService @Inject constructor(
     private val eventSrv: EventPoolManagerService,
     private val logger: LoggerManagerService,
-    private val utils: UtilsService
-   // private val storage: StorageManagerService,
+    private val utils: UtilsService,
+    private val storage: StorageManagerService,
 ) {
 
 
+    fun storePageId(){
+        return storage.setStorageItem(
+            prefs = StorageKeys.SessionPrefs.key,
+            key = StorageKeys.PageId.key,
+            value = utils.generateId(IdTypeKeys.PageId.key)
+        ){ key, value ->
+            putString(key, value)
+        }
+    }
 
-
-    fun setPageId(){
-       // return storage.pageIdSet()
+    private fun storeFragmentName(key:String, fragment: Fragment){
+        return storage.setStorageItem(
+            prefs = StorageKeys.FragmentPrefs.key,
+            key,
+            value = fragment.javaClass.simpleName
+        ){ _, value ->
+            putString(key, value)
+        }
     }
 
 
     fun handleFragmentCallbacks(callBackName:String, key:String, fragment: Fragment) {
-       // storage.saveFragmentName(key, fragment)
+        storeFragmentName(key, fragment)
 
         logger.log("AutoCapture | $callBackName: ${fragment::class.java.simpleName}")
     }
@@ -60,7 +76,6 @@ internal class ScreenTrackerService @Inject constructor(
                 eventName = eventName,
                 entityName = entityName,
                 type = eventType ,
-                event = null,
                 context = activity
             )
         )

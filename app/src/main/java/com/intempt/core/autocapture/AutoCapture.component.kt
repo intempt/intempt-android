@@ -11,16 +11,17 @@ import javax.inject.Singleton
 internal class AutoCaptureComponent @Inject constructor(
     private val context: Context,
     private val lifecycleCallBacksManager: LifecycleCallBacksComponent,
-    private val logger: LoggerManagerService,
+    val logger: LoggerManagerService,
     private val config: ConfigManagerService
 ): BaseComponent(logger) {
-    init{
+
+    fun start(){
+        if(!config.isAutoCaptureEnabled) return
         registerGlobalActivityLifecycleCallbacks();
     }
 
 
     private fun registerGlobalActivityLifecycleCallbacks() {
-        if(!config.isAutoCaptureEnabled) return
         val application = context.applicationContext as Application;
         application.registerActivityLifecycleCallbacks(lifecycleCallBacksManager)
     }
