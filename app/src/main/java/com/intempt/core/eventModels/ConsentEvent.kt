@@ -8,23 +8,45 @@ internal open class ConsentEvent(
     override val pageId: String,
     override val profileId: String,
     override val timestamp: Long = System.currentTimeMillis(),
-    action: String?,
-    email: String? = null,
-    message: String? = null,
-    category: String?= null,
-    sourceId: String,
-    validUntil: Long,
+    private val action: String,
+    private val email: String? = null,
+    private val message: String? = null,
+    private val category: String?= null,
+    private val sourceId: String,
+    private val validUntil: Long,
 ) : IntemptEventProvider {
     override fun getEventTime(): Long {
         return timestamp;
     }
 
-    override fun toFormatted(): Map<String, Any> {
-        return mapOf(
-            "sessionId" to sessionId,
-            "eventId" to eventId,
-            "pageId" to pageId,
-            "profileId" to profileId,
-        )
+    override fun toFormatted(): Map<String, Any?> {
+        val map = mutableMapOf<String, Any>()
+        map["sessionId"] = sessionId
+        map["eventId"] = eventId
+        map["pageId"] = pageId
+        map["profileId"] = profileId
+        map["timestamp"] = timestamp
+        map["sourceId"] = sourceId
+        map["validUntil"] = validUntil
+
+        email?.let { map["email"] = it }
+        message?.let { map["message"] = it }
+        category?.let { map["category"] = it }
+
+
+        return map
+//        return mapOf(
+//            "sessionId" to sessionId,
+//            "eventId" to eventId,
+//            "pageId" to pageId,
+//            "profileId" to profileId,
+//            "timestamp" to timestamp,
+//            "action" to action,
+//            "email" to email,
+//            "message" to message,
+//            "category" to category,
+//            "sourceId" to sourceId,
+//            "validUntil" to validUntil
+//        )
     }
 }

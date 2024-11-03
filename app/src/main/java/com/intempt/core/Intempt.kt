@@ -1,7 +1,6 @@
 package com.intempt.core
 
 import android.content.Context
-import com.intempt.core.customCapture.CustomCaptureComponent
 import com.intempt.core.intemptCore.DaggerIntemptCoreComponent
 import com.intempt.core.intemptCore.IntemptCoreComponent
 import com.intempt.core.intemptCore.IntemptCoreModule
@@ -14,8 +13,8 @@ object Intempt  {
     private lateinit var intemptCore: IntemptCoreService
 
 
-    private lateinit var experiment: ModificationProvider
-    private lateinit var personalization: ModificationProvider
+    lateinit var experiment: ModificationProvider
+    lateinit var personalization: ModificationProvider
 
     fun initialize(context: Context) {
         component = DaggerIntemptCoreComponent.factory()

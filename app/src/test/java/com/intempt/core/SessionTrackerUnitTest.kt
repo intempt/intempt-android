@@ -7,8 +7,10 @@ import com.intempt.core.autocapture.sessionTracker.SessionTrackerService
 import com.intempt.core.eventModels.IntemptEvent
 import com.intempt.core.services.ConfigManagerService
 import com.intempt.core.services.HttpManagerService
+import com.intempt.core.services.IntemptEventManagerService
 import com.intempt.core.services.LoggerManagerService
 import com.intempt.core.services.StorageManagerService
+import com.intempt.core.services.UtilsService
 import com.intempt.core.services.eventPool.EventPoolManagerService
 import com.intempt.core.types.Constants
 import com.intempt.core.types.StorageKeys
@@ -49,6 +51,8 @@ class SessionTrackerUnitTest {
     private lateinit var eventFlow: MutableSharedFlow<IntemptEvent>
     private lateinit var logger: LoggerManagerService
     private lateinit var httpSrv: HttpManagerService
+    private lateinit var intemptEvent: IntemptEventManagerService
+    private lateinit var utils: UtilsService
 
     @Before
     fun setUp() {
@@ -62,9 +66,11 @@ class SessionTrackerUnitTest {
         config.isLoggingEnabled = true
 
         logger = spy(LoggerManagerService(config))
-        storage = spy(StorageManagerService(context, logger))
+        storage = spy(StorageManagerService(context))
         httpSrv = spy(HttpManagerService(config, logger))
-        eventPool = spy(EventPoolManagerService(config, logger, httpSrv))
+        utils = spy(UtilsService(logger))
+        intemptEvent = spy(IntemptEventManagerService(context, storage, utils, config))
+        eventPool = spy(EventPoolManagerService(config, logger, httpSrv, intemptEvent))
 
         eventFlow = MutableSharedFlow<IntemptEvent>()
 
@@ -77,7 +83,9 @@ class SessionTrackerUnitTest {
                 logger,
                 storage,
                 eventPool,
-                httpSrv
+                httpSrv,
+                utils,
+                intemptEvent
             )
         )
 
@@ -210,6 +218,8 @@ class SessionTrackerUnitTest {
                 storage,
                 eventPool,
                 httpSrv,
+                utils,
+                intemptEvent,
                 dispatcher = testDispatcher
             )
         )

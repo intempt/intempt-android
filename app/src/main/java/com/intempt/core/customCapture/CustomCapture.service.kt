@@ -2,6 +2,7 @@ package com.intempt.core.customCapture
 
 import com.intempt.core.autocapture.BaseComponent
 import com.intempt.core.services.LoggerManagerService
+import com.intempt.core.services.StorageManagerService
 import com.intempt.core.types.Constants
 import com.intempt.core.types.DispatchEventProps
 import com.intempt.core.types.ScreenEventProps
@@ -11,7 +12,8 @@ import javax.inject.Singleton
 
 @Singleton
 internal class CustomCaptureService @Inject constructor(
-    private val logger: LoggerManagerService,
+    private val storage: StorageManagerService,
+    val logger: LoggerManagerService,
 ): BaseComponent(logger){
     private val forbiddenEventNames: Array<String> = arrayOf(
         "auto-track",
@@ -24,10 +26,14 @@ internal class CustomCaptureService @Inject constructor(
         "consent"
     )
 
+    fun logoutHandler(){
+        storage.clearAllStorage()
+    }
 
 
 
-    internal fun isIdentifyValid(
+
+    fun isIdentifyValid(
         userId: String,
         eventTitle: String?,
         userAttributes: Map<String, String>?,
@@ -50,7 +56,7 @@ internal class CustomCaptureService @Inject constructor(
         return true
     }
 
-    internal fun isGroupValid(
+    fun isGroupValid(
         accountId: String,
         eventTitle: String?,
         accountAttributes: Map<String, String>?,
@@ -74,7 +80,7 @@ internal class CustomCaptureService @Inject constructor(
         return true
     }
 
-    internal fun isTrackValid(eventTitle: String?):Boolean{
+    fun isTrackValid(eventTitle: String?):Boolean{
         if(eventTitle.isNullOrEmpty()){
             logger.error("Track parameters are invalid: eventTitle is required.")
             return false
@@ -88,7 +94,7 @@ internal class CustomCaptureService @Inject constructor(
         return true
     }
 
-    internal fun isConsentValid(action: String):Boolean{
+    fun isConsentValid(action: String):Boolean{
         if(action.isNotEmpty() && action !== "accept" && action !== "reject"){
             logger.error("Consent parameters are invalid: action should be either 'reject' or 'accept'.")
             return false
@@ -96,10 +102,10 @@ internal class CustomCaptureService @Inject constructor(
         return true
     }
 
-    internal fun onUiEventReceive(
+    fun onUiEventReceive(
         props: UiEventProps
     ): DispatchEventProps {
-        logger.log("autoCapture | Is UiEventProps")
+        logger.log("AutoCapture | Is UiEventProps")
         val (activity, view, listenerType) = props;
 
         val eventName = when (listenerType) {
@@ -123,7 +129,7 @@ internal class CustomCaptureService @Inject constructor(
         )
     }
 
-    internal fun onScreenEventReceive(props:ScreenEventProps):DispatchEventProps{
+    fun onScreenEventReceive(props:ScreenEventProps):DispatchEventProps{
         val (activity,eventName,entityName, eventType) = props
         return DispatchEventProps(
             eventName = eventName,

@@ -3,7 +3,6 @@ package com.intempt.core.customCapture
 import com.intempt.core.eventModels.IntemptEvent
 import com.intempt.core.services.ConfigManagerService
 import com.intempt.core.services.IntemptEventManagerService
-import com.intempt.core.services.LoggerManagerService
 import com.intempt.core.services.eventPool.EventPoolManagerService
 import com.intempt.core.types.AutoCaptureParam
 import com.intempt.core.types.DispatchEventProps
@@ -18,12 +17,12 @@ internal class CustomCaptureComponent @Inject constructor(
     private val srv: CustomCaptureService,
     private val config: ConfigManagerService,
     private val eventPool: EventPoolManagerService,
-    private val logger: LoggerManagerService,
     private val intemptEvent: IntemptEventManagerService
 ) {
 
-    fun autoCapture(listenerType: String, param: AutoCaptureParam){
-        logger.log("autoCapture | Is $listenerType listener")
+    fun captureUi(listenerType: String, param: AutoCaptureParam){
+        if (!config.isUserOptIn) return
+        srv.logger.log("autoCapture | Is $listenerType listener")
 
         val payload: DispatchEventProps = when (param) {
             is UiEventProps -> srv.onUiEventReceive(param)
@@ -40,22 +39,22 @@ internal class CustomCaptureComponent @Inject constructor(
     }
 
     fun enableLogging(){
-        logger.log("Invoke enableLogging")
+        srv.logger.log("Invoke enableLogging")
         config.isLoggingEnabled = true
     }
 
     fun disableLogging(){
-        logger.log("Invoke disableLogging")
+        srv.logger.log("Invoke disableLogging")
         config.isLoggingEnabled = false
     }
 
     fun optIn(){
-        logger.log("Invoke optIn")
+        srv.logger.log("Invoke optIn")
         config.isUserOptIn = true
     }
 
     fun optOut(){
-        logger.log("Invoke optOut")
+        srv.logger.log("Invoke optOut")
         config.isUserOptIn = false
     }
 
@@ -69,7 +68,7 @@ internal class CustomCaptureComponent @Inject constructor(
         if (!config.isUserOptIn) return
         if (!srv.isIdentifyValid(userId,eventTitle,userAttributes)) return
 
-        logger.log("Invoke identify")
+        srv.logger.log("Invoke identify")
 
          val newEvent = IntemptEvent(
              name = eventTitle ?: "Identify",
@@ -92,7 +91,7 @@ internal class CustomCaptureComponent @Inject constructor(
         if (!config.isUserOptIn) return
         if (!srv.isGroupValid(accountId,eventTitle,accountAttributes)) return
 
-        logger.log("Invoke group")
+        srv.logger.log("Invoke group")
 
         val newEvent = IntemptEvent(
             name = eventTitle ?: "Identify",
@@ -110,7 +109,7 @@ internal class CustomCaptureComponent @Inject constructor(
         if (!config.isUserOptIn) return
         if (!srv.isTrackValid(eventTitle)) return
 
-        logger.log("Invoke track")
+        srv.logger.log("Invoke track")
 
         val newEvent = IntemptEvent(
             name = eventTitle,
@@ -132,7 +131,7 @@ internal class CustomCaptureComponent @Inject constructor(
         if (!config.isUserOptIn) return
         if (!srv.isTrackValid(eventTitle)) return
 
-        logger.log("Invoke record")
+        srv.logger.log("Invoke record")
 
         val newEvent = IntemptEvent(
             name = eventTitle,
@@ -152,7 +151,7 @@ internal class CustomCaptureComponent @Inject constructor(
     fun alias(userId: String, anotherUserId: String){
         if (!config.isUserOptIn) return
 
-        logger.log("Invoke alias")
+        srv.logger.log("Invoke alias")
 
         val newEvent = IntemptEvent(
             name = "Identify",
@@ -173,7 +172,7 @@ internal class CustomCaptureComponent @Inject constructor(
         if (!config.isUserOptIn) return
         if (!srv.isConsentValid(action)) return
 
-        logger.log("Invoke alias")
+        srv.logger.log("Invoke alias")
 
         val newEvent = IntemptEvent(
             name = "Identify",
@@ -193,15 +192,8 @@ internal class CustomCaptureComponent @Inject constructor(
 
     fun logOut(){
         if (!config.isUserOptIn) return
-
-        val newEvent = IntemptEvent(
-            name = "Log out",
-            type = "logOut",
-            payload =  arrayOf()
-        )
-
-        eventPool.emitEvent(newEvent)
-
+        srv.logger.log("Invoke logOut")
+        srv.logoutHandler()
     }
 
 

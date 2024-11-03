@@ -42,14 +42,12 @@ internal class ModificationsService @Inject constructor(
     private suspend fun getModification(params: ModificationGetParam): JsonArray? {
         val (optimizationType, data, isNameType) = params
         val paramType = if (isNameType) "name" else "group"
-        val errorMessage = "Failed to fetch $optimizationType modification by $paramType"
 
-        return utils.withTryCatchSuspend(errorMessage){
-            val body = generateBody(
-                ModificationBodyParam(optimizationType, data, paramType)
-            )
-            request(body)
-        }
+
+        val body = generateBody(
+            ModificationBodyParam(optimizationType, data, paramType)
+        )
+        return  request(body)
     }
 
     private fun generateBody(params: ModificationBodyParam): JSONObject {

@@ -16,5 +16,5 @@ interface IntemptEventProvider {
 
     fun getEventTime(): Long
 
-    fun toFormatted(): Map<String, Any>
+    fun toFormatted(): Map<String, Any?>
 }

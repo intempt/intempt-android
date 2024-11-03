@@ -63,13 +63,8 @@ internal class IntemptCoreModule(
 
     @Provides
     @Singleton
-    fun provideStorageManagerService(
-        logger: LoggerManagerService,
-    ): StorageManagerService{
-        return StorageManagerService(
-            consumerContext.applicationContext,
-            logger
-        )
+    fun provideStorageManagerService(): StorageManagerService{
+        return StorageManagerService(consumerContext.applicationContext)
     }
 
     @Provides
@@ -78,15 +73,12 @@ internal class IntemptCoreModule(
         config: ConfigManagerService,
         logger: LoggerManagerService,
         http: HttpManagerService,
-        storage: StorageManagerService,
         intemptEvent: IntemptEventManagerService,
     ): EventPoolManagerService{
         return EventPoolManagerService(
-            consumerContext.applicationContext,
             config,
             logger,
             http,
-            storage,
             intemptEvent
         )
     }

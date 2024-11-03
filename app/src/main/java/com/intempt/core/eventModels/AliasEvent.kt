@@ -8,8 +8,8 @@ internal class AliasEvent(
     override val pageId: String,
     override val profileId: String,
     override val timestamp: Long = System.currentTimeMillis(),
-    userId: String,
-    anotherUserId: String,
+    private val userId: String,
+    private val anotherUserId: String,
 ) : IntemptEventProvider {
     override fun getEventTime(): Long {
         return timestamp;
@@ -21,6 +21,9 @@ internal class AliasEvent(
             "eventId" to eventId,
             "pageId" to pageId,
             "profileId" to profileId,
+            "timestamp" to timestamp,
+            "userId" to userId,
+            "anotherUserId" to anotherUserId
         )
     }
 }

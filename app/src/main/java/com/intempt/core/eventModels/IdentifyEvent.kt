@@ -17,11 +17,18 @@ internal open class IdentifyEvent(
     }
 
     override fun toFormatted(): Map<String, Any> {
-        return mapOf(
-            "sessionId" to sessionId,
-            "eventId" to eventId,
-            "pageId" to pageId,
-            "profileId" to profileId,
-        )
+        val map = mutableMapOf<String, Any>()
+
+        map["sessionId"] = sessionId
+        map["eventId"] = eventId
+        map["pageId"] = pageId
+        map["profileId"] = profileId
+        map["timestamp"] = timestamp
+        map["userId"] = userId
+
+        userAttributes?.let { map["userAttributes"] = it }
+        data?.let { map["data"] = it }
+
+        return map
     }
 }

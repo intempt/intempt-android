@@ -5,6 +5,7 @@ import com.intempt.core.autocapture.BaseComponent
 import com.intempt.core.types.ConfigKeys
 import com.intempt.core.types.ConfigResult
 import com.intempt.core.types.Constants
+import com.intempt.core.types.DefaultConfigs
 import com.intempt.core.types.IntemptConfigs
 import com.intempt.core.types.IntemptOptions
 import java.io.InputStream
@@ -25,7 +26,7 @@ class ConfigManagerService  @Inject constructor(
 
     var isLoggingEnabled : Boolean;
     var isUserOptIn: Boolean;
-    val isQueueEnabled: Boolean;
+    var isQueueEnabled: Boolean;
     val itemsInQueue: Int;
     val timeBuffer: Long;
 
@@ -50,28 +51,24 @@ class ConfigManagerService  @Inject constructor(
 
 
 
-
-
-
     init {
         val (configs, options) = getConfigs()
-            _apiKey = configs?.apiKey ?: ""
-            _sourceId = configs?.sourceId ?: ""
-            _organizationId = configs?.organizationId ?: ""
-            _projectId = configs?.projectId ?: ""
+
+        _apiKey = configs?.apiKey ?: ""
+        _sourceId = configs?.sourceId ?: ""
+        _organizationId = configs?.organizationId ?: ""
+        _projectId = configs?.projectId ?: ""
 
 
-            _isTouchEnabled = options?.isTouchEnabled ?: true
-            _isTextCaptureEnabled = options?.isTextCaptureEnabled ?: true
-            _isAutoCaptureEnabled = options?.isAutoCaptureEnabled ?: true
+        _isTouchEnabled = options?.isTouchEnabled ?: DefaultConfigs.IsTouchEnabled.value
+        _isTextCaptureEnabled = options?.isTextCaptureEnabled ?: DefaultConfigs.IsTextCaptureEnabled.value
+        _isAutoCaptureEnabled = options?.isAutoCaptureEnabled ?: DefaultConfigs.IsAutoCaptureEnabled.value
 
-            itemsInQueue = options?.itemsInQueue ?: 5
-            timeBuffer = options?.timeBuffer ?: 5000
-            isUserOptIn = true
-            isLoggingEnabled = options?.isLoggingEnabled ?: false
-            isQueueEnabled = options?.isQueueEnabled ?: true
-
-
+        itemsInQueue = options?.itemsInQueue ?: DefaultConfigs.ItemsInQueue.value
+        timeBuffer = options?.timeBuffer ?: DefaultConfigs.TimeBuffer.value
+        isUserOptIn = DefaultConfigs.IsUserOptIn.value
+        isLoggingEnabled = options?.isLoggingEnabled ?: DefaultConfigs.IsLoggingEnabled.value
+        isQueueEnabled = options?.isQueueEnabled ?: DefaultConfigs.IsQueueEnabled.value
     }
 
     fun token(): String {
@@ -118,17 +115,5 @@ class ConfigManagerService  @Inject constructor(
             ConfigResult(configs = null, options = null)
         }
 
-    }
-
-    override fun toString(): String {
-        val output = """
-            {
-                apiKey: '$_apiKey',
-                sourceId: '$_sourceId',
-                organizationId: '$_organizationId',
-                projectId: '$_projectId'
-            }
-        """
-        return output.trimIndent()
     }
 }

@@ -63,5 +63,14 @@ internal sealed class ConfigKeys(val key: String){
     data object TimeBuffer : ConfigKeys("timeBuffer")
 }
 
-internal sealed class DefaultConfigs(val key: String, val value: Any){}
+internal sealed class DefaultConfigs<T>(val value: T){
+    data object IsTouchEnabled : DefaultConfigs<Boolean>(true)
+    data object IsTextCaptureEnabled : DefaultConfigs<Boolean>(true)
+    data object IsAutoCaptureEnabled : DefaultConfigs<Boolean>(true)
+    data object ItemsInQueue : DefaultConfigs<Int>(5)
+    data object TimeBuffer : DefaultConfigs<Long>(5000L)
+    data object IsUserOptIn : DefaultConfigs<Boolean>(true)
+    data object IsLoggingEnabled : DefaultConfigs<Boolean>(false)
+    data object IsQueueEnabled : DefaultConfigs<Boolean>(true)
+}
 

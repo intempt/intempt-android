@@ -21,7 +21,7 @@ internal class IntemptEvent(
         return name
     }
 
-    fun toFormated(): Map<String, Any>{
+    fun toFormated(): Map<String, Any?>{
         val formattedPayload = payload.map { it.toFormatted() }
 
         return mapOf(

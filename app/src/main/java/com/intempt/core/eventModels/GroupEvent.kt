@@ -9,19 +9,32 @@ internal open class GroupEvent(
     override val profileId: String,
     override val timestamp: Long = System.currentTimeMillis(),
     private val accountId: String,
-    private val accountAttributes: Map<String, String>?,
+    private val accountAttributes: Map<String, Any>?,
 ) : IntemptEventProvider {
     override fun getEventTime(): Long {
         return timestamp;
     }
 
-    override fun toFormatted(): Map<String, Any> {
-        return mapOf(
-            "sessionId" to sessionId,
-            "eventId" to eventId,
-            "pageId" to pageId,
-            "profileId" to profileId,
-        )
+    override fun toFormatted(): Map<String, Any?> {
+        val map = mutableMapOf<String, Any>()
+        map["sessionId"] = sessionId
+        map["eventId"] = eventId
+        map["pageId"] = pageId
+        map["profileId"] = profileId
+        map["timestamp"] = timestamp
+        map["accountId"] = accountId
+        accountAttributes?.let { map["accountAttributes"] = it }
+
+        return map
+//        return mapOf(
+//            "sessionId" to sessionId,
+//            "eventId" to eventId,
+//            "pageId" to pageId,
+//            "profileId" to profileId,
+//            "timestamp" to timestamp,
+//            "accountId" to accountId,
+//            "accountAttributes" to accountAttributes
+//        )
     }
 
 }

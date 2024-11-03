@@ -3,6 +3,7 @@ package com.intempt.core.customCapture
 import com.intempt.core.services.ConfigManagerService
 import com.intempt.core.services.IntemptEventManagerService
 import com.intempt.core.services.LoggerManagerService
+import com.intempt.core.services.StorageManagerService
 import com.intempt.core.services.eventPool.EventPoolManagerService
 import dagger.Module
 import dagger.Provides
@@ -17,15 +18,13 @@ internal class CustomCaptureModule {
         service: CustomCaptureService,
         config: ConfigManagerService,
         eventPool: EventPoolManagerService,
-        logger: LoggerManagerService,
-        intemptEvent: IntemptEventManagerService
+        intemptEvent: IntemptEventManagerService,
     ): CustomCaptureComponent{
         return CustomCaptureComponent(
             service,
             config,
             eventPool,
-            logger,
-            intemptEvent
+            intemptEvent,
         )
     }
 

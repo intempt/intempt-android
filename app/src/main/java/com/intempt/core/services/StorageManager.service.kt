@@ -2,10 +2,7 @@ package com.intempt.core.services
 
 import android.content.Context
 import android.content.SharedPreferences
-import androidx.fragment.app.Fragment
-import com.intempt.core.autocapture.BaseComponent
 import com.intempt.core.types.AppVisibilityState
-import com.intempt.core.types.IdTypeKeys
 import com.intempt.core.types.StorageKeys
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -14,8 +11,7 @@ import javax.inject.Singleton
 @Singleton
 internal class StorageManagerService @Inject constructor(
     private val context: Context,
-    private val logger: LoggerManagerService
-):BaseComponent(logger){
+){
 
     fun <T> setStorageItem(
         prefs: String,
@@ -50,7 +46,6 @@ internal class StorageManagerService @Inject constructor(
     }
 
     fun getPageId(): String {
-        logger.log("Get page Id");
         return getStorageItem(
             prefs = StorageKeys.SessionPrefs.key,
             key = StorageKeys.PageId.key
@@ -60,7 +55,6 @@ internal class StorageManagerService @Inject constructor(
     }
 
     fun getProfileId():String {
-        logger.log("Get profile Id");
         return getStorageItem(
             prefs = StorageKeys.UserPrefs.key,
             key = StorageKeys.ProfileId.key
@@ -111,9 +105,35 @@ internal class StorageManagerService @Inject constructor(
         ){ key, fallBack ->
             getInt(key, fallBack ?: fallbackVersion)
         } ?: fallbackVersion
-        logger.log("InstallUpgradeTrackerService | Received version code: $versionCode")
-
         return versionCode
+    }
+
+    fun clearAllStorage() {
+        val profileId = getProfileId()
+
+        // Clear all entries in SessionPrefs
+        val sessionPrefs = context.getSharedPreferences(StorageKeys.SessionPrefs.key, Context.MODE_PRIVATE)
+        sessionPrefs.edit().clear().apply()
+
+        // Clear all entries in AppPrefs
+        val appPrefs = context.getSharedPreferences(StorageKeys.AppPrefs.key, Context.MODE_PRIVATE)
+        appPrefs.edit().clear().apply()
+
+        // Clear all entries in FragmentPrefs
+        val fragmentPrefs = context.getSharedPreferences(StorageKeys.FragmentPrefs.key, Context.MODE_PRIVATE)
+        fragmentPrefs.edit().clear().apply()
+
+        // Restore the profileId in UserPrefs after clearing
+        val userPrefs = context.getSharedPreferences(StorageKeys.UserPrefs.key, Context.MODE_PRIVATE)
+        userPrefs.edit().clear().apply()
+
+        setStorageItem(
+            StorageKeys.UserPrefs.key,
+            StorageKeys.ProfileId.key,
+            profileId
+        ) { key, value ->
+            putString(key, value)
+        }
     }
 
 

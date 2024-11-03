@@ -11,13 +11,13 @@ internal class UtilsService @Inject constructor(
     private val logger: LoggerManagerService
 ){
 
-    suspend fun <T> withTryCatchSuspend(errorMessage: String, block: suspend () -> T): T  {
+    suspend fun <T> withTryCatchSuspend(errorMessage: String, block: suspend () -> T): T?  {
        return try {
             block()
         } catch (e: Exception) {
             logger.error("$errorMessage; Error: ${e.message}")
-            throw e
-        }
+            null
+       }
     }
 
     fun <T> withTryCatch(errorMessage: String, block: () -> T): T {

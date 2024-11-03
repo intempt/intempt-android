@@ -30,11 +30,9 @@ import kotlin.reflect.jvm.isAccessible
 
 @Singleton
 internal class EventPoolManagerService @Inject constructor(
-    private val context: Context,
     private val config: ConfigManagerService,
     private val logger: LoggerManagerService,
     private val http: HttpManagerService,
-    private val storage: StorageManagerService,
     private val intemptEvent: IntemptEventManagerService,
     private val dispatcher: CoroutineDispatcher = Dispatchers.Main.immediate
 ): BaseComponent(logger){
@@ -51,16 +49,19 @@ internal class EventPoolManagerService @Inject constructor(
 
     val eventReceiver: SharedFlow<IntemptEvent> = _eventReceiver;
 
-    @Volatile
-    var lastEvent: IntemptEvent? = null
-
-
+    val eventsList: List<IntemptEvent>
+        get() = eventQueue.toList()
 
     init {
         subscribe(Job()) { value ->
             logger.log("IntemptCoreService | Received event of type: ${value.getEventType()}");
             handleIntemptEvent(value)
         }
+    }
+
+    @Synchronized
+    fun addEvent(event: IntemptEvent) {
+        eventQueue.add(event)
     }
 
     fun dispatchEvent(props: DispatchEventProps) {
@@ -82,22 +83,21 @@ internal class EventPoolManagerService @Inject constructor(
 
 
         if(payload != null){
-            lastEvent = IntemptEvent(
-                name = eventName,
-                type = entityName,
-                payload = payload
+            emitEvent(
+                IntemptEvent(
+                    name = eventName,
+                    type = entityName,
+                    payload = payload
+                )
             )
         }
     }
 
-    fun emitEvent(event: IntemptEvent) {
+    fun emitEvent(event: IntemptEvent):Boolean {
         val isEmitted = _eventReceiver.tryEmit(event)
-        if(isEmitted){
-            lastEvent = event
-        }
-
         logger.log("EventPool | Event is emitted: $isEmitted")
         logger.log("EventPool | $event")
+        return isEmitted
     }
 
     fun subscribe(job:Job, callback: (value: IntemptEvent) -> Unit) {
@@ -140,7 +140,7 @@ internal class EventPoolManagerService @Inject constructor(
 
     private fun handleIntemptEvent(event: IntemptEvent){
         logger.log("handleIntemptEvent | Received event: $event")
-        eventQueue.add(event)
+        addEvent(event)
         logger.log("EventPoolManagerService | eventQueue size: ${eventQueue.size}")
         validateEventCall {
             sendEvents()
@@ -151,6 +151,7 @@ internal class EventPoolManagerService @Inject constructor(
         if(eventQueue.isEmpty()) return
 
         val requestBodyJson = generateRequestBody()
+        logger.log("sendEvents | Request body: $requestBodyJson")
 
         coroutineScope.launch {
                 try {
@@ -165,11 +166,22 @@ internal class EventPoolManagerService @Inject constructor(
 
     private fun generateRequestBody(): JSONObject {
         val trackArray = JSONArray()
+
         for (event in eventQueue) {
-            val eventJsonObject = JSONObject().apply {
-                put("name", event.name)
-                put("payload", JSONArray(event.payload))
+            logger.log("eventQueue | $event")
+            val payloadArray = JSONArray()
+
+            for (payloadItem in event.payload) {
+                val payloadJsonObject = JSONObject(payloadItem.toFormatted())
+
+                payloadArray.put(payloadJsonObject)
             }
+
+//            val eventJsonObject = JSONObject().apply {
+//                put("name", event.name)
+//                put("payload", payloadArray)
+//            }
+            val eventJsonObject = JSONObject(event.toFormated())
             trackArray.put(eventJsonObject)
         }
         return JSONObject().apply {

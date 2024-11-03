@@ -3,21 +3,37 @@ package com.intempt.core
 import android.content.Context
 import android.content.SharedPreferences
 import com.intempt.core.autocapture.installUpgradeTracker.InstallUpgradeTrackerService
+import com.intempt.core.intemptCore.DaggerIntemptCoreComponent
+import com.intempt.core.intemptCore.IntemptCoreComponent
+import com.intempt.core.intemptCore.IntemptCoreModule
+import com.intempt.core.intemptCore.IntemptCoreService
+import com.intempt.core.modifications.ModificationComponent
 import com.intempt.core.services.ConfigManagerService
 import com.intempt.core.services.HttpManagerService
+import com.intempt.core.services.IntemptEventManagerService
 import com.intempt.core.services.LoggerManagerService
 import com.intempt.core.services.StorageManagerService
 import com.intempt.core.services.UtilsService
 import com.intempt.core.services.eventPool.EventPoolManagerService
+import com.intempt.core.types.ModificationProvider
+import com.intempt.sdk.BuildConfig
+import junit.framework.TestCase.assertEquals
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.ArgumentMatchers.eq
 import org.mockito.Mock
+import org.mockito.Mockito
+import org.mockito.Mockito.doAnswer
+import org.mockito.Mockito.mock
+import org.mockito.Mockito.mockStatic
 import org.mockito.Mockito.spy
 import org.mockito.Mockito.`when`
 import org.mockito.MockitoAnnotations
+import org.mockito.kotlin.any
 import org.mockito.kotlin.anyOrNull
+import org.mockito.kotlin.verify
+import org.mockito.kotlin.whenever
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
@@ -26,89 +42,56 @@ import org.robolectric.shadows.ShadowLog
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
-class IntemptCoreUnitTest {
-
-
-    @Mock()
-    private lateinit var mockSharedPreferences : SharedPreferences
-
-
-    private lateinit var installUpgradeTrackerService: InstallUpgradeTrackerService
-    private lateinit var storage: StorageManagerService
-    private lateinit var eventSrv: EventPoolManagerService
-    private lateinit var config: ConfigManagerService
+internal class IntemptCoreUnitTest {
     private lateinit var context: Context
-    private lateinit var logger: LoggerManagerService
-    private lateinit var httpSrv: HttpManagerService
-    private lateinit var utils: UtilsService
+
+    @Mock
+    lateinit var mockModule: IntemptCoreModule
+
+    @Mock
+    lateinit var mockComponent: IntemptCoreComponent
+
+    @Mock
+    lateinit var mockIntemptCore: IntemptCoreService
+
+    @Mock
+    lateinit var mockModification: ModificationComponent
+
+    @Mock
+    lateinit var mockExperimentHandler: ModificationProvider
+
+    @Mock
+    lateinit var mockPersonalizationHandler:  ModificationProvider
+
 
     @Before
     fun setUp() {
-        MockitoAnnotations.openMocks(this)
-        ShadowLog.stream = System.out
-        ShadowLog.clear()
+//        MockitoAnnotations.openMocks(this)
+//
+//        context = spy(RuntimeEnvironment.getApplication())
+//
+//        val mockFactory = spy(DaggerIntemptCoreComponent.factory())
+//
+//        doAnswer { invocation ->
+//            mockComponent
+//        }.whenever(mockFactory).create(mockModule)
+//
+//        whenever(mockComponent.initService()).thenReturn(mockIntemptCore)
+//        whenever(mockIntemptCore.modification).thenReturn(mockModification)
+//        whenever(mockModification.experimentHandler).thenReturn(mockExperimentHandler)
+//        whenever(mockModification.personalizationHandler).thenReturn(mockPersonalizationHandler)
 
 
-        context = spy(RuntimeEnvironment.getApplication())
-        config = spy(ConfigManagerService(context))
-        config.isLoggingEnabled = true
-        logger = spy(LoggerManagerService(config))
-        storage = spy(StorageManagerService(context, logger))
-        httpSrv = spy(HttpManagerService(config, logger))
-        eventSrv = spy(EventPoolManagerService(config, logger, httpSrv))
-        utils = spy(UtilsService(logger))
-
-
-        installUpgradeTrackerService = spy(
-            InstallUpgradeTrackerService(
-                context,
-                eventSrv,
-                storage,
-                logger,
-                utils
-            )
-        )
-
-        `when`(installUpgradeTrackerService.getConsumerAppVersionCode()).thenReturn(1)
-
-        val key="user_prefs"
-        val mode = Context.MODE_PRIVATE
-
-        `when`(
-            context.getSharedPreferences(key, mode)
-        ).thenReturn(mockSharedPreferences)
-
-        `when`(mockSharedPreferences.getString(eq("ProfileId"), anyOrNull())).thenReturn(null)
     }
 
-    @Test
-    fun `should initialize services in order`() {
-//        val expectedLogs = listOf(
-//            "StorageManagerService initialized",
-//            //"ConfigManagerService initialized",
-//            "EventPoolManagerService initialized",
-//            "SessionTrackerService initialized",
-//            "InstallUpgradeTrackerComponent initialized"
-//        )
+    //@Test
+    fun `initialize without error`() {
+//        Intempt.initialize(context)
 //
-//        Shadows.shadowOf(Looper.getMainLooper()).runToEndOfTasks()
+//        //verify(mockComponent).inject(Intempt)
+//        verify(mockComponent).initService()
 //
-//
-//        val allLogs = ShadowLog.getLogs().map { it.msg }
-//
-//        var lastIndex = -1
-//        expectedLogs.forEach { expectedLog ->
-//            val currentIndex = allLogs.indexOf(expectedLog)
-//
-//            assertTrue("Expected log not found: $expectedLog", currentIndex != -1)
-//            assertTrue("Logs are out of order", currentIndex > lastIndex)
-//            lastIndex = currentIndex
-//        }
+//        assertEquals(mockExperimentHandler, Intempt.experiment)
+//        assertEquals(mockPersonalizationHandler, Intempt.personalization)
     }
-
-
-
-
-
-
 }
