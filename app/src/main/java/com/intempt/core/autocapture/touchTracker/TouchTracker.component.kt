@@ -13,7 +13,6 @@ import androidx.core.view.children
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentManager
 import com.intempt.core.autocapture.BaseAutoCaptureComponent
-import com.intempt.core.types.Constants
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -21,6 +20,9 @@ import javax.inject.Singleton
 internal class TouchTrackerComponent @Inject constructor(
     private val srv: TouchTrackerService,
 ): BaseAutoCaptureComponent() {
+    private val runnableWrapper: Array<Runnable?> = arrayOfNulls(1)
+    private val handler = Handler(Looper.getMainLooper())
+
     override fun onActivityPaused(activity: Activity) {}
 
     override fun onActivityResumed(activity: Activity) {
@@ -36,12 +38,6 @@ internal class TouchTrackerComponent @Inject constructor(
         registerForFragment(fragment)
     }
 
-
-
-    private val debounceDelay = Constants.DEBOUNCE_DELAY
-    private val runnableWrapper: Array<Runnable?> = arrayOfNulls(1)
-    private val handler = Handler(Looper.getMainLooper())
-
     private fun registerForActivity(activity: Activity) {
         if(!srv.isTouchEnabled) return;
         srv.setupHandler(handler, runnableWrapper) { handler, runnableWrapper ->
@@ -54,9 +50,6 @@ internal class TouchTrackerComponent @Inject constructor(
                             rootView.findViewAtLocation(ev.rawX, ev.rawY)
                         }
                         runnableWrapper[0] = srv.debounceAndLog(handler, runnableWrapper[0], touchedView, activity, "Activity")
-//                        runnableWrapper[0] = debounce(handler, debounceDelay, runnableWrapper[0]) {
-//                            srv.logAndDispatch(touchedView, activity, "Activity")
-//                        }
                     }
 
                     return originalCallback.dispatchTouchEvent(event)
@@ -68,27 +61,43 @@ internal class TouchTrackerComponent @Inject constructor(
     private fun registerForFragment(fragment: Fragment) {
         if(!srv.isTouchEnabled) return;
         srv.setupHandler(handler, runnableWrapper) { handler, runnableWrapper ->
-            fragment.view?.setOnTouchListener { view, event ->
-                runnableWrapper[0] = srv.debounceAndLog(
-                    handler,
-                    runnableWrapper[0],
-                    view,
-                    fragment.requireActivity(),
-                    "Fragment"
-                ){
+            val fragmentActivity = fragment.requireActivity()
+            val originalCallback = fragmentActivity.window.callback
+
+            fragmentActivity.window.callback = object : Window.Callback by originalCallback {
+                override fun dispatchTouchEvent(event: MotionEvent?): Boolean {
                     if (event?.action == MotionEvent.ACTION_UP) {
-                        view.performClick()
+                        val touchedView = event.let { ev ->
+                            val rootView = fragmentActivity.window.decorView
+                            rootView.findViewAtLocation(ev.rawX, ev.rawY)
+                        }
+                        runnableWrapper[0] = srv.debounceAndLog(
+                            handler,
+                            runnableWrapper[0],
+                            touchedView,
+                            fragmentActivity,
+                            "Fragment"
+                        )
                     }
+                    return originalCallback.dispatchTouchEvent(event)
                 }
-//                runnableWrapper[0] = debounce(handler, debounceDelay, runnableWrapper[0]) {
-//                    srv.logAndDispatch(view, fragment.requireActivity(), "Fragment")
-//
+            }
+
+
+//            fragment.view?.setOnTouchListener { view, event ->
+//                runnableWrapper[0] = srv.debounceAndLog(
+//                    handler,
+//                    runnableWrapper[0],
+//                    view,
+//                    fragment.requireActivity(),
+//                    "Fragment"
+//                ){
 //                    if (event?.action == MotionEvent.ACTION_UP) {
 //                        view.performClick()
 //                    }
 //                }
-                false
-            }
+//                false
+//            }
         }
     }
 
@@ -99,17 +108,16 @@ internal class TouchTrackerComponent @Inject constructor(
         val x = rawX.toInt()
         val y = rawY.toInt()
 
-        return if (
-                x >= location[0] && x <= location[0] + this.width &&
-                y >= location[1] && y <= location[1] + this.height
-            ) { this }
-            else {
-                (this as? ViewGroup)?.children
-                    ?.mapNotNull { it.findViewAtLocation(rawX, rawY) }
-                    ?.firstOrNull()
+        if (x >= location[0] && x <= location[0] + this.width && y >= location[1] && y <= location[1] + this.height) {
+            if (this is ViewGroup) {
+                this.children.forEach { child ->
+                    child.findViewAtLocation(rawX, rawY)?.let { return it }
+                }
             }
+            return this
+        }
+        return null
     }
-
 
     override fun onFragmentResumed(fm: FragmentManager, fragment: Fragment) {}
 

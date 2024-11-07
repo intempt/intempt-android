@@ -5,7 +5,7 @@ import com.intempt.core.types.IntemptEventProvider
 
 internal class IntemptEvent(
     val name: String,
-    private val type: String,
+    val type: String,
     val payload: Array<IntemptEventProvider>,
 ) {
 
@@ -22,7 +22,7 @@ internal class IntemptEvent(
     }
 
     fun toFormated(): Map<String, Any?>{
-        val formattedPayload = payload.map { it.toFormatted() }
+        val formattedPayload = payload.map { it.toFormated() }
 
         return mapOf(
             "name" to name,
@@ -32,12 +32,11 @@ internal class IntemptEvent(
     }
 
     override fun toString(): String {
-        // Convert toFormatted() to a JSON-like string
         val formattedPayload = payload.joinToString(
-            separator = ",\n    ", // Adds indentation for readability
+            separator = ",\n    ",
             prefix = "[\n    ",
             postfix = "\n  ]"
-        ) { it.toFormatted().toString() }
+        ) { it.toFormated().toString() }
 
         return """
         {

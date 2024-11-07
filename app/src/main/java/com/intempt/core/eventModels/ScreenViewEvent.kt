@@ -20,8 +20,7 @@ internal data class ScreenViewEvent(
         return timestamp
     }
 
-    override fun toFormatted(): Map<String, Any> {
-        val timeOnScreenString = timeOnScreen?.let { "timeOnScreen: $timeOnScreen," } ?: ""
+    override fun toFormated(): Map<String, Any> {
         return mapOf(
             "sessionId" to sessionId,
             "eventId" to eventId,
@@ -32,7 +31,7 @@ internal data class ScreenViewEvent(
                 "activity" to activity,
                 "fullActivity" to fullActivity,
                 "screenName" to screenName,
-                "timeOnScreen" to timeOnScreenString,
+                "timeOnScreen" to timeOnScreen,
             )
         )
 

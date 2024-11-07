@@ -10,15 +10,15 @@ internal open class RecordEvent(
     override val timestamp: Long = System.currentTimeMillis(),
     private val accountId: String?,
     private val userId: String?,
-    private val accountAttributes: Map<String, String>?,
-    private val userAttributes: Map<String, String>?,
-    private val data: Map<String, String>?
+    private val accountAttributes: Map<String, Any>?,
+    private val userAttributes: Map<String, Any>?,
+    private val data: Map<String, Any>?
 ) : IntemptEventProvider {
     override fun getEventTime(): Long {
         return timestamp;
     }
 
-    override fun toFormatted(): Map<String, Any> {
+    override fun toFormated(): Map<String, Any> {
         val map = mutableMapOf<String, Any>()
 
         map["sessionId"] = sessionId

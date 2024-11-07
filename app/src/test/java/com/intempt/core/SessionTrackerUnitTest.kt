@@ -31,7 +31,6 @@ import org.mockito.Mockito.mock
 import org.mockito.Mockito.spy
 import org.mockito.Mockito.verify
 import org.mockito.Mockito.`when`
-import org.mockito.MockitoAnnotations
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows
@@ -56,7 +55,6 @@ class SessionTrackerUnitTest {
 
     @Before
     fun setUp() {
-        MockitoAnnotations.openMocks(this)
         ShadowLog.stream = System.out
         ShadowLog.clear()
 

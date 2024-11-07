@@ -8,7 +8,7 @@ import com.intempt.core.services.HttpManagerService
 import com.intempt.core.services.LoggerManagerService
 import com.intempt.core.services.StorageManagerService
 import com.intempt.core.services.UtilsService
-import io.ktor.utils.io.errors.IOException
+import io.ktor.client.statement.HttpResponse
 import junit.framework.TestCase.assertNotNull
 import junit.framework.TestCase.assertNull
 import kotlinx.coroutines.test.runTest
@@ -16,8 +16,8 @@ import org.json.JSONObject
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.mockito.Mockito.mock
 import org.mockito.Mockito.spy
-import org.mockito.MockitoAnnotations
 import org.mockito.kotlin.any
 import org.mockito.kotlin.doThrow
 import org.mockito.kotlin.eq
@@ -41,9 +41,9 @@ class ModificationsUnitTest {
     private lateinit var modComponent: ModificationComponent
     private lateinit var modSrv: ModificationsService
 
+    private lateinit var apiUrl: String
     @Before
     fun setUp() {
-        MockitoAnnotations.openMocks(this)
         ShadowLog.stream = System.out
         ShadowLog.clear()
 
@@ -57,7 +57,7 @@ class ModificationsUnitTest {
         modSrv = spy(ModificationsService(storage, config, logger, httpSrv, utils))
         modComponent = ModificationComponent(modSrv)
 
-
+        apiUrl = "${config.optimizationUrl}?apiKey=${config.apiKey}";
     }
 
 
@@ -69,7 +69,8 @@ class ModificationsUnitTest {
 
     @Test
     fun `should call experiment modification by name`() = runTest {
-        val apiUrl = "${config.optimizationUrl}?apiKey=${config.apiKey}";
+        whenever(httpSrv.post(any(), any(), any())).thenReturn(mock(HttpResponse::class.java))
+
         modComponent.experimentHandler.getByName(listOf("test_experiment_name"))
 
         verify(httpSrv).post(eq(apiUrl), any<JSONObject>(), any())
@@ -77,7 +78,8 @@ class ModificationsUnitTest {
 
     @Test
     fun `should call experiment modification by group`() = runTest {
-        val apiUrl = "${config.optimizationUrl}?apiKey=${config.apiKey}";
+        whenever(httpSrv.post(any(), any(), any())).thenReturn(mock(HttpResponse::class.java))
+
         modComponent.experimentHandler.getByGroup(listOf("test_experiment_name"))
 
         verify(httpSrv).post(eq(apiUrl), any<JSONObject>(), any())
@@ -86,7 +88,8 @@ class ModificationsUnitTest {
 
     @Test
     fun `should call personalization modification by name`() = runTest {
-        val apiUrl = "${config.optimizationUrl}?apiKey=${config.apiKey}";
+        whenever(httpSrv.post(any(), any(), any())).thenReturn(mock(HttpResponse::class.java))
+
         modComponent.personalizationHandler.getByName(listOf("test_experiment_name"))
 
         verify(httpSrv).post(eq(apiUrl), any<JSONObject>(), any())
@@ -95,8 +98,6 @@ class ModificationsUnitTest {
 
     @Test
     fun `should call personalization modification by group`() = runTest {
-        val apiUrl = "${config.optimizationUrl}?apiKey=${config.apiKey}";
-
         modComponent.personalizationHandler.getByGroup(listOf("test_experiment_name"))
 
         verify(httpSrv).post(eq(apiUrl), any<JSONObject>(), any())
@@ -105,7 +106,7 @@ class ModificationsUnitTest {
 
     @Test
     fun `should return null on experiment modification by name call error`() = runTest {
-        val apiUrl = "${config.optimizationUrl}?apiKey=${config.apiKey}";
+
 
         doThrow(RuntimeException("Network error")).whenever(httpSrv).post(eq(apiUrl), any<JSONObject>(), any())
 
@@ -119,7 +120,7 @@ class ModificationsUnitTest {
 
     @Test
     fun `should return null on experiment modification by group call error`() = runTest {
-        val apiUrl = "${config.optimizationUrl}?apiKey=${config.apiKey}";
+
 
         doThrow(RuntimeException("Network error")).whenever(httpSrv).post(eq(apiUrl), any<JSONObject>(), any())
 
@@ -132,7 +133,7 @@ class ModificationsUnitTest {
 
     @Test
     fun `should return null on personalization modification by name call error`() = runTest {
-        val apiUrl = "${config.optimizationUrl}?apiKey=${config.apiKey}";
+
 
         doThrow(RuntimeException("Network error")).whenever(httpSrv).post(eq(apiUrl), any<JSONObject>(), any())
 
@@ -145,7 +146,6 @@ class ModificationsUnitTest {
 
     @Test
     fun `should return null on personalization modification by group call error`() = runTest {
-        val apiUrl = "${config.optimizationUrl}?apiKey=${config.apiKey}";
 
         doThrow(RuntimeException("Network error")).whenever(httpSrv).post(eq(apiUrl), any<JSONObject>(), any())
 
@@ -155,4 +155,5 @@ class ModificationsUnitTest {
 
         assertNull(response)
     }
+
 }

@@ -16,7 +16,7 @@ internal open class IdentifyEvent(
         return timestamp;
     }
 
-    override fun toFormatted(): Map<String, Any> {
+    override fun toFormated(): Map<String, Any> {
         val map = mutableMapOf<String, Any>()
 
         map["sessionId"] = sessionId

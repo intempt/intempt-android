@@ -74,3 +74,12 @@ internal sealed class DefaultConfigs<T>(val value: T){
     data object IsQueueEnabled : DefaultConfigs<Boolean>(true)
 }
 
+internal sealed class EventType(val value:String){
+    data object Identify: EventType("identify")
+    data object Group: EventType("group")
+    data object Track: EventType("track")
+    data object Record: EventType("record")
+    data object Alias: EventType("alias")
+    data object Consent: EventType("consent")
+}
+

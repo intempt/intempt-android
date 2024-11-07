@@ -22,7 +22,7 @@ internal data class SessionEvent(
         return timestamp
     }
 
-    override fun toFormatted(): Map<String, Any> {
+    override fun toFormated(): Map<String, Any> {
         return mapOf(
             "sessionId" to sessionId,
             "eventId" to eventId,
@@ -30,6 +30,7 @@ internal data class SessionEvent(
             "profileId" to profileId,
             "timestamp" to timestamp,
             "data" to mapOf(
+                "sessionStartEventName" to sessionStartEventName,
                 "deviceName" to deviceName,
                 "source" to source,
                 "appName" to appName,

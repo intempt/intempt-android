@@ -10,9 +10,8 @@ internal class InstallUpgradeTrackerModule {
     @Provides
     @Singleton
     fun component(
-        service: InstallUpgradeTrackerService,
-        logger: LoggerManagerService,
+        service: InstallUpgradeTrackerService
     ): InstallUpgradeTrackerComponent {
-        return InstallUpgradeTrackerComponent(service, logger)
+        return InstallUpgradeTrackerComponent(service)
     }
 }

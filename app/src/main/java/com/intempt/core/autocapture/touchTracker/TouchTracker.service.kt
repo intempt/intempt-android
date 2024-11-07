@@ -6,7 +6,9 @@ import android.view.View
 import com.intempt.core.services.ConfigManagerService
 import com.intempt.core.services.LoggerManagerService
 import com.intempt.core.services.UtilsService
+import com.intempt.core.services.eventPool.EventPoolManagerService
 import com.intempt.core.types.Constants
+import com.intempt.core.types.DispatchEventProps
 import com.intempt.core.types.UiEventProps
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -14,7 +16,7 @@ import javax.inject.Singleton
 @Singleton
 internal class TouchTrackerService @Inject constructor(
     private val logger: LoggerManagerService,
-    //private val eventSrv: EventPool,
+    private val eventPool: EventPoolManagerService,
     private val config: ConfigManagerService,
     private val utils: UtilsService
 ) {
@@ -26,19 +28,19 @@ internal class TouchTrackerService @Inject constructor(
         if(!isTouchEnabled) return;
         val (activity, view) = props;
 
-//        eventSrv.dispatchEvent(
-//            DispatchEventProps(
-//                eventName = Constants.TOUCH.EVENT_NAME,
-//                entityName = Constants.TOUCH.ENTITY_NAME,
-//                type = Constants.TOUCH.EVENT_TYPE,
-//                event = null,
-//                context = activity,
-//                view = view
-//            )
-//        )
+        eventPool.dispatchEvent(
+            DispatchEventProps(
+                eventName = Constants.TOUCH.EVENT_NAME,
+                entityName = Constants.TOUCH.ENTITY_NAME,
+                type = Constants.TOUCH.EVENT_TYPE,
+                event = null,
+                context = activity,
+                view = view
+            )
+        )
     }
 
-    fun logAndDispatch(view: View?, activity: Activity, viewType: String) {
+    private fun logAndDispatch(view: View?, activity: Activity, viewType: String) {
         if(view !== null){
             val errorMessage = "AutoCapture | TouchTracker Error handling $viewType view: ${view::class.simpleName}";
             utils.withTryCatch(errorMessage) {

@@ -7,7 +7,7 @@ import com.intempt.core.services.StorageManagerService
 import com.intempt.core.services.UtilsService
 import com.intempt.core.types.IdTypeKeys
 import com.intempt.core.types.StorageKeys
-import com.intempt.sdk.BuildConfig
+import com.intempt.core.BuildConfig
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -41,22 +41,10 @@ internal class IntemptCoreService  @Inject constructor(
     }
 
 
-
     init{
         setProfileId()
         autoCaptureComponent.start()
         autoCaptureComponent.logger.log("Intempt SDK initialized")
         autoCaptureComponent.logger.log("VERSION: ${BuildConfig.sdkVersion}")
     }
-
-
-
-
-
-
-
-
-
-
-
 }

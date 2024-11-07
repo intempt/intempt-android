@@ -18,7 +18,7 @@ internal class InstallUpgradeTrackerService @Inject constructor(
     private val context: Context,
     private val eventSrv: EventPoolManagerService,
     private val storage: StorageManagerService,
-    private val logger: LoggerManagerService,
+    val logger: LoggerManagerService,
     private val utils: UtilsService
 ){
 
@@ -75,19 +75,15 @@ internal class InstallUpgradeTrackerService @Inject constructor(
         val errorMessage = "AutoCapture | InstallUpgradeTracker Error handling";
         utils.withTryCatch(errorMessage) {
             logger.log("InstallUpgradeTrackerComponent | $logMessage")
-            dispatchEvent()
-        }
-    }
-
-    private fun dispatchEvent() {
-        eventSrv.dispatchEvent(
-            DispatchEventProps(
-                eventName = Constants.INSTALL_UPGRADE.EVENT_NAME,
-                entityName = Constants.INSTALL_UPGRADE.ENTITY_NAME,
-                type = Constants.INSTALL_UPGRADE.EVENT_TYPE,
-                context = context,
+            eventSrv.dispatchEvent(
+                DispatchEventProps(
+                    eventName = Constants.INSTALL_UPGRADE.EVENT_NAME,
+                    entityName = Constants.INSTALL_UPGRADE.ENTITY_NAME,
+                    type = Constants.INSTALL_UPGRADE.EVENT_TYPE,
+                    context = context,
+                )
             )
-        )
+        }
     }
 
 

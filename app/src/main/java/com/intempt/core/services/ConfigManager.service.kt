@@ -30,6 +30,7 @@ class ConfigManagerService  @Inject constructor(
     val itemsInQueue: Int;
     val timeBuffer: Long;
 
+
     private val _isTouchEnabled: Boolean;
     private val _isTextCaptureEnabled: Boolean;
     private val _isAutoCaptureEnabled: Boolean;
@@ -42,6 +43,8 @@ class ConfigManagerService  @Inject constructor(
 
 
 
+    val consentUrl:String
+        get() = "${Constants.API_URL}/${_organizationId}/projects/${_projectId}/consents/data"
 
     val eventsUrl:String
         get() = "${Constants.API_URL}/${_organizationId}/projects/${_projectId}/sources/${_sourceId}/track"
@@ -111,7 +114,6 @@ class ConfigManagerService  @Inject constructor(
             ConfigResult(configs, options)
         }
         catch (e: Exception) {
-           // logger.error("Error reading config file: ${e.message}")
             ConfigResult(configs = null, options = null)
         }
 

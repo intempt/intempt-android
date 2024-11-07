@@ -15,26 +15,25 @@ internal class EventHandlers(
 ) {
 
     fun fragment(props: HandleEventTypeProps):Array<IntemptEventProvider> {
-        logger.log("EventPool | Fragment called")
         val newEvent = intemptEvent.generateFragmentTransitionEventPayload()
-        logger.log("EventPool | Fragment Event: $newEvent")
         return newEvent
     }
 
     fun screen(props: HandleEventTypeProps):Array<IntemptEventProvider> {
-        logger.log("EventPool | Screen handler called")
-
         val newEvent = intemptEvent.generateScreenViewEventPayload(
             props.context as Activity,
             props.entityName
         )
-        logger.log("EventPool | Screen Event: $newEvent")
         return newEvent
     }
 
     fun touch(props: HandleEventTypeProps):Array<IntemptEventProvider> {
         logger.log("EventPool | Touch called")
+
         val view: View = props.view!!
+
+        logger.log("EventPool | ${view.javaClass.name}")
+
         val newEvent = intemptEvent.generateUiElementEventPayload(
             view
         )
@@ -49,6 +48,7 @@ internal class EventHandlers(
             val newEvent = intemptEvent.generateUiElementEventPayload(
                 view
             )
+            println("newEvent $newEvent")
             logger.log("EventPool | Change Event: $newEvent");
             return newEvent
     }

@@ -1,344 +1,446 @@
 package com.intempt.core
 
 
-//@RunWith(RobolectricTestRunner::class)
-//@Config(sdk = [34])
-//internal class ChangeTrackerUnitTest {
-////    @Mock
-////    lateinit var configManagerService: ConfigManagerService
-//
-//    private lateinit var config: ConfigManagerService
-//    private lateinit var changeTrackerService: ChangeTrackerService
-//    private lateinit var changeTrackerComponent: ChangeTrackerComponent
-//    private lateinit var eventSrv: EventPool
-//    private lateinit var eventHandlersSpy: EventHandlers
-//    private lateinit var context: Context
-//    private lateinit var activity: Activity
-//    private lateinit var viewGroup: LinearLayout
-//    private lateinit var mockResources: Resources
-//
-//
-//
-//    @Before
-//    fun setUp() {
-//        MockitoAnnotations.openMocks(this);
-//
-//        context = RuntimeEnvironment.getApplication()
-//
-//        config = spy(ConfigManagerService(context))
-//
-//        mockResources = mock(Resources::class.java)
-//        `when`(mockResources.getResourceEntryName(anyInt())).thenReturn("test_element")
-//        `when`(mockResources.getResourceName(anyInt())).thenReturn("com.example.testApp:id/test_element")
-//
-//
-//
-//        `when`(config.isTouchEnabled).thenReturn(true)
-//
-//
-//        eventSrv = spy(EventPool(config))
-//        changeTrackerService = spy(ChangeTrackerService(eventSrv))
-//        changeTrackerComponent = ChangeTrackerComponent(changeTrackerService)
-//        eventHandlersSpy = spy(EventHandlers(config))
-//
-//        activity = Robolectric
-//            .buildActivity(Activity::class.java)
-//            .create()
-//            .start()
-//            .resume()
-//            .get()
-//
-//        viewGroup = LinearLayout(activity)
-//        activity.setContentView(viewGroup)
-//
-//
-//        ShadowLog.stream = System.out
-//    }
+import android.app.Activity
+import android.content.Context
+import android.content.res.AssetManager
+import android.content.res.Resources
+import android.view.View
+import android.widget.CheckBox
+import android.widget.LinearLayout
+import android.widget.ToggleButton
+import androidx.test.core.app.ApplicationProvider
+import com.intempt.core.autocapture.changeTracker.ChangeTrackerComponent
+import com.intempt.core.autocapture.changeTracker.ChangeTrackerService
+import com.intempt.core.eventModels.UiElementEvent
+import com.intempt.core.services.ConfigManagerService
+import com.intempt.core.services.HttpManagerService
+import com.intempt.core.services.IntemptEventManagerService
+import com.intempt.core.services.LoggerManagerService
+import com.intempt.core.services.StorageManagerService
+import com.intempt.core.services.UtilsService
+import com.intempt.core.services.eventPool.EventPoolManagerService
+import com.intempt.core.types.Constants
+import com.intempt.core.types.DispatchEventProps
+import com.intempt.core.types.IntemptEventProvider
+import junit.framework.TestCase.assertEquals
+import junit.framework.TestCase.assertNotNull
+import junit.framework.TestCase.fail
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.runBlocking
+import org.junit.runner.RunWith
+import kotlinx.coroutines.test.TestCoroutineScheduler
+import kotlinx.coroutines.test.TestDispatcher
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.runTest
+import org.json.JSONObject
+import org.junit.Before
+import org.junit.Test
+import org.mockito.Mockito.doAnswer
+import org.mockito.Mockito.mock
+import org.mockito.Mockito.spy
+import org.mockito.Mockito.verify
+import org.mockito.Mockito.`when`
+import org.mockito.MockitoAnnotations
+import org.mockito.kotlin.any
+import org.mockito.kotlin.whenever
+import org.robolectric.Robolectric
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
+import org.robolectric.shadows.ShadowLog
+import java.io.ByteArrayInputStream
+import android.R
+import android.os.Looper
+import android.text.Editable
+import android.view.ViewGroup
+import android.view.ViewTreeObserver
+import android.widget.DatePicker
+import android.widget.EditText
+import android.widget.ListView
+import android.widget.RadioButton
+import android.widget.RatingBar
+import android.widget.SeekBar
+import android.widget.Spinner
+import android.widget.TimePicker
+import androidx.compose.ui.platform.ComposeView
+import androidx.core.view.doOnPreDraw
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.advanceUntilIdle
+import org.mockito.ArgumentMatchers.anyInt
+import org.mockito.Mockito.doNothing
+import org.mockito.Mockito.doReturn
+import org.mockito.kotlin.anyOrNull
+import org.mockito.kotlin.eq
+import org.robolectric.RuntimeEnvironment
+import org.robolectric.Shadows
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 
-//    @Test
-//    fun testHandleToggleButtonInteraction() {
-//        val element = spy(ToggleButton(activity))
-//        testHandleElementInteraction("ToggleButton", element, changeTrackerService::handleCompoundButton) {
-//            element.isChecked = true // Simulate interaction
-//        }
-//
-//        // Verify that the correct handler method was called
-//        verify(changeTrackerService).handleCompoundButton(element, activity)
-//    }
-//
-//    @Test
-//    fun testHandleCheckBoxInteraction() {
-//        val element = spy(CheckBox(activity))
-//        testHandleElementInteraction("CheckBox", element, changeTrackerService::handleCompoundButton) {
-//            element.isChecked = true // Simulate interaction
-//        }
-//
-//        // Verify that the correct handler method was called
-//        verify(changeTrackerService).handleCompoundButton(element, activity)
-//    }
-//
-//    @Test
-//    fun testHandleRadioButtonInteraction() {
-//        val element = spy(RadioButton(activity))
-//        testHandleElementInteraction("RadioButton", element, changeTrackerService::handleCompoundButton) {
-//            element.isChecked = true // Simulate interaction
-//        }
-//
-//        // Verify that the correct handler method was called
-//        verify(changeTrackerService).handleCompoundButton(element, activity)
-//    }
-//
-//    @Test
-//    fun testHandleSeekBarInteraction() {
-//        val element = spy(SeekBar(activity))
-//        testHandleElementInteraction("SeekBar", element) {
-//            it.progress = 20
-//        }
-//
-//        verify(changeTrackerService).handleSeekBar(element, activity)
-//    }
-//
-//    @Test
-//    fun testHandleEditTextInteraction() {
-//        val element = spy(EditText(activity))
-//        testHandleElementInteraction("EditText", element, initValue = "initial text") {
-//            it.setText("new text")
-//        }
-//
-//        // Verify that the correct handler method was called
-//        verify(changeTrackerService).handleEditText(element, activity)
-//    }
-//
 
 
-//    @Test
-//    fun testHandleSpinnerInteraction() {
-//        val element = spy(Spinner(activity))
-//
-//       `when`(element.resources).thenReturn(mockResources)
-//
-//        val data = arrayOf("Item 1", "Item 2", "Item 3")
-//
-//        val adapter = ArrayAdapter(activity, R.layout.simple_spinner_item, data)
-//
-//        adapter.setDropDownViewResource(R.layout.simple_spinner_dropdown_item)
-//        element.adapter = adapter
-//
-//        val selectedIndex = 1
-//        val selectedValue = data[selectedIndex]
-//
-//        val expectedData = generateExpectedData(
-//            elementName = element.javaClass.simpleName,
-//            targetText = selectedValue,
-//            targetValue = "",
-//            targetId = element.resources.getResourceEntryName(element.id),
-//            fullTargetId = element.resources.getResourceName(element.id)
-//        )
-//
-//         testHandleElementInteraction(element, expectedData) {
-//             it.performClick()
-//             it.setSelection(adapter.getPosition(selectedValue))
-//             it.setSelection(adapter.getPosition(selectedValue))
-//         }
-//
-//
-//        verify(changeTrackerService).handleSpinner(element, activity)
-//    }
-//
-//    @Test
-//    fun testHandleDatePickerInteraction() {
-//        val element = spy(DatePicker(activity))
-//        `when`(element.resources).thenReturn(mockResources)
-//
-//        val year = 2024
-//        val month = 10
-//        val dayOfMonth = 28
-//
-//
-//    //TODO: add getter for text
-//
-//        val expectedData = generateExpectedData(
-//            elementName = "DatePicker",
-//            targetText = "",
-//            targetValue = "$month-$dayOfMonth-$year",
-//            targetId = element.resources.getResourceEntryName(element.id),
-//            fullTargetId = element.resources.getResourceName(element.id)
-//        )
-//
-//
-//        testHandleElementInteraction(element, expectedData) {
-//            it.updateDate(year, month, dayOfMonth)
-//        }
-//
-//
-//        verify(changeTrackerService).handleDatePicker(element, activity)
-//    }
-//
-//
-//    //Negative
-//    @Test
-//    fun testHandleRatingBarInteractionNegative() {
-//        val element = spy(RatingBar(activity))
-//        val value = 1.0f;
-//        testHandleElementInteractionNegative(element) {
-//            it.rating = value
-//        }
-//    }
-//
-//    @Test
-//    fun testHandleListViewInteractionNegative() {
-//        val element = spy(ListView(activity))
-//        val data = arrayOf("Item 1", "Item 2", "Item 3")
-//        val selectedIndex = 2
-//        val adapter = ArrayAdapter(activity, R.layout.simple_list_item_1, data)
-//        element.adapter = adapter
-//
-//
-//        testHandleElementInteractionNegative(element) {
-//            it.performItemClick(null, selectedIndex, adapter.getItemId(selectedIndex))
-//        }
-//
-//        // Verify that the correct handler method was called
-//        verify(changeTrackerService).handleListView(element, activity)
-//    }
-//
-//
-//    //Positive
-//    @Test
-//    fun testHandleRatingBarInteraction() {
-//        val element = spy(RatingBar(activity))
-//        `when`(element.resources).thenReturn(mockResources)
-//        val initialValue = 3.5f;
-//
-//        val elementName = "RatingBar"
-//        val value = 4.5f;
-//        val targetValue = "$value"
-//        val targetId = element.resources.getResourceEntryName(element.id)
-//        val fullTargetId = element.resources.getResourceName(element.id)
-//
-//        val expectedData = generateExpectedData(
-//            elementName,
-//            targetText = "",
-//            targetValue,
-//            targetId,
-//            fullTargetId
-//        )
-//
-//        element.rating = initialValue
-//        element.resources
-//
-//        testHandleElementInteraction(element, expectedData) {
-//            it.rating = value
-//        }
-//
-//        verify(changeTrackerService).handleRatingBar(element, activity)
-//    }
-//
-//    @Test
-//    fun testHandleListViewInteraction() {
-//        val element = spy(ListView(activity))
-//
-//        `when`(element.resources).thenReturn(mockResources)
-//
-//
-//        val data = arrayOf("Item 1", "Item 2", "Item 3");
-//        val selectedIndex = 2
-//        val adapter = ArrayAdapter(activity, R.layout.simple_list_item_1, data)
-//        element.adapter = adapter
-//
-//
-//        Shadows.shadowOf(Looper.getMainLooper()).idle()
-//
-//        val value = adapter.getItemId(selectedIndex);
-//
-////TODO: add getter for values and text
-//
-////        targetText = data[selectedIndex],
-////        targetValue = data[selectedIndex],
-//        val expectedData = generateExpectedData(
-//            elementName = "ListView",
-//            targetText = "",
-//            targetValue = "",
-//            targetId = element.resources.getResourceEntryName(element.id),
-//            fullTargetId = element.resources.getResourceName(element.id)
-//        )
-//
-//
-//        // Simulate an item click
-//        testHandleElementInteraction( element, expectedData ) {
-//            it.performItemClick(it, 2, value)
-//        }
-//
-//        // Verify that the correct handler method was called
-//        verify(changeTrackerService).handleListView(element, activity)
-//    }
-//
-//
-//
-//    //Negative
-//    private fun <T : View> testHandleElementInteractionNegative(
-//        element: T,
-//        modifyInteraction: ((T) -> Unit)? = null
-//    ) {
-//        viewGroup.addView(element)
-//
-//
-//        changeTrackerComponent.onActivityResumed(activity)
-//        Shadows.shadowOf(Looper.getMainLooper()).idle()
-//
-//
-//        modifyInteraction?.invoke(element)
-//        Shadows.shadowOf(Looper.getMainLooper()).runToEndOfTasks()
-//
-//
-//        assertNull(eventSrv.lastEvent)
-//    }
-//
-//    //Positive
-//    private fun <T : View> testHandleElementInteraction(
-//        element: T,
-//        expectedData: Map<String, Any>,
-//        modifyInteraction: ((T) -> Unit)? = null
-//    ) {
-//
-//
-//        viewGroup.addView(element)
-//
-//        changeTrackerComponent.onActivityResumed(activity)
-//        Shadows.shadowOf(Looper.getMainLooper()).idle()
-//
-//
-//        modifyInteraction?.invoke(element)
-//        Shadows.shadowOf(Looper.getMainLooper()).runToEndOfTasks()
-//
-//
-//        assertNotNull(eventSrv.lastEvent)
-//
-//        val eventData = eventSrv.lastEvent
-//        val formattedData = eventData?.toFormatted()
-//        assertEquals(expectedData, formattedData?.get("data"))
-//    }
-//
-//    private fun generateExpectedData(
-//        elementName: String,
-//        targetText:  String,
-//        targetValue:  String,
-//        targetId: String,
-//        fullTargetId: String
-//    ): Map<String, String>{
-//        return mapOf(
-//            "targetElement" to elementName,
-//            "hierarchy" to "DecorView -> ActionBarOverlayLayout -> FrameLayout -> LinearLayout -> $elementName",
-//            "targetText" to targetText,
-//            "targetValue" to targetValue,
-//            "targetClass" to "android.widget.$elementName",
-//            "targetId" to targetId,
-//            "fullTargetId" to fullTargetId,
-//        )
-//    }
-//
-//
-//
-//
-//}
+class CustomEditText(context: Activity, private val mockObserver: ViewTreeObserver) : EditText(context) {
+    override fun getViewTreeObserver(): ViewTreeObserver {
+        return mockObserver
+    }
+}
+
+@RunWith(RobolectricTestRunner::class)
+@Config(
+    sdk = [34],
+    manifest= Config.NONE
+)
+class ChangeTrackerUnitTest {
+    private lateinit var rootView: ViewGroup
+    private lateinit var toggleButton: ToggleButton
+    private lateinit var checkBox: CheckBox
+    private lateinit var radioButton: RadioButton
+    private lateinit var seekBar: SeekBar
+    private lateinit var spinner: Spinner
+    private lateinit var editText: EditText
+    private lateinit var datePicker: DatePicker
+    private lateinit var ratingBar: RatingBar
+    private lateinit var timePicker: TimePicker
+    private lateinit var listView: ListView
+    private lateinit var composeView: ComposeView
+
+
+    private lateinit var context: Context
+    private lateinit var config: ConfigManagerService
+    private lateinit var logger: LoggerManagerService
+    private lateinit var utils: UtilsService
+    private lateinit var httpSrv: HttpManagerService
+    private lateinit var intemptEvent: IntemptEventManagerService
+    private lateinit var storage: StorageManagerService
+
+    private lateinit var activity: Activity
+    private lateinit var eventPoolSrv: EventPoolManagerService
+    private lateinit var changeTrackerService: ChangeTrackerService
+    private lateinit var changeTrackerComponent: ChangeTrackerComponent
+
+
+
+    private val testScheduler = TestCoroutineScheduler()
+    private lateinit var testDispatcher: TestDispatcher
+
+    private val mockAssets: AssetManager = mock(AssetManager::class.java)
+
+    private val jsonConfig = """
+        {
+            "auth": {
+                "INTEMPT_API_KEY": "9643576a2cfa47729a1eb63213074e78.1a4f98ffc8f648d3a4c8455a2041cae5",
+                "INTEMPT_SOURCE_ID": "687499928542224384",
+                "INTEMPT_ORGANIZATION_ID": "intempt2",
+                "INTEMPT_PROJECT_ID": "intempt2_project"
+            },
+            "options": {
+                "isLoggingEnabled": true,
+                "isTouchEnabled": true,
+                "isTextCaptureEnabled": true,
+                "isQueueEnabled": false,
+                "isAutoCaptureEnabled": true,
+                "itemsInQueue": 5,
+                "timeBuffer": 5000
+            }
+        }
+    """.trimIndent()
+
+    private val mockedPayload  = arrayOf(
+        UiElementEvent(
+            eventId = "mockEventId",
+            sessionId = "mockSessionId",
+            pageId = "mockPageId",
+            profileId = "mockProfileId",
+            targetElement = "mockTargetElement",
+            hierarchy = "mockHierarchy",
+            targetText = "mockTargetText",
+            targetValue = "mockTargetValue",
+            targetClass = "mockTargetClass",
+            targetId = "mockTargetId",
+            fullTargetId = "mockFullTargetId"
+        )
+    )
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Before
+    fun setUp() {
+        MockitoAnnotations.openMocks(this)
+        ShadowLog.stream = System.out
+        ShadowLog.clear()
+
+        val mockResources = mock(Resources::class.java)
+        `when`(mockResources.getResourceEntryName(anyInt())).thenAnswer { invocation ->
+            val resourceId = invocation.arguments[0] as Int
+            "mocked_resource_entry_name_$resourceId"
+        }
+        `when`(mockResources.getResourceName(anyInt())).thenAnswer { invocation ->
+            val resourceId = invocation.arguments[0] as Int
+            "mocked_resource_name_$resourceId"
+        }
+
+
+        context = spy(RuntimeEnvironment.getApplication())
+
+        val inputStream = ByteArrayInputStream(jsonConfig.toByteArray(Charsets.UTF_8))
+
+        `when`(mockAssets.open("intempt-config.json")).thenReturn(inputStream)
+
+        `when`(context.assets).thenReturn(mockAssets)
+
+
+
+
+        activity = spy(Robolectric.buildActivity(Activity::class.java).setup().get())
+
+        rootView = createUIComponentsForTesting(activity, mockResources)
+
+        Robolectric.flushForegroundThreadScheduler()
+        rootView.getViewTreeObserver()
+        Robolectric.flushForegroundThreadScheduler()
+        activity.setContentView(rootView)
+
+
+        Robolectric.flushForegroundThreadScheduler()
+
+
+
+
+        config = spy(ConfigManagerService(context))
+
+        logger = spy(LoggerManagerService(config))
+        utils = spy(UtilsService(logger))
+
+        doAnswer { invocation ->
+            val action = invocation.getArgument<() -> Unit>(3)  // Get the action (4th argument)
+            action()
+            null
+        }.whenever(utils).debounce(any(), any(), anyOrNull(), any())
+
+
+        httpSrv = spy(HttpManagerService(config, logger))
+        storage = spy(StorageManagerService(context))
+        intemptEvent = spy(IntemptEventManagerService(context, storage, utils, config))
+
+        doReturn(mockedPayload).`when`(intemptEvent).generateUiElementEventPayload(any())
+
+
+        testDispatcher = UnconfinedTestDispatcher(testScheduler)
+
+        eventPoolSrv = spy(EventPoolManagerService(
+            config,
+            logger,
+            httpSrv,
+            intemptEvent,
+            dispatcher = testDispatcher
+        ))
+
+        changeTrackerService = spy(ChangeTrackerService(eventPoolSrv, logger, utils))
+
+        changeTrackerComponent = spy(ChangeTrackerComponent(changeTrackerService))
+
+
+        testScheduler.advanceUntilIdle()
+
+        changeTrackerComponent.onActivityResumed(activity)
+
+    }
+
+    @Test
+    fun `should interact with Toggle button`() = runTest {
+        interceptHttpRequest()
+
+        toggleButton.isChecked = true
+
+        verify(eventPoolSrv).dispatchEvent(any<DispatchEventProps>())
+
+        testScheduler.advanceUntilIdle()
+    }
+
+    @Test
+    fun `should interact with CheckBox button`() = runTest {
+        interceptHttpRequest()
+
+        checkBox.isChecked = true
+
+        verify(eventPoolSrv).dispatchEvent(any<DispatchEventProps>())
+
+        testScheduler.advanceUntilIdle()
+    }
+
+
+    @Test
+    fun `should interact with RadioButton`() = runTest {
+        interceptHttpRequest()
+        radioButton.isChecked = true
+
+        verify(eventPoolSrv).dispatchEvent(any<DispatchEventProps>())
+        testScheduler.advanceUntilIdle()
+    }
+
+    @Test
+    fun `should interact with EditText`() = runTest {
+        interceptHttpRequest()
+
+        editText.setText("New Text")
+
+        Shadows.shadowOf(Looper.getMainLooper()).idle()
+        verify(eventPoolSrv).dispatchEvent(any<DispatchEventProps>())
+        testScheduler.advanceUntilIdle()
+    }
+
+    @Test
+    fun `should interact with SeekBar`() = runTest {
+        interceptHttpRequest()
+
+        seekBar.progress = 50
+
+        verify(eventPoolSrv).dispatchEvent(any<DispatchEventProps>())
+        testScheduler.advanceUntilIdle()
+    }
+
+    @Test
+    fun `should interact with DatePicker`() = runTest {
+        interceptHttpRequest()
+        datePicker.updateDate(2023, 11, 5)
+        verify(eventPoolSrv).dispatchEvent(any<DispatchEventProps>())
+        testScheduler.advanceUntilIdle()
+    }
+
+    @Test
+    fun `should interact with RatingBar`() = runTest {
+        interceptHttpRequest()
+        ratingBar.rating = 4.5f
+        verify(eventPoolSrv).dispatchEvent(any<DispatchEventProps>())
+        testScheduler.advanceUntilIdle()
+    }
+
+
+    @Test
+    fun `should interact with TimePicker`() = runTest {
+        interceptHttpRequest()
+        timePicker.hour = 12
+       //timePicker.minute = 30
+        verify(eventPoolSrv).dispatchEvent(any<DispatchEventProps>())
+        testScheduler.advanceUntilIdle()
+    }
+
+
+    //@Test
+    fun `should interact with Spinner`() = runTest {
+        interceptHttpRequest()
+        spinner.setSelection(1)
+        verify(eventPoolSrv).dispatchEvent(any<DispatchEventProps>())
+        testScheduler.advanceUntilIdle()
+    }
+
+   // @Test
+    fun `should interact with ListView`() = runTest {
+        interceptHttpRequest()
+        listView.performItemClick(
+            listView.adapter.getView(0, null, listView),
+            0,
+            listView.adapter.getItemId(0)
+        )
+        verify(eventPoolSrv).dispatchEvent(any<DispatchEventProps>())
+        testScheduler.advanceUntilIdle()
+    }
+
+   // @Test
+    fun `should interact with ComposeView`() = runTest {
+        interceptHttpRequest()
+        composeView.callOnClick() // Assuming there's an action to test
+        verify(eventPoolSrv).dispatchEvent(any<DispatchEventProps>())
+        testScheduler.advanceUntilIdle()
+    }
+
+    private fun createUIComponentsForTesting(
+        activity: Activity,
+        mockResources: Resources,
+    ): ViewGroup {
+        val rootView = LinearLayout(activity).apply {
+            id = R.id.content
+            orientation = LinearLayout.VERTICAL
+        }
+        rootView.layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.WRAP_CONTENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        )
+
+        rootView.measure(
+            View.MeasureSpec.makeMeasureSpec(1080, View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(1920, View.MeasureSpec.EXACTLY)
+        )
+        rootView.layout(0, 0, rootView.measuredWidth, rootView.measuredHeight)
+
+
+        checkBox = CheckBox(activity).apply { id = View.generateViewId() }
+        toggleButton = ToggleButton(activity).apply { id = View.generateViewId() }
+        radioButton = RadioButton(activity).apply { id = View.generateViewId() }
+
+        seekBar = SeekBar(activity).apply { id = View.generateViewId() }
+        editText = EditText(activity).apply { id = View.generateViewId() }
+        datePicker = DatePicker(activity).apply { id = View.generateViewId() }
+        ratingBar = RatingBar(activity).apply { id = View.generateViewId() }
+        timePicker = TimePicker(activity).apply { id = View.generateViewId() }
+
+        listView = ListView(activity).apply { id = View.generateViewId() }
+        spinner = Spinner(activity).apply { id = View.generateViewId() }
+        composeView = spy(ComposeView(activity).apply { id = View.generateViewId() } )
+
+
+
+        listOf(
+            toggleButton,
+            checkBox,
+            radioButton,
+            editText,
+            seekBar,
+            datePicker,
+            ratingBar,
+            timePicker,
+            //listView,
+            // spinner,
+//            composeView
+        ).forEach { view ->
+            doReturn(mockResources).`when`(spy(view)).resources
+
+
+            rootView.addView(view)
+            Robolectric.flushForegroundThreadScheduler()
+        }
+
+        return rootView
+    }
+
+
+    private  fun interceptHttpRequest() = runBlocking {
+        doAnswer { invocation ->
+            try {
+                val url = invocation.getArgument<String>(0)
+                val jsonPayload = invocation.getArgument<JSONObject>(1)
+
+                println("URL: $url")
+
+                println("Captured HTTP request payload: $jsonPayload")
+                assertNotNull("Captured HTTP request payload:", jsonPayload)
+                val type = jsonPayload
+                    .getJSONArray("track")
+                    .getJSONObject(0)
+                    .getString("type")
+
+
+
+                println("Captured HTTP request payload type: $type")
+            } catch(e: Exception){
+                fail("An exception was thrown during the post request: ${e.message}")
+            } finally {
+                testScheduler.advanceUntilIdle()
+            }
+
+
+            testScheduler.advanceUntilIdle()
+        }.whenever(httpSrv).post(any(), any<JSONObject>(), any())
+    }
+}

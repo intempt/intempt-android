@@ -19,15 +19,17 @@ internal open class ConsentEvent(
         return timestamp;
     }
 
-    override fun toFormatted(): Map<String, Any?> {
+    override fun toFormated(): Map<String, Any?> {
         val map = mutableMapOf<String, Any>()
-        map["sessionId"] = sessionId
-        map["eventId"] = eventId
-        map["pageId"] = pageId
+//        map["sessionId"] = sessionId
+//        map["eventId"] = eventId
+//        map["pageId"] = pageId
         map["profileId"] = profileId
         map["timestamp"] = timestamp
         map["sourceId"] = sourceId
+        map["source"] = "android"
         map["validUntil"] = validUntil
+        map["action"] = action
 
         email?.let { map["email"] = it }
         message?.let { map["message"] = it }
@@ -35,18 +37,5 @@ internal open class ConsentEvent(
 
 
         return map
-//        return mapOf(
-//            "sessionId" to sessionId,
-//            "eventId" to eventId,
-//            "pageId" to pageId,
-//            "profileId" to profileId,
-//            "timestamp" to timestamp,
-//            "action" to action,
-//            "email" to email,
-//            "message" to message,
-//            "category" to category,
-//            "sourceId" to sourceId,
-//            "validUntil" to validUntil
-//        )
     }
 }

@@ -31,7 +31,7 @@ internal data class FragmentTransitionEvent(
         return output.trimIndent()
     }
 
-    override fun toFormatted(): Map<String, Any> {
+    override fun toFormated(): Map<String, Any> {
         return mapOf(
             "sessionId" to sessionId,
             "eventId" to eventId,

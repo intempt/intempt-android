@@ -5,16 +5,14 @@ import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
 import com.intempt.core.autocapture.BaseComponent
-import com.intempt.core.services.LoggerManagerService
 import com.intempt.core.types.AppVisibilityState
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 internal class InstallUpgradeTrackerComponent @Inject constructor(
-    private val srv: InstallUpgradeTrackerService,
-    private val logger: LoggerManagerService
-): BaseComponent(logger) {
+    private val srv: InstallUpgradeTrackerService
+): BaseComponent(srv.logger) {
 
     init{
         registerVisibilityTracking();
@@ -53,7 +51,7 @@ internal class InstallUpgradeTrackerComponent @Inject constructor(
                 )
             }
             else -> {
-                logger.log("No Install/Upgrade event. Current version: $currentVersionCode")
+                srv.logger.log("No Install/Upgrade event. Current version: $currentVersionCode")
             }
         }
         srv.storeVersionCode(currentVersionCode);

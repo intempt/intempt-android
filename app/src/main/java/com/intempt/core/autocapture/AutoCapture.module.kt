@@ -6,7 +6,6 @@ import com.intempt.core.autocapture.installUpgradeTracker.InstallUpgradeTrackerC
 import com.intempt.core.autocapture.installUpgradeTracker.InstallUpgradeTrackerModule
 import com.intempt.core.autocapture.lifecycleCallbackManager.LifecycleCallBacksComponent
 import com.intempt.core.autocapture.lifecycleCallbackManager.LifecycleCallbackModule
-import com.intempt.core.autocapture.screenTracker.ScreenTrackerModule
 import com.intempt.core.autocapture.sessionTracker.SessionTrackerComponent
 import com.intempt.core.autocapture.sessionTracker.SessionTrackerModule
 import com.intempt.core.autocapture.touchTracker.TouchTrackerModule
@@ -20,7 +19,7 @@ import javax.inject.Singleton
 @Module(includes = [
     SessionTrackerModule::class,
     InstallUpgradeTrackerModule::class,
-    ScreenTrackerModule::class,
+
     ChangeTrackerModule::class,
     TouchTrackerModule::class,
     LifecycleCallbackModule::class,

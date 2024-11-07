@@ -23,7 +23,7 @@ internal data class InstallOrUpgradeEvent(
         return timestamp
     }
 
-    override fun toFormatted(): Map<String, Any> {
+    override fun toFormated(): Map<String, Any> {
         return mapOf(
             "sessionId" to sessionId,
             "eventId" to eventId,
@@ -40,10 +40,6 @@ internal data class InstallOrUpgradeEvent(
             )
         )
     }
-
-
-
-
 
     override fun toString(): String {
         val output = """

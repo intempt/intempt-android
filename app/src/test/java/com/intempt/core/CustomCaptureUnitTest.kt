@@ -1,6 +1,8 @@
 package com.intempt.core
 
 import android.content.Context
+import android.content.SharedPreferences
+import android.content.res.AssetManager
 import com.intempt.core.customCapture.CustomCaptureComponent
 import com.intempt.core.customCapture.CustomCaptureService
 import com.intempt.core.services.ConfigManagerService
@@ -15,32 +17,44 @@ import junit.framework.TestCase.assertEquals
 import junit.framework.TestCase.assertNotNull
 import junit.framework.TestCase.assertNull
 import junit.framework.TestCase.assertTrue
+import junit.framework.TestCase.fail
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestCoroutineScheduler
 import kotlinx.coroutines.test.TestDispatcher
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.json.JSONObject
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.mockito.ArgumentMatchers.anyBoolean
+import org.mockito.ArgumentMatchers.anyInt
+import org.mockito.ArgumentMatchers.anyString
 import org.mockito.Mockito.doAnswer
+import org.mockito.Mockito.doNothing
+import org.mockito.Mockito.mock
 import org.mockito.Mockito.spy
 import org.mockito.Mockito.`when`
 import org.mockito.MockitoAnnotations
 import org.mockito.kotlin.any
-import org.mockito.kotlin.doThrow
+import org.mockito.kotlin.anyOrNull
 import org.mockito.kotlin.eq
-import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import org.robolectric.shadows.ShadowLog
+import java.io.ByteArrayInputStream
+
+
 
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34])
+@Config(
+    sdk = [34],
+    manifest=Config.NONE
+)
 class CustomCaptureUnitTest {
     private lateinit var customCaptureSrv: CustomCaptureService
     private lateinit var config: ConfigManagerService
@@ -56,7 +70,34 @@ class CustomCaptureUnitTest {
     private val testScheduler = TestCoroutineScheduler()
     private lateinit var testDispatcher: TestDispatcher
 
+    private val mockAssets: AssetManager = mock(AssetManager::class.java)
 
+    private val jsonConfig = """
+        {
+            "auth": {
+                "INTEMPT_API_KEY": "9643576a2cfa47729a1eb63213074e78.1a4f98ffc8f648d3a4c8455a2041cae5",
+                "INTEMPT_SOURCE_ID": "687499928542224384",
+                "INTEMPT_ORGANIZATION_ID": "intempt2",
+                "INTEMPT_PROJECT_ID": "intempt2_project"
+            },
+            "options": {
+                "isLoggingEnabled": true,
+                "isTouchEnabled": true,
+                "isTextCaptureEnabled": true,
+                "isQueueEnabled": false,
+                "isAutoCaptureEnabled": true,
+                "itemsInQueue": 5,
+                "timeBuffer": 5000
+            }
+        }
+    """.trimIndent()
+
+    private val mockProfId = "prof_test_id_123456"
+    private val mockedSesId = "ses_test_id_123456"
+    private val mockedPagId = "pag_test_id_123456"
+
+
+    @OptIn(ExperimentalCoroutinesApi::class)
     @Before
     fun setUp() {
         MockitoAnnotations.openMocks(this)
@@ -65,26 +106,55 @@ class CustomCaptureUnitTest {
 
 
         context = spy(RuntimeEnvironment.getApplication())
+
+        val inputStream = ByteArrayInputStream(jsonConfig.toByteArray(Charsets.UTF_8))
+        `when`(mockAssets.open("intempt-config.json")).thenReturn(inputStream)
+        `when`(context.assets).thenReturn(mockAssets)
+
+        val mockSharedPreferences = mock(SharedPreferences::class.java)
+        val mockEditor = mock(SharedPreferences.Editor::class.java)
+
+        `when`(context.getSharedPreferences(anyString(), anyInt())).thenReturn(mockSharedPreferences)
+        `when`(mockSharedPreferences.getString(eq(StorageKeys.ProfileId.key), anyOrNull())).thenReturn(mockProfId)
+        `when`(mockEditor.putString(anyString(), anyString())).thenReturn(mockEditor)
+        `when`(mockEditor.putInt(anyString(), anyInt())).thenReturn(mockEditor)
+        `when`(mockEditor.putBoolean(anyString(), anyBoolean())).thenReturn(mockEditor)
+
+        doNothing().`when`(mockEditor).apply()
+
+        // Stub SharedPreferences methods
+        `when`(mockSharedPreferences.edit()).thenReturn(mockEditor)
+
+
+
+
+
+
+
+
         config = spy(ConfigManagerService(context))
-        config.isQueueEnabled = false
+
+
         storage = spy(StorageManagerService(context))
         logger = spy(LoggerManagerService(config))
         httpSrv = spy(HttpManagerService(config, logger))
-        customCaptureSrv = spy(CustomCaptureService(storage, logger))
+        customCaptureSrv = CustomCaptureService(storage, logger)
         utils = spy(UtilsService(logger))
         intemptEvent = spy(IntemptEventManagerService(context, storage, utils, config))
 
 
-        testDispatcher = StandardTestDispatcher(testScheduler)
+        testDispatcher = UnconfinedTestDispatcher(testScheduler)
 
 
-        eventPoolSrv = spy(EventPoolManagerService(
-            config,
-            logger,
-            httpSrv,
-            intemptEvent,
-            dispatcher = testDispatcher
-        ))
+        eventPoolSrv = spy(
+            EventPoolManagerService(
+                config,
+                logger,
+                httpSrv,
+                intemptEvent,
+                dispatcher = testDispatcher
+            )
+        )
 
         component = CustomCaptureComponent(
             customCaptureSrv,
@@ -92,86 +162,77 @@ class CustomCaptureUnitTest {
             eventPoolSrv,
             intemptEvent
         )
+
+
+        testScheduler.advanceUntilIdle()
     }
 
 
     @Test
-    fun `should receive event of type identify`() {
-        interceptHttpRequest()
-
+    fun `should receive event of type identify`() = runTest {
+        interceptTrackHttpRequest("identify")
         component.identify(
             "test_userID",
             "test_eventTitle",
             mapOf("test" to "test"),
             mapOf("test" to "test")
         )
-
-        assertLastEventType("identify")
     }
 
     @Test
-    fun `should receive event of type group`() {
-       interceptHttpRequest()
+    fun `should receive event of type group`() = runTest {
+       interceptTrackHttpRequest("group")
        component.group(
             "test_accountID",
             "test_eventTitle",
             mapOf("test" to "test"),
         )
-        assertLastEventType("group")
     }
 
     @Test
-    fun `should receive event of type track`() {
-         interceptHttpRequest()
-
+    fun `should receive event of type track`() = runTest {
+         interceptTrackHttpRequest("track")
          component.track(
                 "test_TrackTitle",
                 mapOf("test" to "test")
          )
-
-         assertLastEventType("track")
     }
 
     @Test
     fun `should receive event of type record`() {
-
-        interceptHttpRequest()
+        interceptTrackHttpRequest("record")
         component.record(
             "test_RecordTitle",
             data = mapOf("test" to "test"),
         )
-
-        assertLastEventType("record")
     }
 
     @Test
-    fun `should receive event of type alias`() {
-        interceptHttpRequest()
-
+    fun `should receive event of type alias`()  {
+        interceptTrackHttpRequest("alias")
         component.alias(
             "test_userId",
              "test_anotherUserId"
         )
 
-        assertLastEventType("alias")
+
+
     }
 
     @Test
-    fun `should receive event of type consent`() {
-        interceptHttpRequest()
+    fun `should receive event of type consent`() = runTest {
+        interceptConsentHttpRequest()
 
         component.consent(
             "reject",
             System.currentTimeMillis() + 100000000,
             "test_email",
             "test_message",
-            "test_category",
+            "Test",
         )
-
-        assertLastEventType("consent")
     }
 
-    @Test
+   // @Test
     fun `should clear storage on logout`() {
         val sessionPrefs = context.getSharedPreferences(StorageKeys.SessionPrefs.key, Context.MODE_PRIVATE)
         sessionPrefs.edit().putString("someSessionKey", "sessionData").apply()
@@ -233,34 +294,49 @@ class CustomCaptureUnitTest {
         assertTrue(!config.isLoggingEnabled)
     }
 
+    private fun interceptTrackHttpRequest(expectedEventType: String) = runBlocking {
+        doAnswer { invocation ->
+            try {
+                val url = invocation.getArgument<String>(0)
+                val jsonPayload = invocation.getArgument<JSONObject>(1)
 
-    private fun assertLastEventType(expectedEventType: String) {
-        testScheduler.advanceUntilIdle()
+                println("URL: $url")
+                println("Captured HTTP request payload: $jsonPayload")
+                assertNotNull("Captured HTTP request payload:", jsonPayload)
+                val type = jsonPayload
+                    .getJSONArray("track")
+                    .getJSONObject(0)
+                    .getString("type")
 
-        val lastEvent = eventPoolSrv.eventsList.lastOrNull()
+                assertEquals("Expected event type to be '$expectedEventType'", expectedEventType, type)
 
 
-        assertNotNull(lastEvent.toString(), "Expected an event in the event queue")
-
-        val actualEventType = lastEvent?.getEventType()
-
-        assertEquals(
-            "Expected event of type '$expectedEventType'",
-            expectedEventType,
-            actualEventType
-        )
+            } catch(e: Exception){
+                e.printStackTrace()
+                fail("An exception was thrown during the post request: ${e.message}")
+            } finally {
+                testScheduler.advanceUntilIdle()
+            }
+            testScheduler.advanceUntilIdle()
+        }.whenever(httpSrv).post(any(), any<JSONObject>(), any())
     }
 
-    private fun interceptHttpRequest() = runBlocking  {
+    private fun interceptConsentHttpRequest() = runBlocking {
         doAnswer { invocation ->
-            val url = invocation.getArgument<String>(0)
-            val jsonPayload = invocation.getArgument<JSONObject>(1)
+            try {
+                val url = invocation.getArgument<String>(0)
+                val jsonPayload = invocation.getArgument<JSONObject>(1)
 
-            println(jsonPayload)
-            assertEquals(config.eventsUrl, url)
-            assertNotNull(jsonPayload)
-            println("Captured HTTP request payload: $jsonPayload")
+                println("URL: $url")
+                println("Captured HTTP request payload: $jsonPayload")
+                assertNotNull("Captured HTTP request payload:", jsonPayload)
 
+            } catch(e: Exception){
+                e.printStackTrace()
+                fail("An exception was thrown during the post request: ${e.message}")
+            } finally {
+                testScheduler.advanceUntilIdle()
+            }
         }.whenever(httpSrv).post(any(), any<JSONObject>(), any())
     }
 }

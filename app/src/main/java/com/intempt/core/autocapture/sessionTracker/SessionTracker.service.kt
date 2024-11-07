@@ -62,6 +62,17 @@ internal class SessionTrackerService @Inject constructor(
         }
     }
 
+    fun getSessionTime(): Long {
+        logger.log("SessionTrackerService | Get session timestamp");
+        val fallbackTime = 0L
+        return storage.getStorageItem(
+            prefs = StorageKeys.SessionPrefs.key,
+            key = StorageKeys.SessionTimestamp.key,
+        ){ key, fallBack ->
+            getLong(key,fallBack ?: fallbackTime)
+        } ?: fallbackTime
+    }
+
     fun subscribeToEventReceiver() {
         eventPool.subscribe(Job()) { value ->
             logger.log("SessionTrackerService | Received event type ${value.getEventType()}");
@@ -109,8 +120,6 @@ internal class SessionTrackerService @Inject constructor(
         storeSessionTime()
     }
 
-
-
     private fun dispatchEvent(sessionStartEventName:String) {
         val newEvent = intemptEvent.generateSessionEventPayload(
             sessionStartEventName = sessionStartEventName,
@@ -155,19 +164,8 @@ internal class SessionTrackerService @Inject constructor(
         }
     }
 
-    fun getSessionTime(): Long {
-        logger.log("SessionTrackerService | Get session timestamp");
-        val fallbackTime = 0L
-        return storage.getStorageItem(
-            prefs = StorageKeys.SessionPrefs.key,
-            key = StorageKeys.SessionTimestamp.key,
-        ){ key, fallBack ->
-            getLong(key,fallBack ?: fallbackTime)
-        } ?: fallbackTime
-    }
-
     private fun validateSession(event: IntemptEvent){
-        logger.log("SessionTrackerService | Validate session for event: $event");
+        logger.log("SessionTrackerService | Validate session for");
         val sessionTime = getSessionTime()
         val eventTimestamp = event.getEventTimestamp()
         if (eventTimestamp - sessionTime > Constants.SESSION.SESSION_TIMEOUT) {

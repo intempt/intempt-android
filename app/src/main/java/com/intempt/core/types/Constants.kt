@@ -2,13 +2,13 @@ package com.intempt.core.types
 
 object Constants {
     object CHANGE  {
-        val EVENT_NAME = "Change Event"
+        val EVENT_NAME = "Change event"
         val ENTITY_NAME = "changeEvent"
         val EVENT_TYPE = "change"
     }
 
     object TOUCH {
-        val EVENT_NAME = "Touch Event"
+        val EVENT_NAME = "Touch event"
         val ENTITY_NAME = "touchEvent"
         val EVENT_TYPE = "touch"
 
@@ -24,8 +24,8 @@ object Constants {
         }
 
         object ACTIVITY {
-            val VIEW_EVENT_NAME = "Screen view"
-            val LEAVE_EVENT_NAME = "Screen leave"
+            val VIEW_EVENT_NAME = "View screen"
+            val LEAVE_EVENT_NAME = "Leave screen"
             val VIEW_ENTITY_NAME = "screenView"
             val LEAVE_ENTITY_NAME = "screenLeave"
             val EVENT_TYPE = "screen"
@@ -58,7 +58,7 @@ object Constants {
     val API_URL = "https://api.staging.intempt.com/v1"
     //val API_URL = "https://api.intempt.com/v1"
 
-    val SUCCES_CODE = 200
+    val SUCCESS_CODE = 200
 
 
 }

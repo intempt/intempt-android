@@ -18,7 +18,7 @@ import javax.inject.Singleton
 
 
 @Singleton
-class HttpManagerService @Inject constructor(
+internal class HttpManagerService @Inject constructor(
     private val config: ConfigManagerService,
     private val logger: LoggerManagerService
 ){
@@ -37,18 +37,18 @@ class HttpManagerService @Inject constructor(
         url:String,
         body: JSONObject,
         type: ContentType = ContentType.Application.Json
-    ): HttpResponse {
+    ): HttpResponse? {
 
       return try {
           client.post(url) {
               contentType(type)
               setBody(body.toString())
-              header(HttpHeaders.Authorization, "Bearer ${config.token()}")
+              header(HttpHeaders.Authorization, "Basic ${config.token()}")
           }
       }
       catch (e: Exception) {
           logger.error("HttpService post request error: ${e.message}")
-          throw Exception()
+          null
       }
     }
 

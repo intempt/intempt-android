@@ -80,7 +80,13 @@ object Intempt  {
         message: String? = null,
         category: String? = null
     ) {
-        intemptCore.capture.consent(action, validUntil, email, message, category)
+        intemptCore.capture.consent(
+            action,
+            validUntil,
+            email,
+            message,
+            category
+        )
     }
 
     fun logOut() {

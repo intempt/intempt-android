@@ -47,7 +47,7 @@ internal class ModificationsService @Inject constructor(
         val body = generateBody(
             ModificationBodyParam(optimizationType, data, paramType)
         )
-        return  request(body)
+        return request(body)
     }
 
     private fun generateBody(params: ModificationBodyParam): JSONObject {
@@ -79,9 +79,9 @@ internal class ModificationsService @Inject constructor(
        val url = "${config.optimizationUrl}?apiKey=${config.apiKey}";
 
        return utils.withTryCatchSuspend("Error in request"){
-           http.post(url, body).bodyAsText().let {
-               val jsonResponse = Json.parseToJsonElement(it).jsonObject
-               jsonResponse["choices"]?.jsonArray
+           http.post(url, body)?.bodyAsText().let {
+               val jsonResponse = it?.let { it1 -> Json.parseToJsonElement(it1).jsonObject }
+               jsonResponse?.get("choices")?.jsonArray
            }
        }
    }

@@ -21,6 +21,9 @@ import android.widget.Spinner
 import android.widget.TextView
 import android.widget.TimePicker
 import android.widget.ToggleButton
+import android.R
+import android.content.res.Resources
+
 import com.intempt.core.eventModels.AliasEvent
 import com.intempt.core.eventModels.BaseIntemptEvent
 import com.intempt.core.eventModels.ConsentEvent
@@ -42,7 +45,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-internal class IntemptEventManagerService @Inject constructor(
+internal open class IntemptEventManagerService @Inject constructor(
     private val context: Context,
     private val storage: StorageManagerService,
     private val utils: UtilsService,
@@ -75,7 +78,9 @@ internal class IntemptEventManagerService @Inject constructor(
         )
     }
 
-    private fun getViewHierarchy(view: View): String {
+    private fun getViewHierarchy(view: View?): String {
+        if(view == null) return ""
+
         return utils.withTryCatch("Error getting view hierarchy"){
             val hierarchyList = mutableListOf<String>()
             var currentView: View? = view
@@ -87,12 +92,15 @@ internal class IntemptEventManagerService @Inject constructor(
         }
     }
 
-    private fun getViewTextValue(view: View):String {
+    private fun getViewTextValue(view: View?):String {
+        if(view == null) return ""
         return utils.withTryCatch("Error getting text from view"){
             val text = (view as? TextView)?.text?.toString();
             val disabledText = "*****";
+            val isTextCaptureDisabled = view.tag == "intempt_text_disabled"
 
-             if (!config.isTextCaptureEnabled) {
+
+             if (isTextCaptureDisabled || !config.isTextCaptureEnabled) {
                 disabledText
             } else {
                 text ?: ""
@@ -101,8 +109,9 @@ internal class IntemptEventManagerService @Inject constructor(
 
     }
 
-    private fun getViewValue(view: View): String {
+    private fun getViewValue(view: View?): String {
         val disabledText = "*****";
+        if(view == null) return ""
         return if (!config.isTextCaptureEnabled) {
             disabledText
         } else {
@@ -230,32 +239,53 @@ internal class IntemptEventManagerService @Inject constructor(
         )
     }
 
-    fun generateUiElementEventPayload(view: View): Array<IntemptEventProvider> {
-        val eventProps = getBaseEventProps()
+    open fun generateUiElementEventPayload(view: View?): Array<IntemptEventProvider> {
+        return utils.withTryCatch("Error during generating UI payload"){
+            val eventProps = getBaseEventProps()
 
-        val targetElement = view.javaClass.simpleName
-        val hierarchy = getViewHierarchy(view)
-        val targetText = getViewTextValue(view)
-        val targetValue = getViewValue(view)
-        val targetClass = view.javaClass.name
-        val targetId = view.resources.getResourceEntryName(view.id)
-        val fullTargetId  = view.resources.getResourceName(view.id)
+            val targetElement = view?.javaClass?.simpleName ?: ""
+            val hierarchy = getViewHierarchy(view)
+            val targetText = getViewTextValue(view)
+            val targetValue = getViewValue(view)
+            val targetClass = view?.javaClass?.name ?: ""
+            val targetId = if (view?.id != View.NO_ID) {
+                try {
+                    view?.resources?.getResourceEntryName(view.id)
+                        ?: ""
+                } catch (e: Resources.NotFoundException) {
+                    "unknown"
+                }
+            } else {
+                "unknown"
+            }
 
-        return arrayOf(
-            UiElementEvent(
-                eventId = eventProps.eventId,
-                sessionId = eventProps.sessionId,
-                pageId = eventProps.pageId,
-                profileId = eventProps.profileId,
-                targetElement = targetElement,
-                hierarchy = hierarchy,
-                targetText = targetText,
-                targetValue = targetValue,
-                targetClass = targetClass,
-                targetId = targetId,
-                fullTargetId = fullTargetId
+            val fullTargetId = if (view?.id != View.NO_ID) {
+                try {
+                    view?.resources?.getResourceName(view.id)
+                        ?: ""
+                } catch (e: Resources.NotFoundException) {
+                    "unknown"
+                }
+            } else { "unknown" }
+
+
+            arrayOf(
+                UiElementEvent(
+                    eventId = eventProps.eventId,
+                    sessionId = eventProps.sessionId,
+                    pageId = eventProps.pageId,
+                    profileId = eventProps.profileId,
+                    targetElement = targetElement,
+                    hierarchy = hierarchy,
+                    targetText = targetText,
+                    targetValue = targetValue,
+                    targetClass = targetClass,
+                    targetId = targetId,
+                    fullTargetId = fullTargetId
+                )
             )
-        )
+        }
+
 
     }
 

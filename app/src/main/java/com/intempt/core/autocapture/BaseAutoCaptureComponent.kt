@@ -7,9 +7,9 @@ import android.view.View
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentManager
 
-import com.intempt.core.autocapture.lifecycleCallbackManager.ActivityLifecycleListener
-import com.intempt.core.autocapture.lifecycleCallbackManager.FragmentLifecycleListener
 import com.intempt.core.services.LoggerManagerService
+import com.intempt.core.types.ActivityLifecycleListener
+import com.intempt.core.types.FragmentLifecycleListener
 
 
 open class BaseAutoCaptureComponent(

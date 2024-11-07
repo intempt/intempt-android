@@ -15,7 +15,7 @@ internal open class GroupEvent(
         return timestamp;
     }
 
-    override fun toFormatted(): Map<String, Any?> {
+    override fun toFormated(): Map<String, Any?> {
         val map = mutableMapOf<String, Any>()
         map["sessionId"] = sessionId
         map["eventId"] = eventId
@@ -26,15 +26,6 @@ internal open class GroupEvent(
         accountAttributes?.let { map["accountAttributes"] = it }
 
         return map
-//        return mapOf(
-//            "sessionId" to sessionId,
-//            "eventId" to eventId,
-//            "pageId" to pageId,
-//            "profileId" to profileId,
-//            "timestamp" to timestamp,
-//            "accountId" to accountId,
-//            "accountAttributes" to accountAttributes
-//        )
     }
 
 }

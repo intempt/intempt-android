@@ -4,6 +4,7 @@ import android.app.Activity
 import android.os.Handler
 import android.os.Looper
 import android.view.View
+import android.view.ViewGroup
 import android.widget.AdapterView
 import android.widget.CheckBox
 import android.widget.CompoundButton
@@ -26,65 +27,24 @@ import com.intempt.core.services.UtilsService
 import com.intempt.core.services.eventPool.EventPoolManagerService
 import com.intempt.core.types.Constants
 import com.intempt.core.types.DispatchEventProps
-import com.intempt.core.types.UiEventProps
 import javax.inject.Inject
 import javax.inject.Singleton
 
 
 @Singleton
-internal class ChangeTrackerService @Inject constructor(
+internal open class ChangeTrackerService @Inject constructor(
     private val eventPool: EventPoolManagerService,
-    private val logger: LoggerManagerService,
+    val logger: LoggerManagerService,
     private val utils: UtilsService,
 ) {
 
     private val debounceDelay = Constants.DEBOUNCE_DELAY
 
-    private fun logAndDispatch(view: View, activity: Activity, viewType: String) {
-        val errorMessage = "AutoCapture | ChangeTracker Error handling $viewType view: ${view::class.simpleName}";
-        utils.withTryCatch(errorMessage) {
-            logger.log("AutoCapture | Change for $viewType")
-            dispatchEvent(
-                UiEventProps(
-                    view = view,
-                    activity = activity,
-                    listenerType = "change"
-                )
-            )
-        }
-    }
-
-    private fun setupHandler(
-        eventListener: (Handler, Array<Runnable?>) -> Unit
-    ) {
-        val handler = Handler(Looper.getMainLooper())
-        val runnableWrapper: Array<Runnable?> = arrayOfNulls(1)
-        utils.withTryCatch("AutoCapture | ChangeTracker Error handling handler") {
-            eventListener(handler, runnableWrapper)
-        }
-
-    }
-
-    private fun dispatchEvent(props: UiEventProps) {
-        val (activity, view) = props;
-        eventPool.dispatchEvent(
-            DispatchEventProps(
-                eventName = Constants.CHANGE.EVENT_NAME,
-                entityName = Constants.CHANGE.ENTITY_NAME,
-                type = Constants.CHANGE.EVENT_TYPE,
-                context = activity,
-                view = view
-            )
-        )
-    }
-
     fun handleChangeListenerRegistration(view: View, activity:Activity) {
-        utils.withTryCatch("AutoCapture | ChangeTracker Error. Handling view: ${view::class.simpleName}" ){
+        utils.withTryCatch("AutoCapture:ChangeTrackerService | ChangeTracker Error. Handling view: ${view::class.simpleName}" ){
             when (view) {
                 is RadioButton -> handleRadioButton(view, activity)
-                is CheckBox,
-                is ToggleButton,
-                is CompoundButton -> handleCompoundButton(view as CompoundButton, activity)
+                is CheckBox, is ToggleButton, is CompoundButton -> handleCompoundButton(view as CompoundButton, activity)
                 is SeekBar -> handleSeekBar(view, activity)
                 is Spinner -> handleSpinner(view, activity)
                 is EditText -> handleEditText(view, activity)
@@ -93,10 +53,39 @@ internal class ChangeTrackerService @Inject constructor(
                 is TimePicker -> handleTimePicker(view, activity)
                 is ListView -> handleListView(view, activity)
                 is ComposeView  -> handleComposeView()
-
-                // Recursively check child views if it's a ViewGroup
-               // is ViewGroup -> handleChangeListenerRegistration(view, activity)
+                is ViewGroup -> {
+                    for (i in 0 until view.childCount) {
+                        val child = view.getChildAt(i)
+                        handleChangeListenerRegistration(child, activity)
+                    }
+                }
             }
+        }
+
+    }
+
+    private fun logAndDispatch(view: View, activity: Activity, viewType: String) {
+        val errorMessage = "AutoCapture:ChangeTrackerService | ChangeTracker Error handling $viewType view: ${view::class.simpleName}";
+        utils.withTryCatch(errorMessage) {
+            logger.log("AutoCapture:ChangeTrackerService | Change for $viewType")
+
+            eventPool.dispatchEvent(
+                DispatchEventProps(
+                    eventName = Constants.CHANGE.EVENT_NAME,
+                    entityName = Constants.CHANGE.ENTITY_NAME,
+                    type = Constants.CHANGE.EVENT_TYPE,
+                    context = activity,
+                    view = view
+                )
+            )
+        }
+    }
+
+    private fun setupHandler(eventListener: (Handler, Array<Runnable?>) -> Unit) {
+        val handler = Handler(Looper.getMainLooper())
+        val runnableWrapper: Array<Runnable?> = arrayOfNulls(1)
+        utils.withTryCatch("AutoCapture:ChangeTrackerService | ChangeTracker Error handling handler") {
+            eventListener(handler, runnableWrapper)
         }
 
     }
@@ -114,13 +103,14 @@ internal class ChangeTrackerService @Inject constructor(
     }
 
     private fun handleComposeView(){
-        logger.log("AutoCapture | ChangeTracker Jetpack Compose View detected - not supported yet")
+        logger.log("AutoCapture:ChangeTrackerService | ChangeTracker Jetpack Compose View detected - not supported yet")
     }
 
     //SwitchCompat, MaterialSwitch, CheckBox, RadioButton, and ToggleButton
-    private fun handleCompoundButton(view: CompoundButton, activity:Activity){
+     private fun handleCompoundButton(view: CompoundButton, activity:Activity){
         setupHandler { handler, runnableWrapper ->
             view.setOnCheckedChangeListener { _, _ ->
+                logger.log("View is : ${view.javaClass.name}")
                 runnableWrapper[0] = utils.debounce(handler, debounceDelay, runnableWrapper[0]) {
                     val buttonType = when (view) {
                         is Switch -> "Switch"
@@ -143,9 +133,6 @@ internal class ChangeTrackerService @Inject constructor(
             view.setOnCheckedChangeListener { _, isChecked  ->
                 if (isChecked) {
                     runnableWrapper[0] = debounceAndLog(handler, runnableWrapper[0], view, activity, elementName)
-//                    runnableWrapper[0] = utils.debounce(handler, debounceDelay, runnableWrapper[0]) {
-//                        logAndDispatch(view, activity, "RadioButton")
-//                    }
                 }
             }
         }
@@ -153,30 +140,23 @@ internal class ChangeTrackerService @Inject constructor(
 
     private fun handleEditText(view: EditText, activity:Activity){
         val elementName = "EditText"
+        logger.log("AutoCapture:ChangeTrackerService | Invoke handleEditText")
         setupHandler { handler, runnableWrapper ->
-            view.doAfterTextChanged  { text ->
+            view.doAfterTextChanged  { _ ->
                 runnableWrapper[0] = debounceAndLog(handler, runnableWrapper[0], view, activity, elementName)
-//                runnableWrapper[0] = utils.debounce(handler, debounceDelay, runnableWrapper[0]){
-//                    logAndDispatch(view, activity, "EditText")
-//                }
             }
         }
     }
 
     private fun handleSeekBar(view: SeekBar, activity:Activity){
-        var isInitialized = false
+        logger.log("Register SeekBar")
+
         val elementName = "SeekBar"
         setupHandler { handler, runnableWrapper ->
             view.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                    if (isInitialized) {
+                    logger.log("invoke  onProgressChanged")
                         runnableWrapper[0] = debounceAndLog(handler, runnableWrapper[0], view, activity, elementName)
-//                        runnableWrapper[0] = utils.debounce(handler, debounceDelay,  runnableWrapper[0]){
-//                            logAndDispatch(view, activity, "SeekBar")
-//                        }
-                    }
-                    isInitialized = true
-
                 }
 
                 override fun onStartTrackingTouch(seekBar: SeekBar?) {}
@@ -186,19 +166,11 @@ internal class ChangeTrackerService @Inject constructor(
     }
 
     private fun handleSpinner(view: Spinner, activity:Activity){
-        var isInitialized = false
         val elementName = "Spinner"
         setupHandler { handler, runnableWrapper ->
             view.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
                 override fun onItemSelected(parent: AdapterView<*>?, childView: View, position: Int, id: Long) {
                     runnableWrapper[0] = debounceAndLog(handler, runnableWrapper[0], view, activity, elementName)
-//                    if (isInitialized) {
-//                        runnableWrapper[0] = utils.debounce(handler, debounceDelay, runnableWrapper[0]){
-//                            logAndDispatch(childView, activity, "Spinner")
-//                        }
-//                    }
-
-                    isInitialized = true
                 }
 
                 override fun onNothingSelected(parent: AdapterView<*>?) {}
@@ -211,25 +183,15 @@ internal class ChangeTrackerService @Inject constructor(
         setupHandler { handler, runnableWrapper ->
             view.setOnDateChangedListener { _, year, monthOfYear, dayOfMonth ->
                 runnableWrapper[0] = debounceAndLog(handler, runnableWrapper[0], view, activity, elementName)
-//                runnableWrapper[0] = utils.debounce(handler, debounceDelay, runnableWrapper[0]){
-//                    logAndDispatch(view, activity, "DatePicker")
-//                }
             }
         }
     }
 
     private fun handleRatingBar(view: RatingBar, activity: Activity) {
-        var isInitialized = false
         val elementName = "RatingBar"
         setupHandler { handler, runnableWrapper ->
             view.setOnRatingBarChangeListener { _, _, _ ->
                 runnableWrapper[0] = debounceAndLog(handler, runnableWrapper[0], view, activity, elementName)
-//                if (isInitialized) {
-//                    runnableWrapper[0] = utils.debounce(handler, debounceDelay, runnableWrapper[0]){
-//                        logAndDispatch(view, activity, "RatingBar")
-//                    }
-//                }
-                isInitialized = true
             }
         }
     }
@@ -237,11 +199,8 @@ internal class ChangeTrackerService @Inject constructor(
     private fun handleTimePicker(view: TimePicker, activity: Activity) {
         val elementName = "TimePicker"
         setupHandler { handler, runnableWrapper ->
-            view.setOnTimeChangedListener { _, hourOfDay, minute ->
+            view.setOnTimeChangedListener { _, _, _ ->
                 runnableWrapper[0] = debounceAndLog(handler, runnableWrapper[0], view, activity, elementName)
-//                runnableWrapper[0] = utils.debounce(handler, debounceDelay, runnableWrapper[0]){
-//                    logAndDispatch(view, activity, "TimePicker")
-//                }
             }
         }
     }
@@ -252,10 +211,6 @@ internal class ChangeTrackerService @Inject constructor(
             view.setOnItemClickListener { parent, childView, position, id ->
                 if (childView != null) {
                     runnableWrapper[0] = debounceAndLog(handler, runnableWrapper[0], view, activity, elementName)
-
-//                    runnableWrapper[0] = utils.debounce(handler, debounceDelay, runnableWrapper[0]) {
-//                        logAndDispatch(childView, activity, "ListView Item Clicked at $position")
-//                    }
                 }
                 else {
                     logger.error("setOnItemClickListener | Error: childView is null for ListView item at position $position")
@@ -267,9 +222,6 @@ internal class ChangeTrackerService @Inject constructor(
                 override fun onItemSelected(parent: AdapterView<*>?, childView: View?, position: Int, id: Long) {
                     if (childView != null) {
                         runnableWrapper[0] = debounceAndLog(handler, runnableWrapper[0], view, activity, elementName)
-//                        runnableWrapper[0] = utils.debounce(handler, debounceDelay, runnableWrapper[0]) {
-//                            logAndDispatch(childView, activity, "ListView Item Selected at $position")
-//                        }
                     }
                     else {
                         logger.error("onItemSelected | Error: childView is null for ListView item selected at position $position")
