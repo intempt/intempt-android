@@ -21,7 +21,7 @@ import android.widget.Spinner
 import android.widget.TextView
 import android.widget.TimePicker
 import android.widget.ToggleButton
-import android.R
+import com.intempt.core.R
 import android.content.res.Resources
 
 import com.intempt.core.eventModels.AliasEvent
@@ -31,6 +31,7 @@ import com.intempt.core.eventModels.FragmentTransitionEvent
 import com.intempt.core.eventModels.GroupEvent
 import com.intempt.core.eventModels.IdentifyEvent
 import com.intempt.core.eventModels.InstallOrUpgradeEvent
+import com.intempt.core.eventModels.ProductEvent
 import com.intempt.core.eventModels.RecordEvent
 import com.intempt.core.eventModels.ScreenViewEvent
 import com.intempt.core.eventModels.SessionEvent
@@ -40,6 +41,7 @@ import com.intempt.core.eventModels.UiElementEvent
 import com.intempt.core.types.AppVisibilityState
 import com.intempt.core.types.IdTypeKeys
 import com.intempt.core.types.IntemptEventProvider
+import com.intempt.core.types.Product
 import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -51,108 +53,6 @@ internal open class IntemptEventManagerService @Inject constructor(
     private val utils: UtilsService,
     private val config: ConfigManagerService
 ) {
-
-    private fun getDeviceType(): String {
-        return when (context.resources.configuration.screenLayout and Configuration.SCREENLAYOUT_SIZE_MASK) {
-            Configuration.SCREENLAYOUT_SIZE_SMALL, Configuration.SCREENLAYOUT_SIZE_NORMAL -> "Phone"
-            Configuration.SCREENLAYOUT_SIZE_LARGE, Configuration.SCREENLAYOUT_SIZE_XLARGE -> "Tablet"
-            else -> "Unknown"
-        }
-    }
-
-    private fun getDeviceCarrier(): String {
-        val telephonyManager = context.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
-        return telephonyManager.networkOperatorName?.toString() ?: ""
-    }
-
-    private fun getDevicePlatform(): String {
-        return "Android ${android.os.Build.VERSION.RELEASE}"
-    }
-
-    private fun getBaseEventProps(): BaseIntemptEvent {
-        return BaseIntemptEvent(
-            eventId = utils.generateId(IdTypeKeys.EventId.key),
-            sessionId = storage.getSessionId(),
-            pageId = storage.getPageId(),
-            profileId = storage.getProfileId()
-        )
-    }
-
-    private fun getViewHierarchy(view: View?): String {
-        if(view == null) return ""
-
-        return utils.withTryCatch("Error getting view hierarchy"){
-            val hierarchyList = mutableListOf<String>()
-            var currentView: View? = view
-            while (currentView != null) {
-                hierarchyList.add(currentView.javaClass.simpleName)
-                currentView = currentView.parent as? View
-            }
-            hierarchyList.reversed().joinToString(" -> ")
-        }
-    }
-
-    private fun getViewTextValue(view: View?):String {
-        if(view == null) return ""
-        return utils.withTryCatch("Error getting text from view"){
-            val text = (view as? TextView)?.text?.toString();
-            val disabledText = "*****";
-            val isTextCaptureDisabled = view.tag == "intempt_text_disabled"
-
-
-             if (isTextCaptureDisabled || !config.isTextCaptureEnabled) {
-                disabledText
-            } else {
-                text ?: ""
-            }
-        }
-
-    }
-
-    private fun getViewValue(view: View?): String {
-        val disabledText = "*****";
-        if(view == null) return ""
-        return if (!config.isTextCaptureEnabled) {
-            disabledText
-        } else {
-            return utils.withTryCatch("Error getting value from view"){
-                when (view) {
-                    is CheckBox,
-                    is RadioButton,
-                    is ToggleButton,
-                    is CompoundButton -> (view as CompoundButton).isChecked.toString()
-                    is SeekBar -> view.progress.toString()
-                    is Spinner -> view.selectedItem?.toString() ?: ""
-                    is EditText -> view.text.toString()
-                    is DatePicker -> "${view.month}-${view.dayOfMonth}-${view.year}"
-                    is RatingBar -> view.rating.toString()
-                    is TimePicker -> String.format(Locale("en", "US"),"%02d:%02d", view.hour, view.minute)
-                    is ListView -> view.selectedItem?.toString() ?: ""
-                    else -> ""
-                }
-            }
-        }
-    }
-
-    private fun getCurrentVersionCode(): Int {
-        val versionCode = context
-            .packageManager
-            .getPackageInfo(context.packageName, 0)
-            .longVersionCode
-
-        return (versionCode and 0xFFFFFFFF).toInt()
-    }
-
-    private fun getConsumerAppBuildType(): String? {
-        return try {
-            val buildConfigClass = Class.forName("${context.packageName}.BuildConfig")
-            val buildTypeField = buildConfigClass.getField("BUILD_TYPE")
-            buildTypeField.get(null) as String
-        } catch (e: Exception) {
-            null
-        }
-    }
-
     @SuppressLint("HardwareIds")
     fun generateSessionEventPayload(
         sessionStartEventName: String,
@@ -193,6 +93,21 @@ internal open class IntemptEventManagerService @Inject constructor(
             )
         )
     }
+
+    fun generateProductEventPayload(products: List<Product>):Array<IntemptEventProvider>{
+        val eventProps = getBaseEventProps()
+        return products.map { product ->
+            ProductEvent(
+                eventId = eventProps.eventId,
+                sessionId = eventProps.sessionId,
+                pageId = eventProps.pageId,
+                profileId = eventProps.profileId,
+                productId = product.productId,
+                quantity = product.quantity
+            )
+        }.toTypedArray()
+    }
+
 
     fun generateFragmentTransitionEventPayload():Array<IntemptEventProvider>{
         val eventProps = getBaseEventProps()
@@ -436,4 +351,107 @@ internal open class IntemptEventManagerService @Inject constructor(
             )
         )
     }
+
+
+    private fun getDeviceType(): String {
+        return when (context.resources.configuration.screenLayout and Configuration.SCREENLAYOUT_SIZE_MASK) {
+            Configuration.SCREENLAYOUT_SIZE_SMALL, Configuration.SCREENLAYOUT_SIZE_NORMAL -> "Phone"
+            Configuration.SCREENLAYOUT_SIZE_LARGE, Configuration.SCREENLAYOUT_SIZE_XLARGE -> "Tablet"
+            else -> "Unknown"
+        }
+    }
+
+    private fun getDeviceCarrier(): String {
+        val telephonyManager = context.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
+        return telephonyManager.networkOperatorName?.toString() ?: ""
+    }
+
+    private fun getDevicePlatform(): String {
+        return "Android ${android.os.Build.VERSION.RELEASE}"
+    }
+
+    private fun getBaseEventProps(): BaseIntemptEvent {
+        return BaseIntemptEvent(
+            eventId = utils.generateId(IdTypeKeys.EventId.key),
+            sessionId = storage.getSessionId(),
+            pageId = storage.getPageId(),
+            profileId = storage.getProfileId()
+        )
+    }
+
+    private fun getViewHierarchy(view: View?): String {
+        if(view == null) return ""
+
+        return utils.withTryCatch("Error getting view hierarchy"){
+            val hierarchyList = mutableListOf<String>()
+            var currentView: View? = view
+            while (currentView != null) {
+                hierarchyList.add(currentView.javaClass.simpleName)
+                currentView = currentView.parent as? View
+            }
+            hierarchyList.reversed().joinToString(" -> ")
+        }
+    }
+
+    private fun getViewTextValue(view: View?):String {
+        if(view == null) return ""
+        return utils.withTryCatch("Error getting text from view"){
+            val text = (view as? TextView)?.text?.toString()
+            val disabledText = "*****"
+            val isTextCaptureDisabled = view.getTag(R.id.intemptDoNotCapture) as? Boolean == true
+
+
+            if (isTextCaptureDisabled || !config.isTextCaptureEnabled) {
+                disabledText
+            } else {
+                text ?: ""
+            }
+        }
+    }
+
+    private fun getViewValue(view: View?): String {
+        if(view == null) return ""
+        val disabledText = "*****"
+        val isTextCaptureDisabled = view.getTag(R.id.intemptDoNotCapture) as? Boolean == true
+        return if (isTextCaptureDisabled || !config.isTextCaptureEnabled) {
+            disabledText
+        } else {
+             utils.withTryCatch("Error getting value from view"){
+                when (view) {
+                    is CheckBox,
+                    is RadioButton,
+                    is ToggleButton,
+                    is CompoundButton -> (view as CompoundButton).isChecked.toString()
+                    is SeekBar -> view.progress.toString()
+                    is Spinner -> view.selectedItem?.toString() ?: ""
+                    is EditText -> view.text.toString()
+                    is DatePicker -> "${view.month}-${view.dayOfMonth}-${view.year}"
+                    is RatingBar -> view.rating.toString()
+                    is TimePicker -> String.format(Locale.US,"%02d:%02d", view.hour, view.minute)
+                    is ListView -> view.selectedItem?.toString() ?: ""
+                    else -> ""
+                }
+            }
+        }
+    }
+
+    private fun getCurrentVersionCode(): Int {
+        val versionCode = context
+            .packageManager
+            .getPackageInfo(context.packageName, 0)
+            .longVersionCode
+
+        return (versionCode and 0xFFFFFFFF).toInt()
+    }
+
+    private fun getConsumerAppBuildType(): String? {
+        return try {
+            val buildConfigClass = Class.forName("${context.packageName}.BuildConfig")
+            val buildTypeField = buildConfigClass.getField("BUILD_TYPE")
+            buildTypeField.get(null) as String
+        } catch (e: Exception) {
+            null
+        }
+    }
+
 }

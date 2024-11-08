@@ -81,5 +81,6 @@ internal sealed class EventType(val value:String){
     data object Record: EventType("record")
     data object Alias: EventType("alias")
     data object Consent: EventType("consent")
+    data object Product: EventType("product")
 }
 

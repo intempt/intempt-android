@@ -1,4 +1,4 @@
-package com.intempt.core.autocapture.lifecycleCallbackManager
+package com.intempt.core.autocapture.lifecycleCallbacksTracker
 
 
 import dagger.Module

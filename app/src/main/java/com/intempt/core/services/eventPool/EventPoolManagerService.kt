@@ -130,14 +130,14 @@ internal open class EventPoolManagerService @Inject constructor(
 
     private fun handleIntemptEvent(event: IntemptEvent){
         val eventType = event.getEventType()
-        if(eventType == EventType.Consent.value){
-            sendConsentEvent(event)
-        }
-        else{
-            addEvent(event)
 
-            validateEventCall {
-                sendTrackEvents()
+        when(eventType){
+            EventType.Consent.value -> sendConsentEvent(event)
+            else -> {
+                addEvent(event)
+                validateEventCall {
+                    sendTrackEvents()
+                }
             }
         }
 

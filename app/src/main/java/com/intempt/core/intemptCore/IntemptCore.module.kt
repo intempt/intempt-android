@@ -97,21 +97,6 @@ internal class IntemptCoreModule(
         )
     }
 
-
-//    @Provides
-//    @Singleton
-//    fun provideIntemptService(
-//        autoCaptureComponent: AutoCaptureComponent,
-//        customCaptureComponent: CustomCaptureComponent,
-//        modificationComponent: ModificationComponent
-//    ): IntemptCoreService {
-//        return IntemptCoreService(
-//            autoCaptureComponent,
-//            customCaptureComponent,
-//            modificationComponent
-//        )
-//    }
-
 }
 
 

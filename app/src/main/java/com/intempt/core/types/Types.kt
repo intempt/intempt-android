@@ -92,3 +92,7 @@ data class ScreenEventProps(
     val eventType:String,
 ):AutoCaptureParam();
 
+data class Product(
+    val productId: String,
+    val quantity: Int? = null
+)

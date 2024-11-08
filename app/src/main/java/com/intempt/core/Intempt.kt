@@ -1,6 +1,7 @@
 package com.intempt.core
 
 import android.content.Context
+import android.view.View
 import com.intempt.core.intemptCore.DaggerIntemptCoreComponent
 import com.intempt.core.intemptCore.IntemptCoreComponent
 import com.intempt.core.intemptCore.IntemptCoreModule
@@ -89,8 +90,24 @@ object Intempt  {
         )
     }
 
+    fun productAdd(productId:String, quantity:Int){
+        intemptCore.capture.productAdd(productId,quantity)
+    }
+
+    fun productOrdered(products: List<Map<String, Any>>){
+        intemptCore.capture.productOrdered(products)
+    }
+
+    fun productView(productId:String){
+        intemptCore.capture.productView(productId)
+    }
+
     fun logOut() {
         intemptCore.capture.logOut()
+    }
+
+    fun doNotCaptureText(view: View){
+        intemptCore.capture.doNotCaptureText(view)
     }
 
     object Logging {

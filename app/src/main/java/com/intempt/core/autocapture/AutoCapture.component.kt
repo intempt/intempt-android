@@ -1,7 +1,7 @@
 package com.intempt.core.autocapture
 import android.app.Application
 import android.content.Context
-import com.intempt.core.autocapture.lifecycleCallbackManager.LifecycleCallBacksComponent
+import com.intempt.core.autocapture.lifecycleCallbacksTracker.LifecycleCallBacksComponent
 import com.intempt.core.services.ConfigManagerService
 import com.intempt.core.services.LoggerManagerService
 import javax.inject.Inject

@@ -1,4 +1,4 @@
-package com.intempt.core.autocapture.lifecycleCallbackManager
+package com.intempt.core.autocapture.lifecycleCallbacksTracker
 
 import android.app.Activity
 import androidx.fragment.app.Fragment

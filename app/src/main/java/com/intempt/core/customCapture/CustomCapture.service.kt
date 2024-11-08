@@ -1,5 +1,7 @@
 package com.intempt.core.customCapture
 
+import android.view.View
+import com.intempt.core.R
 import com.intempt.core.autocapture.BaseComponent
 import com.intempt.core.services.LoggerManagerService
 import com.intempt.core.services.StorageManagerService
@@ -25,6 +27,11 @@ internal class CustomCaptureService @Inject constructor(
         "identify",
         "consent"
     )
+
+
+    fun setDoNotCaptureTag(view: View){
+        view.setTag(R.id.intemptDoNotCapture, true)
+    }
 
     fun logoutHandler(){
         storage.clearAllStorage()
@@ -100,6 +107,14 @@ internal class CustomCaptureService @Inject constructor(
             return false
         }
         return true
+    }
+
+    fun isProductListValid(products: List<Map<String, Any>>):Boolean{
+        return products.all { product ->
+            val productId = product["productId"]
+            val quantity = product["quantity"]
+            productId is String && productId.isNotBlank() && quantity is Int && quantity > 0
+        }
     }
 
     fun onUiEventReceive(

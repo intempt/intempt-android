@@ -1,5 +1,19 @@
 package com.intempt.core.customCapture
 
+import android.view.View
+import android.view.ViewGroup
+import android.widget.CheckBox
+import android.widget.CompoundButton
+import android.widget.DatePicker
+import android.widget.EditText
+import android.widget.ListView
+import android.widget.RadioButton
+import android.widget.RatingBar
+import android.widget.SeekBar
+import android.widget.Spinner
+import android.widget.TextView
+import android.widget.TimePicker
+import android.widget.ToggleButton
 import com.intempt.core.eventModels.IntemptEvent
 import com.intempt.core.services.ConfigManagerService
 import com.intempt.core.services.IntemptEventManagerService
@@ -7,6 +21,7 @@ import com.intempt.core.services.eventPool.EventPoolManagerService
 import com.intempt.core.types.AutoCaptureParam
 import com.intempt.core.types.DispatchEventProps
 import com.intempt.core.types.EventType
+import com.intempt.core.types.Product
 import com.intempt.core.types.ScreenEventProps
 import com.intempt.core.types.UiEventProps
 
@@ -20,20 +35,6 @@ internal class CustomCaptureComponent @Inject constructor(
     private val eventPool: EventPoolManagerService,
     private val intemptEvent: IntemptEventManagerService
 ) {
-
-    fun captureUi(listenerType: String, param: AutoCaptureParam){
-        if (!config.isUserOptIn) return
-        srv.logger.log("autoCapture | Is $listenerType listener")
-
-        val payload: DispatchEventProps = when (param) {
-            is UiEventProps -> srv.onUiEventReceive(param)
-            is ScreenEventProps -> srv.onScreenEventReceive(param)
-        }
-
-         eventPool.dispatchEvent(payload)
-    }
-
-
 
     fun isLoggingEnabled(): Boolean {
         return config.isLoggingEnabled
@@ -57,6 +58,28 @@ internal class CustomCaptureComponent @Inject constructor(
     fun optOut(){
         srv.logger.log("Invoke optOut")
         config.isUserOptIn = false
+    }
+
+    fun doNotCaptureText(view: View){
+        val canUse = view is EditText
+                || view is Spinner
+                || view is ToggleButton
+                || view is CheckBox
+                || view is RadioButton
+                || view is CompoundButton
+                || view is TextView
+                || view is SeekBar
+                || view is RatingBar
+                || view is TimePicker
+                || view is DatePicker
+                || view is ListView
+
+        if (canUse) {
+            srv.setDoNotCaptureTag(view)
+        }
+        else{
+            srv.logger.error("Can't accept view of type ${view.javaClass.name}. Supported types are: EditText, Spinner, ToggleButton, CheckBox, RadioButton, CompoundButton, TextView, SeekBar, RatingBar, TimePicker, DatePicker, ListView.")
+        }
     }
 
 
@@ -191,13 +214,69 @@ internal class CustomCaptureComponent @Inject constructor(
         eventPool.emitEvent(newEvent)
     }
 
+
     fun logOut(){
         if (!config.isUserOptIn) return
         srv.logger.log("Invoke logOut")
         srv.logoutHandler()
     }
 
+    fun productAdd(productId:String, quantity:Int){
+        if (!config.isUserOptIn) return
+        srv.logger.log("Invoke productAdd")
+        val newEvent = IntemptEvent(
+            name = "Added to cart",
+            type = EventType.Product.value,
+            payload = intemptEvent.generateProductEventPayload(
+                listOf(
+                    Product(productId, quantity)
+                )
+            )
+        )
+        eventPool.emitEvent(newEvent)
+    }
+
+    fun productOrdered(products: List<Map<String, Any>>){
+        if (!config.isUserOptIn) return
+        if(!srv.isProductListValid(products)) {
+            srv.logger.error("Each element should have productId and quantity")
+            return
+        }
+
+        val checkedProduct = products.map { product ->
+             Product(
+                productId = product["productId"] as String,
+                quantity = product["quantity"] as Int
+            )
+        }
 
 
+        srv.logger.log("Invoke productOrdered")
+        val newEvent = IntemptEvent(
+            name = "Product ordered",
+            type = EventType.Product.value,
+            payload = intemptEvent.generateProductEventPayload(
+                checkedProduct
+            )
+        )
+        eventPool.emitEvent(newEvent)
+    }
 
+    fun productView(productId:String){
+        if (!config.isUserOptIn) return
+        srv.logger.log("Invoke productView")
+        val newEvent = IntemptEvent(
+            name = "Product viewed",
+            type = EventType.Product.value,
+            payload = intemptEvent.generateProductEventPayload(
+                listOf(Product(productId))
+            )
+        )
+        eventPool.emitEvent(newEvent)
+    }
 }
+
+
+
+
+

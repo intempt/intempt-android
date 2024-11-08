@@ -1,10 +1,9 @@
-package com.intempt.core.autocapture.changeTracker
+package com.intempt.core.autocapture.lifecycleCallbacksTracker
 
 import android.app.Activity
 import android.os.Handler
 import android.os.Looper
 import android.view.View
-import android.view.ViewGroup
 import android.widget.AdapterView
 import android.widget.CheckBox
 import android.widget.CompoundButton
@@ -41,7 +40,9 @@ internal open class ChangeTrackerService @Inject constructor(
     private val debounceDelay = Constants.DEBOUNCE_DELAY
 
     fun handleChangeListenerRegistration(view: View, activity:Activity) {
-        utils.withTryCatch("AutoCapture:ChangeTrackerService | ChangeTracker Error. Handling view: ${view::class.simpleName}" ){
+        logger.log("ChangeTrackerService | Start registration for ${view.javaClass.name}")
+        val errorMessage = "ChangeTrackerService | ChangeTracker Error. Handling view: ${view::class.simpleName}"
+        utils.withTryCatch(errorMessage){
             when (view) {
                 is RadioButton -> handleRadioButton(view, activity)
                 is CheckBox, is ToggleButton, is CompoundButton -> handleCompoundButton(view as CompoundButton, activity)
@@ -53,21 +54,18 @@ internal open class ChangeTrackerService @Inject constructor(
                 is TimePicker -> handleTimePicker(view, activity)
                 is ListView -> handleListView(view, activity)
                 is ComposeView  -> handleComposeView()
-                is ViewGroup -> {
-                    for (i in 0 until view.childCount) {
-                        val child = view.getChildAt(i)
-                        handleChangeListenerRegistration(child, activity)
-                    }
+                else -> {
+                    logger.log("ChangeTrackerService | Couldn't register change event for ${view.javaClass.name}")
                 }
             }
         }
 
     }
 
-    private fun logAndDispatch(view: View, activity: Activity, viewType: String) {
-        val errorMessage = "AutoCapture:ChangeTrackerService | ChangeTracker Error handling $viewType view: ${view::class.simpleName}";
+    fun logAndDispatch(view: View, activity: Activity, viewType: String) {
+        val errorMessage = "ChangeTrackerService | Error handling $viewType view: ${view::class.simpleName}";
         utils.withTryCatch(errorMessage) {
-            logger.log("AutoCapture:ChangeTrackerService | Change for $viewType")
+            logger.log("ChangeTrackerService | Change for $viewType")
 
             eventPool.dispatchEvent(
                 DispatchEventProps(
@@ -107,10 +105,12 @@ internal open class ChangeTrackerService @Inject constructor(
     }
 
     //SwitchCompat, MaterialSwitch, CheckBox, RadioButton, and ToggleButton
-     private fun handleCompoundButton(view: CompoundButton, activity:Activity){
+    private fun handleCompoundButton(view: CompoundButton, activity:Activity){
+        logger.log("ChangeTrackerService | Perform CompoundButton registration for $${view.javaClass.name}")
         setupHandler { handler, runnableWrapper ->
-            view.setOnCheckedChangeListener { _, _ ->
-                logger.log("View is : ${view.javaClass.name}")
+            view.setOnCheckedChangeListener { _, isChecked ->
+                logger.log("ChangeTrackerService | Listener triggered for ${view.javaClass.name} with state $isChecked")
+
                 runnableWrapper[0] = utils.debounce(handler, debounceDelay, runnableWrapper[0]) {
                     val buttonType = when (view) {
                         is Switch -> "Switch"
@@ -181,7 +181,7 @@ internal open class ChangeTrackerService @Inject constructor(
     private fun handleDatePicker(view: DatePicker, activity: Activity) {
         val elementName = "DatePicker"
         setupHandler { handler, runnableWrapper ->
-            view.setOnDateChangedListener { _, year, monthOfYear, dayOfMonth ->
+            view.setOnDateChangedListener { _, _, _, _ ->
                 runnableWrapper[0] = debounceAndLog(handler, runnableWrapper[0], view, activity, elementName)
             }
         }
@@ -233,3 +233,4 @@ internal open class ChangeTrackerService @Inject constructor(
         }
     }
 }
+

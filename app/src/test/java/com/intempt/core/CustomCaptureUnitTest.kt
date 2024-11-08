@@ -3,6 +3,19 @@ package com.intempt.core
 import android.content.Context
 import android.content.SharedPreferences
 import android.content.res.AssetManager
+import android.view.View
+import android.widget.CheckBox
+import android.widget.CompoundButton
+import android.widget.DatePicker
+import android.widget.EditText
+import android.widget.ListView
+import android.widget.RadioButton
+import android.widget.RatingBar
+import android.widget.SeekBar
+import android.widget.Spinner
+import android.widget.TextView
+import android.widget.TimePicker
+import android.widget.ToggleButton
 import com.intempt.core.customCapture.CustomCaptureComponent
 import com.intempt.core.customCapture.CustomCaptureService
 import com.intempt.core.services.ConfigManagerService
@@ -35,10 +48,13 @@ import org.mockito.Mockito.doAnswer
 import org.mockito.Mockito.doNothing
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.spy
+import org.mockito.Mockito.verify
 import org.mockito.Mockito.`when`
 import org.mockito.MockitoAnnotations
 import org.mockito.kotlin.any
 import org.mockito.kotlin.anyOrNull
+import org.mockito.kotlin.argumentCaptor
+import org.mockito.kotlin.atLeastOnce
 import org.mockito.kotlin.eq
 import org.mockito.kotlin.whenever
 import org.robolectric.RobolectricTestRunner
@@ -46,8 +62,6 @@ import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import org.robolectric.shadows.ShadowLog
 import java.io.ByteArrayInputStream
-
-
 
 
 @RunWith(RobolectricTestRunner::class)
@@ -97,6 +111,7 @@ class CustomCaptureUnitTest {
     private val mockedPagId = "pag_test_id_123456"
 
 
+
     @OptIn(ExperimentalCoroutinesApi::class)
     @Before
     fun setUp() {
@@ -115,25 +130,20 @@ class CustomCaptureUnitTest {
         val mockEditor = mock(SharedPreferences.Editor::class.java)
 
         `when`(context.getSharedPreferences(anyString(), anyInt())).thenReturn(mockSharedPreferences)
+        `when`(mockEditor.clear()).thenReturn(mockEditor)
         `when`(mockSharedPreferences.getString(eq(StorageKeys.ProfileId.key), anyOrNull())).thenReturn(mockProfId)
+        `when`(mockSharedPreferences.getString(eq(StorageKeys.SessionId.key), anyOrNull())).thenReturn(mockedSesId)
+        `when`(mockSharedPreferences.getString(eq(StorageKeys.PageId.key), anyOrNull())).thenReturn(mockedPagId)
         `when`(mockEditor.putString(anyString(), anyString())).thenReturn(mockEditor)
         `when`(mockEditor.putInt(anyString(), anyInt())).thenReturn(mockEditor)
         `when`(mockEditor.putBoolean(anyString(), anyBoolean())).thenReturn(mockEditor)
 
         doNothing().`when`(mockEditor).apply()
 
-        // Stub SharedPreferences methods
         `when`(mockSharedPreferences.edit()).thenReturn(mockEditor)
 
 
-
-
-
-
-
-
         config = spy(ConfigManagerService(context))
-
 
         storage = spy(StorageManagerService(context))
         logger = spy(LoggerManagerService(config))
@@ -214,9 +224,6 @@ class CustomCaptureUnitTest {
             "test_userId",
              "test_anotherUserId"
         )
-
-
-
     }
 
     @Test
@@ -232,10 +239,41 @@ class CustomCaptureUnitTest {
         )
     }
 
-   // @Test
+    @Test
+    fun `should receive event of type productAdd`() = runTest {
+        interceptConsentHttpRequest()
+
+        component.productAdd(
+            "prt1231231231_23",
+            1
+
+        )
+    }
+
+    @Test
+    fun `should receive event of type productView`() = runTest {
+        interceptConsentHttpRequest()
+
+        component.productView("productView_id")
+    }
+
+    @Test
+    fun `should receive event of type productOrdered`() = runTest {
+        interceptConsentHttpRequest()
+
+        component.productOrdered(
+           listOf(
+              mapOf( "productId" to "prt1231231231_23", "quantity" to 1),
+              mapOf( "productId" to "sdfgdfgdfg1234234", "quantity" to 45)
+           )
+
+        )
+    }
+
+    @Test
     fun `should clear storage on logout`() {
         val sessionPrefs = context.getSharedPreferences(StorageKeys.SessionPrefs.key, Context.MODE_PRIVATE)
-        sessionPrefs.edit().putString("someSessionKey", "sessionData").apply()
+        sessionPrefs.edit().putString("someSessionKey", mockedSesId).apply()
 
         val appPrefs = context.getSharedPreferences(StorageKeys.AppPrefs.key, Context.MODE_PRIVATE)
         appPrefs.edit().putString("someAppKey", "appData").apply()
@@ -244,7 +282,7 @@ class CustomCaptureUnitTest {
         fragmentPrefs.edit().putString("someFragmentKey", "fragmentData").apply()
 
         val userPrefs = context.getSharedPreferences(StorageKeys.UserPrefs.key, Context.MODE_PRIVATE)
-        userPrefs.edit().putString(StorageKeys.ProfileId.key, "profileIdData").apply()
+        userPrefs.edit().putString(StorageKeys.ProfileId.key, mockProfId).apply()
 
 
         component.logOut()
@@ -254,7 +292,44 @@ class CustomCaptureUnitTest {
         assertNull(appPrefs.getString("someAppKey", null))
         assertNull(fragmentPrefs.getString("someFragmentKey", null))
 
-        assertEquals("profileIdData", userPrefs.getString(StorageKeys.ProfileId.key, null))
+        assertEquals(mockProfId, userPrefs.getString(StorageKeys.ProfileId.key, null))
+    }
+
+    @Test
+    fun `should add intemptDoNotCapture tag`(){
+
+        val viewsToTest = listOf(
+            EditText(context),
+            Spinner(context),
+            ToggleButton(context),
+            CheckBox(context),
+            RadioButton(context),
+            TextView(context),
+            SeekBar(context),
+            RatingBar(context),
+            TimePicker(context),
+            DatePicker(context),
+            ListView(context)
+        )
+
+        val unsupportedView = View(context)
+
+        viewsToTest.forEach { view ->
+            component.doNotCaptureText(view)
+            // Check that the tag was set
+            assertEquals(true, view.getTag(R.id.intemptDoNotCapture))
+        }
+
+        component.doNotCaptureText(unsupportedView)
+
+        assertNull(unsupportedView.getTag(R.id.intemptDoNotCapture))
+
+        val messageCaptor = argumentCaptor<String>()
+        verify(logger, atLeastOnce()).error(messageCaptor.capture())
+
+        // Verify that the specific error message is present in the captured logs
+        assertTrue(messageCaptor.allValues.any { it.trim() == "Can't accept view of type ${unsupportedView.javaClass.name}. Supported types are: EditText, Spinner, ToggleButton, CheckBox, RadioButton, CompoundButton, TextView, SeekBar, RatingBar, TimePicker, DatePicker, ListView.".trim() })
+
     }
 
     @Test
@@ -294,6 +369,7 @@ class CustomCaptureUnitTest {
         assertTrue(!config.isLoggingEnabled)
     }
 
+
     private fun interceptTrackHttpRequest(expectedEventType: String) = runBlocking {
         doAnswer { invocation ->
             try {
@@ -310,14 +386,12 @@ class CustomCaptureUnitTest {
 
                 assertEquals("Expected event type to be '$expectedEventType'", expectedEventType, type)
 
-
             } catch(e: Exception){
                 e.printStackTrace()
                 fail("An exception was thrown during the post request: ${e.message}")
             } finally {
                 testScheduler.advanceUntilIdle()
             }
-            testScheduler.advanceUntilIdle()
         }.whenever(httpSrv).post(any(), any<JSONObject>(), any())
     }
 
@@ -337,6 +411,7 @@ class CustomCaptureUnitTest {
             } finally {
                 testScheduler.advanceUntilIdle()
             }
+
         }.whenever(httpSrv).post(any(), any<JSONObject>(), any())
     }
 }
