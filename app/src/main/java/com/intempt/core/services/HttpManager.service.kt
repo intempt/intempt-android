@@ -40,10 +40,15 @@ internal class HttpManagerService @Inject constructor(
     ): HttpResponse? {
 
       return try {
-          client.post(url) {
+          val response =  client.post(url) {
               contentType(type)
               setBody(body.toString())
               header(HttpHeaders.Authorization, "Basic ${config.token()}")
+          }
+          if (response.status.value in 200..299) {
+              response
+          } else {
+              throw Exception("Failed with status code: ${response.status.value}")
           }
       }
       catch (e: Exception) {

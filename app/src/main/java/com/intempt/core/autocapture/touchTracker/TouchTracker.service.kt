@@ -36,7 +36,8 @@ internal class TouchTrackerService @Inject constructor(
                 event = null,
                 context = activity,
                 view = view
-            )
+            ),
+            "TouchTrackerService"
         )
     }
 

@@ -9,6 +9,9 @@ import com.intempt.core.types.AppVisibilityState
 import com.intempt.core.types.Constants
 import com.intempt.core.types.DispatchEventProps
 import com.intempt.core.types.StorageKeys
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -23,8 +26,9 @@ internal class InstallUpgradeTrackerService @Inject constructor(
 ){
 
 
+
+
     fun handleVisibilityState(state: AppVisibilityState){
-        logger.log("InstallUpgradeTrackerService | App is now in the $state state")
         storage.setStorageItem(
             prefs = StorageKeys.AppPrefs.key,
             key = StorageKeys.AppVisibilityState.key,
@@ -34,38 +38,44 @@ internal class InstallUpgradeTrackerService @Inject constructor(
         }
     }
 
-    fun getStoredVersionCode():Int {
-        val fallbackVersion = -1
+    fun getStoredVersionCode():Long {
+        val fallbackVersion = -1L
         val versionCode = storage.getStorageItem(
             prefs = StorageKeys.AppPrefs.key,
             key = StorageKeys.PreviousVersionCode.key,
         ){ key, fallBack ->
-            getInt(key, fallBack ?: fallbackVersion)
+            getLong(key, fallBack ?: fallbackVersion)
         } ?: fallbackVersion
+
+
+
+
         logger.log("InstallUpgradeTrackerService | Received version code: $versionCode")
 
         return versionCode
     }
 
-    fun storeVersionCode(versionCode: Int) {
+    fun storeVersionCode(versionCode: Long) {
         logger.log("InstallUpgradeTrackerService | Store version code: $versionCode")
-        storage.setStorageItem(
-            prefs = StorageKeys.AppPrefs.key,
-            key = StorageKeys.PreviousVersionCode.key,
-            value = versionCode
-        ) { key, value ->
-            putInt(key, value)
-        }
+
+            storage.setStorageItem(
+                prefs = StorageKeys.AppPrefs.key,
+                key = StorageKeys.PreviousVersionCode.key,
+                value = versionCode
+            ) { key, value ->
+                putLong(key, value)
+            }
+
+
     }
 
-    fun getConsumerAppVersionCode(): Int {
+    fun getConsumerAppVersionCode(): Long {
         return try {
-            val buildConfigClass = Class.forName("${context.packageName}.BuildConfig")
-            val versionCodeField = buildConfigClass.getField("VERSION_CODE")
-            val consumerCode = versionCodeField.get(null) as Int
-            logger.log("InstallUpgradeTrackerService | Consumer App version code: $consumerCode")
-            return consumerCode
+            val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
+            logger.log("InstallUpgradeTrackerService | Consumer App packageInfo code: ${packageInfo.longVersionCode}")
+            return packageInfo.longVersionCode
         } catch (e: Exception) {
+            e.printStackTrace()
             logger.error("InstallUpgradeTrackerService | Error getting consumer app version code: ${e.message}")
             -1
         }
@@ -81,7 +91,8 @@ internal class InstallUpgradeTrackerService @Inject constructor(
                     entityName = Constants.INSTALL_UPGRADE.ENTITY_NAME,
                     type = Constants.INSTALL_UPGRADE.EVENT_TYPE,
                     context = context,
-                )
+                ),
+                "InstallUpgradeTrackerService"
             )
         }
     }

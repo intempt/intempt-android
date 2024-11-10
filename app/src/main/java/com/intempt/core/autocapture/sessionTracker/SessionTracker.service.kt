@@ -74,6 +74,7 @@ internal class SessionTrackerService @Inject constructor(
     }
 
     fun subscribeToEventReceiver() {
+        logger.log("SessionTrackerService | Started collecting events")
         eventPool.subscribe(Job()) { value ->
             logger.log("SessionTrackerService | Received event type ${value.getEventType()}");
             if(value.getEventType() != Constants.SESSION.EVENT_TYPE){
@@ -136,7 +137,8 @@ internal class SessionTrackerService @Inject constructor(
                 entityName = Constants.SESSION.ENTITY_NAME,
                 type = Constants.SESSION.EVENT_TYPE,
                 context = context
-            )
+            ),
+            "SessionTrackerService"
         )
 
         logger.log("SessionTrackerService | Dispatch session event: $newEvent");

@@ -14,9 +14,6 @@ internal class LifecycleCallBacksComponent(
      private val srv:LifecycleCallbackService
 ): Application.ActivityLifecycleCallbacks, FragmentManager.FragmentLifecycleCallbacks() {
     override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {
-        srv.handleScreenView(activity)
-        srv.handleChangeEventRegistrationInActivity(activity)
-
         if (activity is AppCompatActivity) {
           activity.supportFragmentManager.registerFragmentLifecycleCallbacks(this, true)
         }
@@ -24,8 +21,7 @@ internal class LifecycleCallBacksComponent(
 
     override fun onActivityResumed(activity: Activity) {
         srv.handleScreenView(activity)
-        srv. handleChangeEventRegistrationInActivity(activity)
-
+        srv.registerChangeEventListener(activity)
         if (activity is AppCompatActivity) {
             activity.supportFragmentManager.registerFragmentLifecycleCallbacks(this, true)
         }
@@ -39,23 +35,26 @@ internal class LifecycleCallBacksComponent(
         }
     }
 
-    override fun onActivityDestroyed(activity: Activity) {}
+    override fun onActivityDestroyed(activity: Activity) {
+        srv.unregisterChangeEventListener(activity)
+    }
 
 
 
     override fun onFragmentViewCreated(fm: FragmentManager, fragment: Fragment, view: View, savedInstanceState: Bundle?) {
         srv.handleFragmentVisibility(fragment)
-        srv.handleChangeEventRegistrationInFragment(fragment)
+        srv.unregisterChangeEventListener(fragment.requireActivity())
+        srv.handleChangeEventRegistrationInFragment(fragment, "onFragmentViewCreated")
     }
 
     override fun onFragmentResumed(fm: FragmentManager, fragment: Fragment) {
         srv.handleFragmentVisibility(fragment)
-        srv.handleChangeEventRegistrationInFragment(fragment)
+        srv.handleChangeEventRegistrationInFragment(fragment, "onFragmentResumed")
     }
 
     override fun onFragmentAttached(fm: FragmentManager, fragment: Fragment, context: Context) {
         srv.handleFragmentAdd(fragment)
-        srv.handleChangeEventRegistrationInFragment(fragment)
+        srv.handleChangeEventRegistrationInFragment(fragment, "onFragmentAttached")
     }
 
 

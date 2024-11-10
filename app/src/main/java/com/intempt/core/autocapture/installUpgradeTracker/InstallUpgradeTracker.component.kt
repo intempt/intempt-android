@@ -40,9 +40,9 @@ internal class InstallUpgradeTrackerComponent @Inject constructor(
     private fun registerInstallUpgradeTracking(){
         val currentVersionCode = srv.getConsumerAppVersionCode()
         val storedVersionCode = srv.getStoredVersionCode();
-
+        val invalidCode = -1L
         when {
-            storedVersionCode == -1 -> {
+            storedVersionCode == invalidCode -> {
                 srv.logAndDispatch( "App Install detected")
             }
             storedVersionCode < currentVersionCode -> {

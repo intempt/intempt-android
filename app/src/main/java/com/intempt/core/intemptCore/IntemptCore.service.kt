@@ -27,7 +27,7 @@ internal class IntemptCoreService  @Inject constructor(
 
     private fun setProfileId() {
         val profileId = storage.getProfileId()
-
+        autoCaptureComponent.logger.log("Profile Id $profileId")
         if (profileId.isEmpty()) {
             storage.setStorageItem(
                 prefs = StorageKeys.UserPrefs.key,

@@ -48,7 +48,8 @@ internal class ScreenTrackerService @Inject constructor(
                     entityName = entityName,
                     type = eventType ,
                     context = activity
-                )
+                ),
+                "ScreenTracker"
             )
         }
     }

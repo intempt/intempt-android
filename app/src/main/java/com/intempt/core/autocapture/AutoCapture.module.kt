@@ -19,7 +19,7 @@ import javax.inject.Singleton
 @Module(includes = [
     SessionTrackerModule::class,
     InstallUpgradeTrackerModule::class,
-    TouchTrackerModule::class,
+   // TouchTrackerModule::class,
     LifecycleCallbackModule::class,
 ])
 internal class AutoCaptureModule {

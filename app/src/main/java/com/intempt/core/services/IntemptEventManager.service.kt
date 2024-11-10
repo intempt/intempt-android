@@ -207,8 +207,8 @@ internal open class IntemptEventManagerService @Inject constructor(
     fun generateInstallUpgradeEventPayload():Array<IntemptEventProvider> {
         val eventProps = getBaseEventProps()
 
-        val currentVersionCode: Int = getCurrentVersionCode();
-        val previousVersionCode: Int = storage.getStoredVersionCode();
+        val currentVersionCode: Long = getCurrentVersionCode();
+        val previousVersionCode: Long = storage.getStoredVersionCode();
         val previousBuildType: String = storage.getStoredBuildType() ?: "";
         val currentBuildType: String = getConsumerAppBuildType() ?: "";
         val appVisibilityState: AppVisibilityState = storage.getAppVisibilityState();
@@ -435,13 +435,13 @@ internal open class IntemptEventManagerService @Inject constructor(
         }
     }
 
-    private fun getCurrentVersionCode(): Int {
+    private fun getCurrentVersionCode(): Long {
         val versionCode = context
             .packageManager
             .getPackageInfo(context.packageName, 0)
             .longVersionCode
 
-        return (versionCode and 0xFFFFFFFF).toInt()
+        return versionCode
     }
 
     private fun getConsumerAppBuildType(): String? {

@@ -49,11 +49,9 @@ internal open class EventPoolManagerService @Inject constructor(
         get() = eventQueue.toList()
 
     init {
-        subscribe(Job()) { value ->
-            logger.log("IntemptCoreService | Received event of type: ${value.getEventType()}");
-            handleIntemptEvent(value)
-        }
+        startEventCollection()
     }
+
 
 
 
@@ -62,9 +60,9 @@ internal open class EventPoolManagerService @Inject constructor(
         eventQueue.add(event)
     }
 
-    fun dispatchEvent(props: DispatchEventProps) {
+    fun dispatchEvent(props: DispatchEventProps, serviceName:String) {
         val (eventName,entityName, event, type, context, view) = props
-        logger.log("AutoCapture | Received Event: $eventName; Type:$type")
+        logger.log("$serviceName | Received Event: $eventName; Type:$type")
 
          val payload = event ?: handleEventType(
             HandleEventTypeProps(
@@ -92,10 +90,12 @@ internal open class EventPoolManagerService @Inject constructor(
         return isEmitted
     }
 
-    fun subscribe(job:Job, callback: (value: IntemptEvent) -> Unit) {
+    fun subscribe(
+        job:Job,
+        callback: (value: IntemptEvent) -> Unit
+    ) {
         try {
             eventReceiverJob = CoroutineScope(dispatcher + job).launch {
-                logger.log("EventPoolManagerService | Started collecting events")
                 eventReceiver.collect { value ->
                     callback(value)
                 }
@@ -103,6 +103,27 @@ internal open class EventPoolManagerService @Inject constructor(
         }
         catch (e: Exception) {
             logger.log("Error during collection: ${e.message}")
+        }
+    }
+
+    private fun startEventCollection(){
+        logger.log("EventPoolManagerService | Started collecting events")
+        subscribe(Job()) { event ->
+            logger.log("IntemptCoreService | Received event of type: ${event.getEventType()}");
+
+            val eventType = event.getEventType()
+
+            when(eventType){
+                EventType.Consent.value -> sendConsentEvent(event)
+                else -> {
+                    addEvent(event)
+                    validateEventCall {
+                        sendTrackEvents()
+                    }
+                }
+            }
+
+            logger.log("EventPoolManagerService | eventQueue size: ${eventQueue.size}")
         }
     }
 
@@ -128,23 +149,6 @@ internal open class EventPoolManagerService @Inject constructor(
         }
     }
 
-    private fun handleIntemptEvent(event: IntemptEvent){
-        val eventType = event.getEventType()
-
-        when(eventType){
-            EventType.Consent.value -> sendConsentEvent(event)
-            else -> {
-                addEvent(event)
-                validateEventCall {
-                    sendTrackEvents()
-                }
-            }
-        }
-
-        logger.log("EventPoolManagerService | eventQueue size: ${eventQueue.size}")
-
-    }
-
     private fun sendConsentEvent(event: IntemptEvent){
         val requestBodyJson = JSONObject(event.payload.first().toFormated())
 
@@ -162,10 +166,10 @@ internal open class EventPoolManagerService @Inject constructor(
 
     private fun sendTrackEvents() {
         if(eventQueue.isEmpty()) return
-
+        logger.log("EventPoolManagerService | EventQueue size: ${eventQueue.size}")
         val requestBodyJson = generateTrackRequestBody()
         eventQueue.clear()
-        logger.log("sendEvents | Request body: $requestBodyJson")
+        logger.log("EventPoolManagerService | Request body: $requestBodyJson")
 
         coroutineScope.launch {
                 try {

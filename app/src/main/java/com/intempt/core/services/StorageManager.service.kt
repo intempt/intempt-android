@@ -4,6 +4,9 @@ import android.content.Context
 import android.content.SharedPreferences
 import com.intempt.core.types.AppVisibilityState
 import com.intempt.core.types.StorageKeys
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -12,6 +15,8 @@ import javax.inject.Singleton
 internal class StorageManagerService @Inject constructor(
     private val context: Context,
 ){
+    private val coroutineScope = CoroutineScope(Dispatchers.IO)
+    private val localStore = mutableMapOf<String, Any?>()
 
     fun <T> setStorageItem(
         prefs: String,
@@ -19,10 +24,15 @@ internal class StorageManagerService @Inject constructor(
         value: T,
         applyToPrefs: SharedPreferences.Editor.(String, T) -> Unit
     ){
-        val sharedPreferences = context.getSharedPreferences(prefs, Context.MODE_PRIVATE)
-        val editor = sharedPreferences.edit()
-        editor.applyToPrefs(key, value)
-        editor.apply()
+        coroutineScope.launch {
+            val sharedPreferences = context.getSharedPreferences(prefs, Context.MODE_PRIVATE)
+            val editor = sharedPreferences.edit()
+            editor.applyToPrefs(key, value)
+            editor.apply()
+
+            localStore[key] = value
+        }
+
     }
 
     fun  <T> getStorageItem(
@@ -31,115 +41,125 @@ internal class StorageManagerService @Inject constructor(
         fallBack: T? = null,
         fetchFromPrefs: SharedPreferences.(String,T?) -> T?
     ): T? {
-        val sharedPreferences = context.getSharedPreferences(prefs, Context.MODE_PRIVATE)
-        return sharedPreferences.fetchFromPrefs(key, fallBack)
+        @Suppress("UNCHECKED_CAST")
+        return localStore[key] as T?
 
     }
 
     fun getSessionId():String {
+        val fallback = ""
         return getStorageItem(
             prefs = StorageKeys.SessionPrefs.key,
             key = StorageKeys.SessionId.key
         ){ key, fallBack ->
-            getString(key,fallBack ?: "")
-        } ?: ""
+            getString(key,fallBack ?: fallback)
+        } ?: fallback
     }
 
     fun getPageId(): String {
+        val fallback = ""
         return getStorageItem(
             prefs = StorageKeys.SessionPrefs.key,
             key = StorageKeys.PageId.key
         ){ key, fallBack ->
-            getString(key,fallBack ?: "")
-        } ?: ""
+            getString(key,fallBack ?: fallback)
+        } ?: fallback
     }
 
     fun getProfileId():String {
+        val fallback = ""
         return getStorageItem(
             prefs = StorageKeys.UserPrefs.key,
             key = StorageKeys.ProfileId.key
         ){key, fallBack ->
-            getString(key,fallBack ?: "")
-        } ?: ""
+            getString(key,fallBack ?: fallback)
+        } ?: fallback
     }
 
-    fun getStoredBuildType():String? {
-        val prefKey = StorageKeys.AppPrefs.key;
-        val buildKey = StorageKeys.PreviousBuildType.key;
-
-        val sharedPreferences = context.getSharedPreferences(prefKey, Context.MODE_PRIVATE)
-        return sharedPreferences.getString(buildKey, null)
+    fun getStoredBuildType():String {
+        val fallback = ""
+        return getStorageItem(
+            prefs = StorageKeys.AppPrefs.key,
+            key = StorageKeys.PreviousBuildType.key
+        ){key, fallBack ->
+            getString(key,fallBack ?: fallback)
+        } ?: fallback
     }
 
     fun getAppVisibilityState(): AppVisibilityState {
-        val prefKey = StorageKeys.AppPrefs.key;
-        val visibilityKey = StorageKeys.AppVisibilityState.key;
-
-        val sharedPreferences = context.getSharedPreferences(prefKey, Context.MODE_PRIVATE)
-        val storedState = sharedPreferences.getString(visibilityKey, null)
+        val fallback = ""
+        val storedState = getStorageItem(
+            prefs = StorageKeys.AppPrefs.key,
+            key = StorageKeys.AppVisibilityState.key
+        ){key, fallBack ->
+            getString(key,fallBack ?: fallback)
+        } ?: fallback
         return AppVisibilityState.fromString(storedState)
+
     }
 
-    fun getFragmentName( key: String): String? {
-        return context
-            .getSharedPreferences(StorageKeys.FragmentPrefs.key, Context.MODE_PRIVATE)
-            .getString(key, null)
+    fun getFragmentName( keyType: String): String {
+        val fallback = ""
+        return getStorageItem(
+            prefs = StorageKeys.FragmentPrefs.key,
+            key = keyType
+        ){ key, fallBack ->
+            getString(key,fallBack ?: fallback)
+        } ?: fallback
     }
 
     fun getPageTime(): Long {
-        val prefKey = StorageKeys.SessionPrefs.key;
-        val timeKey = StorageKeys.PageTimestamp.key;
-
-
-        val sharedPreferences = context.getSharedPreferences(prefKey, Context.MODE_PRIVATE)
-        val timestamp = sharedPreferences.getLong(timeKey, 0L)
-        //Logger.log("GetSessionTime: prefs=$prefKey, key=$timeKey, timestamp=$timestamp")
-        return timestamp
+        val fallback = -1L
+        return getStorageItem(
+            prefs = StorageKeys.SessionPrefs.key,
+            key = StorageKeys.PageTimestamp.key
+        ){ key, fallBack ->
+            getLong(key,fallBack ?: fallback)
+        } ?: fallback
     }
 
-    fun getStoredVersionCode():Int {
-        val fallbackVersion = -1
+    fun getStoredVersionCode():Long {
+        val fallbackVersion = -1L
         val versionCode = getStorageItem(
             prefs = StorageKeys.AppPrefs.key,
             key = StorageKeys.PreviousVersionCode.key,
         ){ key, fallBack ->
-            getInt(key, fallBack ?: fallbackVersion)
+            getLong(key, fallBack ?: fallbackVersion)
         } ?: fallbackVersion
+
         return versionCode
     }
 
     fun clearAllStorage() {
-        val profileId = getProfileId()
+        coroutineScope.launch {
+            val profileId = getProfileId()
 
-        // Clear all entries in SessionPrefs
-        val sessionPrefs = context.getSharedPreferences(StorageKeys.SessionPrefs.key, Context.MODE_PRIVATE)
-        sessionPrefs.edit().clear().apply()
+            // Clear all entries in SessionPrefs
+            val sessionPrefs = context.getSharedPreferences(StorageKeys.SessionPrefs.key, Context.MODE_PRIVATE)
+            sessionPrefs.edit().clear().apply()
 
-        // Clear all entries in AppPrefs
-        val appPrefs = context.getSharedPreferences(StorageKeys.AppPrefs.key, Context.MODE_PRIVATE)
-        appPrefs.edit().clear().apply()
+            // Clear all entries in AppPrefs
+            val appPrefs = context.getSharedPreferences(StorageKeys.AppPrefs.key, Context.MODE_PRIVATE)
+            appPrefs.edit().clear().apply()
 
-        // Clear all entries in FragmentPrefs
-        val fragmentPrefs = context.getSharedPreferences(StorageKeys.FragmentPrefs.key, Context.MODE_PRIVATE)
-        fragmentPrefs.edit().clear().apply()
+            // Clear all entries in FragmentPrefs
+            val fragmentPrefs = context.getSharedPreferences(StorageKeys.FragmentPrefs.key, Context.MODE_PRIVATE)
+            fragmentPrefs.edit().clear().apply()
 
-        // Restore the profileId in UserPrefs after clearing
-        val userPrefs = context.getSharedPreferences(StorageKeys.UserPrefs.key, Context.MODE_PRIVATE)
-        userPrefs.edit().clear().apply()
+            // Restore the profileId in UserPrefs after clearing
+            val userPrefs = context.getSharedPreferences(StorageKeys.UserPrefs.key, Context.MODE_PRIVATE)
+            userPrefs.edit().clear().apply()
 
-        setStorageItem(
-            StorageKeys.UserPrefs.key,
-            StorageKeys.ProfileId.key,
-            profileId
-        ) { key, value ->
-            putString(key, value)
+            localStore.clear()
+
+            setStorageItem(
+                StorageKeys.UserPrefs.key,
+                StorageKeys.ProfileId.key,
+                profileId
+            ) { key, value ->
+                putString(key, value)
+            }
         }
     }
-
-
-
-
-
-
 
 }
