@@ -145,7 +145,7 @@ class CustomCaptureUnitTest {
 
         config = spy(ConfigManagerService(context))
 
-        storage = spy(StorageManagerService(context))
+        storage = spy(StorageManagerService(context, utils))
         logger = spy(LoggerManagerService(config))
         httpSrv = spy(HttpManagerService(config, logger))
         customCaptureSrv = CustomCaptureService(storage, logger)

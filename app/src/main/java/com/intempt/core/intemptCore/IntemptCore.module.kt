@@ -63,8 +63,13 @@ internal class IntemptCoreModule(
 
     @Provides
     @Singleton
-    fun provideStorageManagerService(): StorageManagerService{
-        return StorageManagerService(consumerContext.applicationContext)
+    fun provideStorageManagerService(
+        utils: UtilsService
+    ): StorageManagerService{
+        return StorageManagerService(
+            consumerContext.applicationContext,
+            utils
+        )
     }
 
     @Provides

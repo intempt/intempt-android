@@ -7,10 +7,10 @@ import javax.inject.Singleton
 @Singleton
 internal
 class SessionTrackerComponent @Inject constructor(
-    srv:SessionTrackerService
+    private val srv:SessionTrackerService
 ) {
 
-    init{
+    suspend fun start(){
         srv.subscribeToEventReceiver()
         srv.onInit()
     }

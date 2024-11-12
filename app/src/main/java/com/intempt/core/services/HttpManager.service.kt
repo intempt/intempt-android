@@ -46,7 +46,9 @@ internal class HttpManagerService @Inject constructor(
               header(HttpHeaders.Authorization, "Basic ${config.token()}")
           }
           if (response.status.value in 200..299) {
+              logger.log("POST | URL: $url. BODY: $body. Status: ${response.status.value}")
               response
+
           } else {
               throw Exception("Failed with status code: ${response.status.value}")
           }

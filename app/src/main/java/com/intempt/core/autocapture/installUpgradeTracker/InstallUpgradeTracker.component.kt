@@ -6,6 +6,8 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
 import com.intempt.core.autocapture.BaseComponent
 import com.intempt.core.types.AppVisibilityState
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -14,13 +16,18 @@ internal class InstallUpgradeTrackerComponent @Inject constructor(
     private val srv: InstallUpgradeTrackerService
 ): BaseComponent(srv.logger) {
 
-    init{
+//    init{
+//        registerVisibilityTracking();
+//        registerInstallUpgradeTracking();
+//    }
+
+    suspend fun start(){
         registerVisibilityTracking();
         registerInstallUpgradeTracking();
     }
 
 
-    private fun registerVisibilityTracking(){
+    private suspend fun registerVisibilityTracking() = withContext(Dispatchers.Main) {
         val lifecycleObserver = object : DefaultLifecycleObserver {
             override fun onStart(owner: LifecycleOwner) {
                 super.onStart(owner)
@@ -37,7 +44,7 @@ internal class InstallUpgradeTrackerComponent @Inject constructor(
 
     }
 
-    private fun registerInstallUpgradeTracking(){
+    private suspend fun registerInstallUpgradeTracking() = withContext(Dispatchers.Main) {
         val currentVersionCode = srv.getConsumerAppVersionCode()
         val storedVersionCode = srv.getStoredVersionCode();
         val invalidCode = -1L

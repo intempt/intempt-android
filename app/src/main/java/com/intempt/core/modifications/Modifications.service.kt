@@ -12,10 +12,12 @@ import com.intempt.core.types.ModificationGetParam
 import io.ktor.client.statement.bodyAsText
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
 
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import org.json.JSONObject
+import java.util.Optional
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -30,16 +32,16 @@ internal class ModificationsService @Inject constructor(
 
     fun modificationFactory(optimizationType: String): ModificationProvider = object:
         ModificationProvider {
-        override suspend fun getByGroup(data: List<String>): JsonArray? {
-            return getModification(ModificationGetParam(optimizationType, data, isNameType = false))
-        }
+            override suspend fun getByGroup(data: List<String>): JsonElement? {
+                return getModification(ModificationGetParam(optimizationType, data, isNameType = false))
+            }
 
-        override suspend fun getByName(data: List<String>): JsonArray? {
-            return getModification(ModificationGetParam(optimizationType, data, isNameType = true))
-        }
+            override suspend fun getByName(data: List<String>): JsonElement? {
+                return getModification(ModificationGetParam(optimizationType, data, isNameType = true))
+            }
     }
 
-    private suspend fun getModification(params: ModificationGetParam): JsonArray? {
+    private suspend fun getModification(params: ModificationGetParam): JsonElement? {
         val (optimizationType, data, isNameType) = params
         val paramType = if (isNameType) "name" else "group"
 
@@ -63,25 +65,23 @@ internal class ModificationsService @Inject constructor(
                    put("sourceId", sourceId)
                })
 
-               put(paramType, data.toList())
-
+               put(paramType, data)
                put("optimizationType", optimizationType)
                put("device", deviceType)
            }
        }.also { result ->
            logger.log("request body: $result")
        }
-
-
     }
 
-    private suspend fun request(body:JSONObject): JsonArray?  {
-       val url = "${config.optimizationUrl}?apiKey=${config.apiKey}";
+    private suspend fun request(body:JSONObject): JsonElement? {
+       val url = config.optimizationUrl;
 
        return utils.withTryCatchSuspend("Error in request"){
            http.post(url, body)?.bodyAsText().let {
                val jsonResponse = it?.let { it1 -> Json.parseToJsonElement(it1).jsonObject }
-               jsonResponse?.get("choices")?.jsonArray
+               logger.log("POST | Response: $jsonResponse")
+               jsonResponse
            }
        }
    }

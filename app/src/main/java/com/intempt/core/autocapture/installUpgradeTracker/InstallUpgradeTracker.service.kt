@@ -32,9 +32,9 @@ internal class InstallUpgradeTrackerService @Inject constructor(
         storage.setStorageItem(
             prefs = StorageKeys.AppPrefs.key,
             key = StorageKeys.AppVisibilityState.key,
-            value = state
+            value = state.key
         ) { key, value ->
-            putString(key, value.toString())
+            putString(key, value)
         }
     }
 
@@ -47,11 +47,7 @@ internal class InstallUpgradeTrackerService @Inject constructor(
             getLong(key, fallBack ?: fallbackVersion)
         } ?: fallbackVersion
 
-
-
-
         logger.log("InstallUpgradeTrackerService | Received version code: $versionCode")
-
         return versionCode
     }
 

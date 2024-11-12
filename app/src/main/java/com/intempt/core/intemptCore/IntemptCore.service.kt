@@ -13,8 +13,6 @@ import javax.inject.Singleton
 
 @Singleton
 internal class IntemptCoreService  @Inject constructor(
-    private val storage: StorageManagerService,
-    private val utils: UtilsService,
     private val autoCaptureComponent: AutoCaptureComponent,
     private val customCaptureComponent: CustomCaptureComponent,
     private val modificationComponent: ModificationComponent,
@@ -25,24 +23,10 @@ internal class IntemptCoreService  @Inject constructor(
     internal val modification : ModificationComponent
         get() = modificationComponent
 
-    private fun setProfileId() {
-        val profileId = storage.getProfileId()
-        autoCaptureComponent.logger.log("Profile Id $profileId")
-        if (profileId.isEmpty()) {
-            storage.setStorageItem(
-                prefs = StorageKeys.UserPrefs.key,
-                key = StorageKeys.ProfileId.key,
-                value = utils.generateId(IdTypeKeys.ProfileId.key),
-            ) { key, value ->
-                putString(key, value)
-            }
-            autoCaptureComponent.logger.log("Set profile Id")
-        }
-    }
 
 
     init{
-        setProfileId()
+        //TODO: need to configure init
         autoCaptureComponent.start()
         autoCaptureComponent.logger.log("Intempt SDK initialized")
         autoCaptureComponent.logger.log("VERSION: ${BuildConfig.sdkVersion}")

@@ -1,6 +1,6 @@
 package com.intempt.core.types
 
-internal sealed class AppVisibilityState(val state: String) {
+internal sealed class AppVisibilityState(val key: String) {
     data object Foreground : AppVisibilityState("Foreground")
     data object Background : AppVisibilityState("Background")
 

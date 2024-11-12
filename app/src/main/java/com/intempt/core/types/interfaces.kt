@@ -7,10 +7,12 @@ import android.view.View
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentManager
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import java.util.Optional
 
 interface ModificationProvider {
-    suspend fun getByGroup(data: List<String>): JsonArray?
-    suspend fun getByName(data: List<String>): JsonArray?
+    suspend fun getByGroup(data: List<String>): JsonElement?
+    suspend fun getByName(data: List<String>): JsonElement?
 }
 
 interface IntemptEventProvider {

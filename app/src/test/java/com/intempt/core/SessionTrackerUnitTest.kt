@@ -3,6 +3,7 @@ package com.intempt.core
 import android.content.Context
 import android.content.SharedPreferences
 import android.os.Looper
+import com.intempt.core.autocapture.sessionTracker.SessionTrackerComponent
 import com.intempt.core.autocapture.sessionTracker.SessionTrackerService
 import com.intempt.core.eventModels.IntemptEvent
 import com.intempt.core.services.ConfigManagerService
@@ -45,6 +46,7 @@ class SessionTrackerUnitTest {
     private lateinit var context: Context
     private lateinit var storage: StorageManagerService
     private lateinit var sessionTrackerService: SessionTrackerService
+    private lateinit var sessionTrackerComponent: SessionTrackerComponent
     private lateinit var eventPool: EventPoolManagerService
     private lateinit var config: ConfigManagerService
     private lateinit var eventFlow: MutableSharedFlow<IntemptEvent>
@@ -64,7 +66,7 @@ class SessionTrackerUnitTest {
         config.isLoggingEnabled = true
 
         logger = spy(LoggerManagerService(config))
-        storage = spy(StorageManagerService(context))
+        storage = spy(StorageManagerService(context,utils))
         httpSrv = spy(HttpManagerService(config, logger))
         utils = spy(UtilsService(logger))
         intemptEvent = spy(IntemptEventManagerService(context, storage, utils, config))
@@ -86,12 +88,18 @@ class SessionTrackerUnitTest {
                 intemptEvent
             )
         )
+        sessionTrackerComponent = spy(
+            SessionTrackerComponent(
+                sessionTrackerService
+            )
+        )
 
     }
 
     @Test
-    fun `onInit should start new session if session is expired`() {
-        sessionTrackerService.onInit()
+    fun `onInit should start new session if session is expired`() = runTest {
+//        sessionTrackerService.onInit()
+        sessionTrackerComponent.start()
         val expiredSessionTimestamp = System.currentTimeMillis() - (Constants.SESSION.SESSION_TIMEOUT + 1000)
         val sessionId = "test_session_id"
 
@@ -131,13 +139,13 @@ class SessionTrackerUnitTest {
 
 
     @Test
-    fun `onInit should not start new session if session is active`() {
+    fun `onInit should not start new session if session is active`() = runTest {
 
         val activeSessionTimestamp = System.currentTimeMillis() + 1000
 
         `when`(sessionTrackerService.getSessionTime()).thenReturn(activeSessionTimestamp)
 
-        sessionTrackerService.onInit()
+        sessionTrackerComponent.start()
 
 
         val allLogs = ShadowLog.getLogs().map { it.msg.trim() }
@@ -222,9 +230,15 @@ class SessionTrackerUnitTest {
             )
         )
 
+        sessionTrackerComponent = spy(
+            SessionTrackerComponent(
+                sessionTrackerService
+            )
+        )
+
         `when`(sessionTrackerService.getSessionTime()).thenReturn(expiredSessionTimestamp)
 
-        sessionTrackerService.onInit()
+        sessionTrackerComponent.start()
 
         testScheduler.advanceUntilIdle()
 

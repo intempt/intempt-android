@@ -30,7 +30,6 @@ object Intempt  {
     }
 
 
-
     fun identify(
         userId: String,
         eventTitle: String? = null,
@@ -132,7 +131,7 @@ object Intempt  {
             intemptCore.capture.optOut()
         }
         fun isTrackingEnabled(): Boolean{
-            return intemptCore.capture.isLoggingEnabled()
+            return intemptCore.capture.isTrackingEnabled()
         }
 
     }

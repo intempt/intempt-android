@@ -61,6 +61,7 @@ internal open class EventPoolManagerService @Inject constructor(
     }
 
     fun dispatchEvent(props: DispatchEventProps, serviceName:String) {
+        if (!config.isUserOptIn) return
         val (eventName,entityName, event, type, context, view) = props
         logger.log("$serviceName | Received Event: $eventName; Type:$type")
 

@@ -95,8 +95,8 @@ internal open class IntemptEventManagerService @Inject constructor(
     }
 
     fun generateProductEventPayload(products: List<Product>):Array<IntemptEventProvider>{
-        val eventProps = getBaseEventProps()
         return products.map { product ->
+            val eventProps = getBaseEventProps()
             ProductEvent(
                 eventId = eventProps.eventId,
                 sessionId = eventProps.sessionId,
@@ -206,6 +206,8 @@ internal open class IntemptEventManagerService @Inject constructor(
 
     fun generateInstallUpgradeEventPayload():Array<IntemptEventProvider> {
         val eventProps = getBaseEventProps()
+
+        println("EventPool | ProfileId: ${eventProps.profileId}")
 
         val currentVersionCode: Long = getCurrentVersionCode();
         val previousVersionCode: Long = storage.getStoredVersionCode();

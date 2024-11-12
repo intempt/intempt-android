@@ -49,7 +49,7 @@ class ModificationsUnitTest {
 
         context = spy(RuntimeEnvironment.getApplication())
         config = spy(ConfigManagerService(context))
-        storage = spy(StorageManagerService(context))
+        storage = spy(StorageManagerService(context,utils))
         logger = spy(LoggerManagerService(config))
         httpSrv = spy(HttpManagerService(config, logger))
         utils = spy(UtilsService(logger))

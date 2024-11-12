@@ -41,14 +41,16 @@ internal class SessionTrackerService @Inject constructor(
 
 
 ):BaseComponent(logger){
-
     private var coroutineJob: Job? = null
     private var ip: String = "";
     private var city: String = ""
     private var region: String = ""
     private var country: String = ""
 
-    fun onInit(){
+
+
+
+    suspend fun onInit(){
         val sessionTime = getSessionTime();
         val currentTimestamp = System.currentTimeMillis();
 
@@ -83,19 +85,25 @@ internal class SessionTrackerService @Inject constructor(
         }
     }
 
-    private fun runSessionStart(){
-        logger.log("SessionTrackerService | Run session in start");
-        coroutineJob?.cancel();
-        coroutineJob = CoroutineScope(dispatcher).launch {
-            val locationDeferred = async { getLocationInfo() }
-            locationDeferred.await()
-            dispatchEvent("Session start")
-
-        }
+    private suspend fun runSessionStart() = withContext(dispatcher) {
+        logger.log("SessionTrackerService | Run session in start")
+        val locationInfo = getLocationInfo() // run async location fetching if needed
+        dispatchEvent("Session start")
     }
 
+//    private fun runSessionStart(){
+//        logger.log("SessionTrackerService | Run session in start");
+//        coroutineJob?.cancel();
+//        coroutineJob = CoroutineScope(dispatcher).launch {
+//            val locationDeferred = async { getLocationInfo() }
+//            locationDeferred.await()
+//            dispatchEvent("Session start")
+//
+//        }
+//    }
+
     suspend fun getLocationInfo() {
-         logger.log("SessionTrackerService | Get Location");
+        logger.log("SessionTrackerService | Get Location");
         withContext(dispatcher) {
             try{
                 val response: HttpResponse = http.get(Constants.SESSION.LOCATON_API);

@@ -40,6 +40,10 @@ internal class CustomCaptureComponent @Inject constructor(
         return config.isLoggingEnabled
     }
 
+    fun isTrackingEnabled(): Boolean {
+        return config.isUserOptIn
+    }
+
     fun enableLogging(){
         srv.logger.log("Invoke enableLogging")
         config.isLoggingEnabled = true
@@ -53,11 +57,13 @@ internal class CustomCaptureComponent @Inject constructor(
     fun optIn(){
         srv.logger.log("Invoke optIn")
         config.isUserOptIn = true
+        srv.logger.log("isTrackingEnabled ${isTrackingEnabled()}")
     }
 
     fun optOut(){
         srv.logger.log("Invoke optOut")
         config.isUserOptIn = false
+        srv.logger.log("isTrackingEnabled ${isTrackingEnabled()}")
     }
 
     fun doNotCaptureText(view: View){
@@ -249,8 +255,6 @@ internal class CustomCaptureComponent @Inject constructor(
                 quantity = product["quantity"] as Int
             )
         }
-
-
         srv.logger.log("Invoke productOrdered")
         val newEvent = IntemptEvent(
             name = "Product ordered",

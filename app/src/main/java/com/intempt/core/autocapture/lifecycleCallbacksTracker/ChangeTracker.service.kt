@@ -16,15 +16,11 @@ import android.widget.RadioButton
 import android.widget.RatingBar
 import android.widget.SeekBar
 import android.widget.Spinner
-import android.widget.Switch
 import android.widget.TextView
 import android.widget.TimePicker
 import android.widget.ToggleButton
-import androidx.appcompat.widget.SwitchCompat
-import androidx.compose.ui.platform.ComposeView
 import androidx.core.widget.doAfterTextChanged
 import androidx.recyclerview.widget.RecyclerView
-import com.google.android.material.materialswitch.MaterialSwitch
 import com.intempt.core.services.LoggerManagerService
 import com.intempt.core.services.UtilsService
 import com.intempt.core.services.eventPool.EventPoolManagerService
@@ -41,32 +37,19 @@ internal open class ChangeTrackerService @Inject constructor(
     private val utils: UtilsService,
 ) {
 
-    private lateinit var observer: ViewTreeObserver.OnGlobalLayoutListener
-    private var isObserving = false
-
     private val previousStateMap = mutableMapOf<Int, Any?>()
     private val debounceDelay = Constants.DEBOUNCE_DELAY
     private val handler = Handler(Looper.getMainLooper())
     private val runnableWrapper: Array<Runnable?> = arrayOfNulls(1)
 
 
-    fun unregisterListener(activity: Activity){
-        isObserving = false
-        activity.window.decorView.viewTreeObserver.removeOnGlobalLayoutListener(observer)
-    }
-
     fun registerListener(activity: Activity){
-        observer = ViewTreeObserver.OnGlobalLayoutListener {
-            val rootView = activity.window.decorView.findViewById<ViewGroup>(R.id.content)
-            rootView?.let { view ->
-                    findAndInvokeChangeEvent(view, activity)
-            }
-           // unregisterListener(activity)
+        (activity.findViewById(R.id.content) as? ViewGroup)?.let { rootView ->
+            findAndRegisterChangeEvent(rootView, activity)
         }
-        activity.window.decorView.viewTreeObserver.addOnGlobalLayoutListener(observer)
     }
 
-    private fun findAndInvokeChangeEvent(viewGroup: ViewGroup, activity: Activity){
+    private fun findAndRegisterChangeEvent(viewGroup: ViewGroup, activity: Activity){
         logger.log("Invoke findAndInvokeChangeEvent")
         for (i in 0 until viewGroup.childCount) {
             when( val view = viewGroup.getChildAt(i)){
@@ -75,11 +58,11 @@ internal open class ChangeTrackerService @Inject constructor(
                     for (j in 0 until view.childCount) {
                         val childView = layoutManager?.getChildAt(i)
                         if (childView != null) {
-                            findAndInvokeChangeEvent(view, activity)
+                            findAndRegisterChangeEvent(view, activity)
                         }
                     }
                 }
-                is ViewGroup -> findAndInvokeChangeEvent(view, activity)
+                is ViewGroup -> findAndRegisterChangeEvent(view, activity)
                 else -> handleChangeListenerRegistration(view, activity)
             }
         }
@@ -114,32 +97,7 @@ internal open class ChangeTrackerService @Inject constructor(
         }
     }
 
-
-    private fun handleChangeListenerRegistration(view: View, activity:Activity) {
-        logger.log("Invoke handleChangeListenerRegistration")
-        val errorMessage = "ChangeTrackerService | ChangeTracker Error. Handling view: ${view::class.simpleName}"
-        utils.withTryCatch(errorMessage){
-            val canUse = checkViews(view)
-            val hash = view.hashCode()
-
-            if(canUse){
-                val currentValue  = getViewValue(view)
-                val previousValue = previousStateMap[hash]
-                if (previousValue == null || previousValue != currentValue) {
-                    previousStateMap[hash] = currentValue
-
-                    runnableWrapper[0] = debounceAndLog(handler, runnableWrapper[0], view, activity)
-                }
-            }
-            else{
-                logger.log("ChangeTrackerService | Couldn't register change event for ${view.javaClass.name}")
-            }
-        }
-
-    }
-
-
-     private fun debounceAndLog(
+    private fun debounceAndLog(
         handler: Handler,
         currentRunnable: Runnable?,
         view: View,
@@ -157,6 +115,126 @@ internal open class ChangeTrackerService @Inject constructor(
                 "ChangeTrackerService"
             )
         }
+    }
+
+
+
+    private fun handleChangeListenerRegistration(view: View, activity:Activity) {
+        logger.log("ChangeTrackerService | Start registration for ${view.javaClass.name}")
+        val errorMessage = "ChangeTrackerService | ChangeTracker Error. Handling view: ${view::class.simpleName}"
+        utils.withTryCatch(errorMessage){
+            when (view) {
+                is RadioButton -> handleRadioButton(view, activity)
+                is CompoundButton -> handleCompoundButton(view, activity)
+                is SeekBar -> handleSeekBar(view, activity)
+                is Spinner -> handleSpinner(view, activity)
+                is EditText -> handleEditText(view, activity)
+                is DatePicker -> handleDatePicker(view, activity)
+                is RatingBar -> handleRatingBar(view, activity)
+                is TimePicker -> handleTimePicker(view, activity)
+                is ListView -> handleListView(view, activity)
+                else -> {
+                    logger.log("ChangeTrackerService | Couldn't register change event for ${view.javaClass.name}")
+                }
+            }
+        }
+
+    }
+
+    private fun handleCompoundButton(view: CompoundButton, activity:Activity){
+        logger.log("ChangeTrackerService | Perform CompoundButton registration for $${view.javaClass.name}")
+
+            view.setOnCheckedChangeListener { _, isChecked ->
+                logger.log("ChangeTrackerService | Listener triggered for ${view.javaClass.name} with state $isChecked")
+
+                runnableWrapper[0] = debounceAndLog(handler, runnableWrapper[0], view, activity)
+            }
+
+    }
+
+    private fun handleRadioButton(view: CompoundButton, activity:Activity){
+        view.setOnCheckedChangeListener { _, isChecked  ->
+            if (isChecked) {
+                runnableWrapper[0] = debounceAndLog(handler, runnableWrapper[0], view, activity)
+            }
+        }
+    }
+
+    private fun handleEditText(view: EditText, activity:Activity){
+            view.doAfterTextChanged  { _ ->
+                runnableWrapper[0] = debounceAndLog(handler, runnableWrapper[0], view, activity)
+            }
+    }
+
+    private fun handleSeekBar(view: SeekBar, activity:Activity){
+            view.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    logger.log("invoke  onProgressChanged")
+                    runnableWrapper[0] = debounceAndLog(handler, runnableWrapper[0], view, activity)
+                }
+
+                override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+                override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+            })
+
+    }
+
+    private fun handleSpinner(view: Spinner, activity:Activity){
+        view.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, childView: View, position: Int, id: Long) {
+                runnableWrapper[0] = debounceAndLog(handler, runnableWrapper[0], view, activity)
+            }
+
+            override fun onNothingSelected(parent: AdapterView<*>?) {}
+        }
+
+    }
+
+    private fun handleDatePicker(view: DatePicker, activity: Activity) {
+        view.setOnDateChangedListener { _, _, _, _ ->
+            runnableWrapper[0] = debounceAndLog(handler, runnableWrapper[0], view, activity)
+        }
+
+    }
+
+    private fun handleRatingBar(view: RatingBar, activity: Activity) {
+        view.setOnRatingBarChangeListener { _, _, _ ->
+            runnableWrapper[0] = debounceAndLog(handler, runnableWrapper[0], view, activity)
+        }
+
+    }
+
+    private fun handleTimePicker(view: TimePicker, activity: Activity) {
+        view.setOnTimeChangedListener { _, _, _ ->
+            runnableWrapper[0] = debounceAndLog(handler, runnableWrapper[0], view, activity)
+        }
+
+    }
+
+    private fun handleListView(view: ListView, activity: Activity) {
+            view.setOnItemClickListener { _, childView, position, _ ->
+                if (childView != null) {
+                    runnableWrapper[0] = debounceAndLog(handler, runnableWrapper[0], view, activity)
+                }
+                else {
+                    logger.error("setOnItemClickListener | Error: childView is null for ListView item at position $position")
+                }
+            }
+
+            //TODO: if ListView supports focus-based selection
+            view.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+                override fun onItemSelected(parent: AdapterView<*>?, childView: View?, position: Int, id: Long) {
+                    if (childView != null) {
+                        runnableWrapper[0] = debounceAndLog(handler, runnableWrapper[0], view, activity)
+                    }
+                    else {
+                        logger.error("onItemSelected | Error: childView is null for ListView item selected at position $position")
+                    }
+
+                }
+                override fun onNothingSelected(parent: AdapterView<*>?) {}
+            }
+
     }
 }
 
