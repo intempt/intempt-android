@@ -51,7 +51,6 @@ internal class StorageManagerService @Inject constructor(
     ): T? {
         @Suppress("UNCHECKED_CAST")
         return localStore[key] as T?
-
     }
 
     fun getSessionId():String {

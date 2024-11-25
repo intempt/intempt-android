@@ -109,24 +109,26 @@ internal open class IntemptEventManagerService @Inject constructor(
     }
 
 
-    fun generateFragmentTransitionEventPayload():Array<IntemptEventProvider>{
-        val eventProps = getBaseEventProps()
+    fun generateFragmentTransitionEventPayload():Array<IntemptEventProvider>?{
+        return utils.withTryCatch("Error during generating Fragment Transition payload"){
+            val eventProps = getBaseEventProps()
 
-        val visibleFragment = storage.getFragmentName("visibleFragment") ?: ""
-        val addedFragment = storage.getFragmentName("addedFragment") ?: ""
-        val removedFragment = storage.getFragmentName("removedFragment") ?: ""
+            val visibleFragment = storage.getFragmentName("visibleFragment") ?: ""
+            val addedFragment = storage.getFragmentName("addedFragment") ?: ""
+            val removedFragment = storage.getFragmentName("removedFragment") ?: ""
 
-        return arrayOf(
-            FragmentTransitionEvent(
-                eventId = eventProps.eventId,
-                sessionId = eventProps.sessionId,
-                pageId = eventProps.pageId,
-                profileId = eventProps.profileId,
-                visibleFragment = visibleFragment,
-                addedFragment = addedFragment,
-                removedFragment = removedFragment
+            arrayOf(
+                FragmentTransitionEvent(
+                    eventId = eventProps.eventId,
+                    sessionId = eventProps.sessionId,
+                    pageId = eventProps.pageId,
+                    profileId = eventProps.profileId,
+                    visibleFragment = visibleFragment,
+                    addedFragment = addedFragment,
+                    removedFragment = removedFragment
+                )
             )
-        )
+        }
     }
 
     fun generateScreenViewEventPayload(activity: Activity, entityName:String):Array<IntemptEventProvider>{
@@ -154,10 +156,9 @@ internal open class IntemptEventManagerService @Inject constructor(
         )
     }
 
-    open fun generateUiElementEventPayload(view: View?): Array<IntemptEventProvider> {
+    open fun generateUiElementEventPayload(view: View?): Array<IntemptEventProvider>? {
         return utils.withTryCatch("Error during generating UI payload"){
             val eventProps = getBaseEventProps()
-
             val targetElement = view?.javaClass?.simpleName ?: ""
             val hierarchy = getViewHierarchy(view)
             val targetText = getViewTextValue(view)
@@ -191,9 +192,9 @@ internal open class IntemptEventManagerService @Inject constructor(
                     pageId = eventProps.pageId,
                     profileId = eventProps.profileId,
                     targetElement = targetElement,
-                    hierarchy = hierarchy,
-                    targetText = targetText,
-                    targetValue = targetValue,
+                    hierarchy = hierarchy ?: "",
+                    targetText = targetText ?: "",
+                    targetValue = targetValue ?: "",
                     targetClass = targetClass,
                     targetId = targetId,
                     fullTargetId = fullTargetId
@@ -206,8 +207,6 @@ internal open class IntemptEventManagerService @Inject constructor(
 
     fun generateInstallUpgradeEventPayload():Array<IntemptEventProvider> {
         val eventProps = getBaseEventProps()
-
-        println("EventPool | ProfileId: ${eventProps.profileId}")
 
         val currentVersionCode: Long = getCurrentVersionCode();
         val previousVersionCode: Long = storage.getStoredVersionCode();
@@ -381,7 +380,7 @@ internal open class IntemptEventManagerService @Inject constructor(
         )
     }
 
-    private fun getViewHierarchy(view: View?): String {
+    private fun getViewHierarchy(view: View?): String? {
         if(view == null) return ""
 
         return utils.withTryCatch("Error getting view hierarchy"){
@@ -395,7 +394,7 @@ internal open class IntemptEventManagerService @Inject constructor(
         }
     }
 
-    private fun getViewTextValue(view: View?):String {
+    private fun getViewTextValue(view: View?):String? {
         if(view == null) return ""
         return utils.withTryCatch("Error getting text from view"){
             val text = (view as? TextView)?.text?.toString()
@@ -411,7 +410,7 @@ internal open class IntemptEventManagerService @Inject constructor(
         }
     }
 
-    private fun getViewValue(view: View?): String {
+    private fun getViewValue(view: View?): String? {
         if(view == null) return ""
         val disabledText = "*****"
         val isTextCaptureDisabled = view.getTag(R.id.intemptDoNotCapture) as? Boolean == true

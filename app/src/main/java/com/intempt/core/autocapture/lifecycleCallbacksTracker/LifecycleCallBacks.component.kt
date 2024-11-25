@@ -15,7 +15,6 @@ internal class LifecycleCallBacksComponent(
 ): Application.ActivityLifecycleCallbacks,
     FragmentManager.FragmentLifecycleCallbacks()
 {
-
     override fun onActivityResumed(activity: Activity) {
         srv.handleScreenView(activity)
         srv.registerTouchEventListener(activity)
@@ -34,7 +33,6 @@ internal class LifecycleCallBacksComponent(
     }
 
     override fun onActivityDestroyed(activity: Activity) {}
-
 
     override fun onFragmentResumed(fm: FragmentManager, fragment: Fragment) {
         srv.handleFragmentVisibility(fragment)

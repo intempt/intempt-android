@@ -35,12 +35,13 @@ internal class TouchTrackerService @Inject constructor(
     fun register(activity: Activity) {
         if(!config.isTouchEnabled) { return }
         val originalCallback = activity.window.callback;
+
         activity.window.callback = object : Window.Callback by originalCallback {
             override fun dispatchTouchEvent(event: MotionEvent?): Boolean {
+                println("dispatchTouchEvent TouchTrackerService")
                 if (event?.action == MotionEvent.ACTION_UP) {
                     val rootView = activity.window.decorView
                     val touchedView = findTouchedView(rootView, event.rawX.toInt(), event.rawY.toInt())
-
                     runnableWrapper[0] = debounceAndLog(
                         handler,
                         runnableWrapper[0],

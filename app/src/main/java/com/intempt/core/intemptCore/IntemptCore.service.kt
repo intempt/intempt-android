@@ -24,7 +24,6 @@ internal class IntemptCoreService  @Inject constructor(
         get() = modificationComponent
 
 
-
     init{
         //TODO: need to configure init
         autoCaptureComponent.start()

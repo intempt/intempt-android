@@ -25,11 +25,13 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+
+            testProguardFiles("proguard-test.pro")
         }
 
     }
@@ -75,21 +77,6 @@ dependencies {
     testImplementation(libs.androidx.arch.core.testing)
     testImplementation(libs.robolectric)
     testImplementation(libs.logback.classic)
-    //testImplementation(libs.mockito.android)
-
-//    debugImplementation(libs.compose.ui.tooling)
-//    debugImplementation(kotlin("reflect"))
-//    debugImplementation(libs.mockito.core)
-//    debugImplementation(libs.mockito.kotlin)
-//    debugImplementation(libs.kotlinx.coroutines.test)
-//    debugImplementation(libs.androidx.junit)
-//    debugImplementation(libs.androidx.espresso.core)
-//    debugImplementation(libs.mockito.android)
-//    debugImplementation(libs.androidx.arch.core.testing)
-//    debugImplementation(libs.androidx.core.test)
-//    debugImplementation(libs.androidx.rules.test)
-//    debugImplementation(libs.androidx.runner.test)
-
 }
 
 //publishing {
@@ -109,7 +96,6 @@ dependencies {
 //}
 
 mavenPublishing {
-
     coordinates(
         groupId = project.findProperty("GROUP") as String,
         artifactId = project.findProperty("ARTIFACT_ID") as String,

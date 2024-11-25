@@ -40,10 +40,21 @@ internal class HttpManagerService @Inject constructor(
     ): HttpResponse? {
 
       return try {
-          val response =  client.post(url) {
+          val authHeader = "Basic ${config.token()}"
+
+          logger.log("""
+            POST Request:
+            URL: $url
+            Headers:
+                Authorization: $authHeader
+                Content-Type: $type
+            Body: $body
+        """.trimIndent())
+
+          val response = client.post(url) {
               contentType(type)
               setBody(body.toString())
-              header(HttpHeaders.Authorization, "Basic ${config.token()}")
+              header(HttpHeaders.Authorization, authHeader)
           }
           if (response.status.value in 200..299) {
               logger.log("POST | URL: $url. BODY: $body. Status: ${response.status.value}")

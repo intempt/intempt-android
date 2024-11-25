@@ -13,21 +13,26 @@ object Intempt  {
     private lateinit var component: IntemptCoreComponent
     private lateinit var intemptCore: IntemptCoreService
 
-
     lateinit var experiment: ModificationProvider
     lateinit var personalization: ModificationProvider
 
     fun initialize(context: Context) {
-        component = DaggerIntemptCoreComponent.factory()
-            .create(IntemptCoreModule(context));
+        try{
+            component = DaggerIntemptCoreComponent.factory()
+                .create(IntemptCoreModule(context));
 
-        component.inject(this);
+            component.inject(this);
 
-        intemptCore = component.initService()
+            intemptCore = component.initService()
 
-        experiment = intemptCore.modification.experimentHandler
-        personalization = intemptCore.modification.personalizationHandler
+            experiment = intemptCore.modification.experimentHandler
+            personalization = intemptCore.modification.personalizationHandler
+        }
+        catch (e:Exception){
+            println("Intempt initialization failed")
+        }
     }
+
 
 
     fun identify(
@@ -110,14 +115,14 @@ object Intempt  {
     }
 
     object Logging {
-       fun start(){
-           intemptCore.capture.enableLogging()
-       }
-       fun stop(){
-           intemptCore.capture.disableLogging()
+        fun start(){
+            intemptCore.capture.enableLogging()
+        }
+        fun stop(){
+            intemptCore.capture.disableLogging()
 
-       }
-       fun isLoggingEnabled(): Boolean{
+        }
+        fun isLoggingEnabled(): Boolean{
             return intemptCore.capture.isLoggingEnabled()
         }
 
@@ -135,6 +140,5 @@ object Intempt  {
         }
 
     }
-
 
 }

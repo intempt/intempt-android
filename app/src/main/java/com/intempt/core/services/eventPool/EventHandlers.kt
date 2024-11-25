@@ -16,7 +16,7 @@ internal class EventHandlers(
 
     fun fragment(props: HandleEventTypeProps):Array<IntemptEventProvider> {
         val newEvent = intemptEvent.generateFragmentTransitionEventPayload()
-        return newEvent
+        return newEvent ?: arrayOf()
     }
 
     fun screen(props: HandleEventTypeProps):Array<IntemptEventProvider> {
@@ -24,7 +24,7 @@ internal class EventHandlers(
             props.context as Activity,
             props.entityName
         )
-        return newEvent
+        return newEvent ?: arrayOf()
     }
 
     fun touch(props: HandleEventTypeProps):Array<IntemptEventProvider> {
@@ -39,7 +39,7 @@ internal class EventHandlers(
         )
 
         logger.log("EventPool | Touch Event: $newEvent")
-        return newEvent
+        return newEvent ?: arrayOf()
     }
 
     fun change(props: HandleEventTypeProps):Array<IntemptEventProvider> {
@@ -48,9 +48,9 @@ internal class EventHandlers(
             val newEvent = intemptEvent.generateUiElementEventPayload(
                 view
             )
-            println("newEvent $newEvent")
+
             logger.log("EventPool | Change Event: $newEvent");
-            return newEvent
+            return newEvent ?: arrayOf()
     }
 
     fun installOrUpgrade(props: HandleEventTypeProps): Array<IntemptEventProvider> {

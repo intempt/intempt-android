@@ -24,10 +24,6 @@ internal class InstallUpgradeTrackerService @Inject constructor(
     val logger: LoggerManagerService,
     private val utils: UtilsService
 ){
-
-
-
-
     fun handleVisibilityState(state: AppVisibilityState){
         storage.setStorageItem(
             prefs = StorageKeys.AppPrefs.key,

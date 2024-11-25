@@ -35,7 +35,6 @@ class ConfigManagerService  @Inject constructor(
     private val _isTextCaptureEnabled: Boolean;
     private val _isAutoCaptureEnabled: Boolean;
 
-    val apiKey: String get() = _apiKey;
     val sourceId: String get() = _sourceId;
     val isTextCaptureEnabled: Boolean get() = _isTextCaptureEnabled;
     val isTouchEnabled: Boolean get() = _isTouchEnabled;

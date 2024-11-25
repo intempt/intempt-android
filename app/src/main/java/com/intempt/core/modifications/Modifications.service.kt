@@ -10,14 +10,15 @@ import com.intempt.core.services.UtilsService
 import com.intempt.core.types.ModificationBodyParam
 import com.intempt.core.types.ModificationGetParam
 import io.ktor.client.statement.bodyAsText
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.future.future
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
-
-import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import org.json.JSONObject
-import java.util.Optional
+import java.util.concurrent.CompletableFuture
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -32,12 +33,22 @@ internal class ModificationsService @Inject constructor(
 
     fun modificationFactory(optimizationType: String): ModificationProvider = object:
         ModificationProvider {
+        private val coroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
             override suspend fun getByGroup(data: List<String>): JsonElement? {
                 return getModification(ModificationGetParam(optimizationType, data, isNameType = false))
             }
 
             override suspend fun getByName(data: List<String>): JsonElement? {
                 return getModification(ModificationGetParam(optimizationType, data, isNameType = true))
+            }
+
+            override fun getByGroupAsync(data: List<String>): CompletableFuture<JsonElement?> {
+                return coroutineScope.future { getByGroup(data) }
+            }
+
+            override fun getByNameAsync(data: List<String>): CompletableFuture<JsonElement?> {
+                return coroutineScope.future { getByName(data) }
             }
     }
 
@@ -52,7 +63,7 @@ internal class ModificationsService @Inject constructor(
         return request(body)
     }
 
-    private fun generateBody(params: ModificationBodyParam): JSONObject {
+    private fun generateBody(params: ModificationBodyParam): JSONObject? {
         val (optimizationType, data, paramType) = params;
          val profileId: String = storage.getProfileId();
          val sourceId: String = config.sourceId;
@@ -64,7 +75,6 @@ internal class ModificationsService @Inject constructor(
                    put("profileId", profileId)
                    put("sourceId", sourceId)
                })
-
                put(paramType, data)
                put("optimizationType", optimizationType)
                put("device", deviceType)
@@ -74,10 +84,11 @@ internal class ModificationsService @Inject constructor(
        }
     }
 
-    private suspend fun request(body:JSONObject): JsonElement? {
+    private suspend fun request(body:JSONObject?): JsonElement? {
+       if(body === null) return null
        val url = config.optimizationUrl;
 
-       return utils.withTryCatchSuspend("Error in request"){
+       return  utils.withTryCatchSuspend("Error in request"){
            http.post(url, body)?.bodyAsText().let {
                val jsonResponse = it?.let { it1 -> Json.parseToJsonElement(it1).jsonObject }
                logger.log("POST | Response: $jsonResponse")

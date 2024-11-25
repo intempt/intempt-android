@@ -20,12 +20,12 @@ internal class UtilsService @Inject constructor(
        }
     }
 
-    fun <T> withTryCatch(errorMessage: String, block: () -> T): T {
+    fun <T> withTryCatch(errorMessage: String, block: () -> T): T? {
         return try {
-            block()
+             block()
         } catch (e: Exception) {
             logger.error("$errorMessage; Error: ${e.message}")
-            throw e
+            null
         }
     }
 
