@@ -7,27 +7,36 @@ import com.intempt.core.intemptCore.IntemptCoreComponent
 import com.intempt.core.intemptCore.IntemptCoreModule
 import com.intempt.core.intemptCore.IntemptCoreService
 import com.intempt.core.types.ModificationProvider
+import io.ktor.client.statement.HttpResponse
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import java.util.concurrent.CompletableFuture
 
 
 object Intempt  {
     private lateinit var component: IntemptCoreComponent
     private lateinit var intemptCore: IntemptCoreService
 
-
     lateinit var experiment: ModificationProvider
     lateinit var personalization: ModificationProvider
 
     fun initialize(context: Context) {
-        component = DaggerIntemptCoreComponent.factory()
-            .create(IntemptCoreModule(context));
+        try{
+            component = DaggerIntemptCoreComponent.factory()
+                .create(IntemptCoreModule(context));
 
-        component.inject(this);
+            component.inject(this);
 
-        intemptCore = component.initService()
+            intemptCore = component.initService()
 
-        experiment = intemptCore.modification.experimentHandler
-        personalization = intemptCore.modification.personalizationHandler
+            experiment = intemptCore.modification.experimentHandler
+            personalization = intemptCore.modification.personalizationHandler
+        }
+        catch (e:Exception){
+            println("Intempt initialization failed")
+        }
     }
+
 
 
     fun identify(
@@ -101,6 +110,10 @@ object Intempt  {
         intemptCore.capture.productView(productId)
     }
 
+    suspend fun recommendation(id:String, quantity:Int, fields:List<String>, productId:String?): JsonObject? {
+        return intemptCore.capture.recommendation(id, quantity, fields, productId)
+    }
+
     fun logOut() {
         intemptCore.capture.logOut()
     }
@@ -110,14 +123,14 @@ object Intempt  {
     }
 
     object Logging {
-       fun start(){
-           intemptCore.capture.enableLogging()
-       }
-       fun stop(){
-           intemptCore.capture.disableLogging()
+        fun start(){
+            intemptCore.capture.enableLogging()
+        }
+        fun stop(){
+            intemptCore.capture.disableLogging()
 
-       }
-       fun isLoggingEnabled(): Boolean{
+        }
+        fun isLoggingEnabled(): Boolean{
             return intemptCore.capture.isLoggingEnabled()
         }
 
@@ -135,6 +148,5 @@ object Intempt  {
         }
 
     }
-
 
 }

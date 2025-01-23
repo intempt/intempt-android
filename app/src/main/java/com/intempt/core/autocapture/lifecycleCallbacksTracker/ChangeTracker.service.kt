@@ -103,17 +103,20 @@ internal open class ChangeTrackerService @Inject constructor(
         view: View,
         activity: Activity,
     ): Runnable {
+        val errorMessage = "AutoCapture | ChangeTracker Error handling";
         return utils.debounce(handler, debounceDelay, currentRunnable) {
-            eventPool.dispatchEvent(
-                DispatchEventProps(
-                    eventName = Constants.CHANGE.EVENT_NAME,
-                    entityName = Constants.CHANGE.ENTITY_NAME,
-                    type = Constants.CHANGE.EVENT_TYPE,
-                    context = activity,
-                    view = view
-                ),
-                "ChangeTrackerService"
-            )
+            utils.withTryCatch(errorMessage) {
+                eventPool.dispatchEvent(
+                    DispatchEventProps(
+                        eventName = Constants.CHANGE.EVENT_NAME,
+                        entityName = Constants.CHANGE.ENTITY_NAME,
+                        type = Constants.CHANGE.EVENT_TYPE,
+                        context = activity,
+                        view = view
+                    ),
+                    "ChangeTrackerService"
+                )
+            }
         }
     }
 

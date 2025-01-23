@@ -9,6 +9,8 @@ import com.intempt.core.types.DispatchEventProps
 import com.intempt.core.types.EventType
 import com.intempt.core.types.HandleEventTypeProps
 import com.intempt.core.types.IntemptEventProvider
+import io.ktor.client.statement.HttpResponse
+import io.ktor.client.statement.bodyAsText
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -16,9 +18,15 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.future.future
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonObject
 import org.json.JSONArray
 import org.json.JSONObject
+import java.util.concurrent.CompletableFuture
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.reflect.full.declaredFunctions
@@ -47,6 +55,8 @@ internal open class EventPoolManagerService @Inject constructor(
 
     val eventsList: List<IntemptEvent>
         get() = eventQueue.toList()
+
+
 
     init {
         startEventCollection()
@@ -106,6 +116,27 @@ internal open class EventPoolManagerService @Inject constructor(
             logger.log("Error during collection: ${e.message}")
         }
     }
+
+
+    suspend fun getFeedData(id:String, quantity:Int, fields:List<String>, productId:String?): JsonObject? {
+        val url = config.recommendationUrl(id);
+        val body = JSONObject(intemptEvent.generateRecommendationBody(quantity, fields, productId))
+
+        return http.post(url, body)?.bodyAsText().let {
+                val jsonResponse = it?.let { it1 -> Json.parseToJsonElement(it1).jsonObject }
+                logger.log("POST | Response: $jsonResponse")
+                jsonResponse
+        }
+
+//        return coroutineScope.future {
+//            http.post(url, body)?.bodyAsText().let {
+//                val jsonResponse = it?.let { it1 -> Json.parseToJsonElement(it1).jsonObject }
+//                logger.log("POST | Response: $jsonResponse")
+//                jsonResponse
+//            }
+//        }
+    }
+
 
     private fun startEventCollection(){
         logger.log("EventPoolManagerService | Started collecting events")
@@ -214,6 +245,8 @@ internal open class EventPoolManagerService @Inject constructor(
             callback()
         }
     }
+
+
 
 }
 

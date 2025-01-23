@@ -78,6 +78,14 @@ internal data class ModificationGetParam(
     val isNameType: Boolean
 )
 
+internal data class RecommendationBody(
+    val profileId: String,
+    val sourceId: String,
+    val limit: Int,
+    val fields: List<String>,
+    val productId: String?
+)
+
 
 
 

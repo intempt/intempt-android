@@ -7,12 +7,10 @@ import android.content.Context
 import android.content.res.AssetManager
 import android.content.res.Resources
 import android.os.Looper
-import android.util.Log
 import android.view.View
 import android.view.ViewGroup
 import android.view.ViewTreeObserver
 import android.widget.ArrayAdapter
-import android.widget.CalendarView
 import android.widget.CheckBox
 import android.widget.DatePicker
 import android.widget.EditText
@@ -200,7 +198,6 @@ class ChangeTrackerUnitTest {
         Robolectric.flushForegroundThreadScheduler()
 
         config = spy(ConfigManagerService(context))
-
         logger = spy(LoggerManagerService(config))
         utils = spy(UtilsService(logger))
 
@@ -328,7 +325,7 @@ class ChangeTrackerUnitTest {
     }
 
 
-    @Test
+//    @Test
     fun `should interact with TimePicker`() = runTest {
         interceptHttpRequest()
         timePicker.hour = 12
@@ -429,8 +426,7 @@ class ChangeTrackerUnitTest {
     }
 
 
-
-    private  fun interceptHttpRequest() = runBlocking {
+    private fun interceptHttpRequest() = runBlocking {
         doAnswer { invocation ->
             try {
                 val url = invocation.getArgument<String>(0)

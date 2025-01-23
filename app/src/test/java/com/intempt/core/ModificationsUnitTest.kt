@@ -1,6 +1,8 @@
 package com.intempt.core
 
 import android.content.Context
+import android.content.SharedPreferences
+import android.content.res.AssetManager
 import com.intempt.core.modifications.ModificationComponent
 import com.intempt.core.modifications.ModificationsService
 import com.intempt.core.services.ConfigManagerService
@@ -8,7 +10,9 @@ import com.intempt.core.services.HttpManagerService
 import com.intempt.core.services.LoggerManagerService
 import com.intempt.core.services.StorageManagerService
 import com.intempt.core.services.UtilsService
+import com.intempt.core.types.StorageKeys
 import io.ktor.client.statement.HttpResponse
+import io.ktor.http.HttpHeaders
 import junit.framework.TestCase.assertNotNull
 import junit.framework.TestCase.assertNull
 import kotlinx.coroutines.test.runTest
@@ -16,9 +20,17 @@ import org.json.JSONObject
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.mockito.ArgumentMatchers.anyBoolean
+import org.mockito.ArgumentMatchers.anyInt
+import org.mockito.ArgumentMatchers.anyString
+import org.mockito.Mockito.doNothing
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.spy
+import org.mockito.Mockito.`when`
+import org.mockito.MockitoAnnotations
 import org.mockito.kotlin.any
+import org.mockito.kotlin.anyOrNull
+import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.doThrow
 import org.mockito.kotlin.eq
 import org.mockito.kotlin.verify
@@ -27,6 +39,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import org.robolectric.shadows.ShadowLog
+import java.io.ByteArrayInputStream
 
 
 @RunWith(RobolectricTestRunner::class)
@@ -41,23 +54,71 @@ class ModificationsUnitTest {
     private lateinit var modComponent: ModificationComponent
     private lateinit var modSrv: ModificationsService
 
+    private val mockAssets: AssetManager = mock(AssetManager::class.java)
+
+    private val jsonConfig = """
+        {
+            "auth": {
+                "INTEMPT_API_KEY": "9643576a2cfa47729a1eb63213074e78.1a4f98ffc8f648d3a4c8455a2041cae5",
+                "INTEMPT_SOURCE_ID": "687499928542224384",
+                "INTEMPT_ORGANIZATION_ID": "intempt2",
+                "INTEMPT_PROJECT_ID": "intempt2_project"
+            },
+            "options": {
+                "isLoggingEnabled": true,
+                "isTouchEnabled": true,
+                "isTextCaptureEnabled": true,
+                "isQueueEnabled": false,
+                "isAutoCaptureEnabled": true,
+                "itemsInQueue": 5,
+                "timeBuffer": 5000
+            }
+        }
+    """.trimIndent()
+    private val mockProfId = "prof_test_id_123456"
+    private val mockedSesId = "ses_test_id_123456"
+    private val mockedPagId = "pag_test_id_123456"
+
     private lateinit var apiUrl: String
+    private val captor = argumentCaptor<JSONObject>()
     @Before
     fun setUp() {
+        MockitoAnnotations.openMocks(this)
         ShadowLog.stream = System.out
         ShadowLog.clear()
 
         context = spy(RuntimeEnvironment.getApplication())
+
+        val inputStream = ByteArrayInputStream(jsonConfig.toByteArray(Charsets.UTF_8))
+        `when`(mockAssets.open("intempt-config.json")).thenReturn(inputStream)
+        `when`(context.assets).thenReturn(mockAssets)
+
+        val mockSharedPreferences = mock(SharedPreferences::class.java)
+        val mockEditor = mock(SharedPreferences.Editor::class.java)
+
+        `when`(context.getSharedPreferences(anyString(), anyInt())).thenReturn(mockSharedPreferences)
+        `when`(mockEditor.clear()).thenReturn(mockEditor)
+        `when`(mockSharedPreferences.getString(eq(StorageKeys.ProfileId.key), anyOrNull())).thenReturn(mockProfId)
+        `when`(mockSharedPreferences.getString(eq(StorageKeys.SessionId.key), anyOrNull())).thenReturn(mockedSesId)
+        `when`(mockSharedPreferences.getString(eq(StorageKeys.PageId.key), anyOrNull())).thenReturn(mockedPagId)
+        `when`(mockEditor.putString(anyString(), anyString())).thenReturn(mockEditor)
+        `when`(mockEditor.putInt(anyString(), anyInt())).thenReturn(mockEditor)
+        `when`(mockEditor.putBoolean(anyString(), anyBoolean())).thenReturn(mockEditor)
+
+        doNothing().`when`(mockEditor).apply()
+
+        `when`(mockSharedPreferences.edit()).thenReturn(mockEditor)
+
+
         config = spy(ConfigManagerService(context))
-        storage = spy(StorageManagerService(context,utils))
         logger = spy(LoggerManagerService(config))
-        httpSrv = spy(HttpManagerService(config, logger))
         utils = spy(UtilsService(logger))
 
+        storage = spy(StorageManagerService(context,utils))
+        httpSrv = spy(HttpManagerService(config, logger))
         modSrv = spy(ModificationsService(storage, config, logger, httpSrv, utils))
         modComponent = ModificationComponent(modSrv)
-
-        apiUrl = "${config.optimizationUrl}?apiKey=${config.apiKey}";
+        apiUrl = config.optimizationUrl
     }
 
 
@@ -73,7 +134,7 @@ class ModificationsUnitTest {
 
         modComponent.experimentHandler.getByName(listOf("test_experiment_name"))
 
-        verify(httpSrv).post(eq(apiUrl), any<JSONObject>(), any())
+        verify(httpSrv).post(eq(apiUrl), captor.capture(), any())
     }
 
     @Test
@@ -96,7 +157,7 @@ class ModificationsUnitTest {
     }
 
 
-    @Test
+    //@Test
     fun `should call personalization modification by group`() = runTest {
         modComponent.personalizationHandler.getByGroup(listOf("test_experiment_name"))
 

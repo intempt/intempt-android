@@ -36,10 +36,7 @@ internal class AutoCaptureComponent @Inject constructor(
             session.start()
             installUpgrade.start()
         }
-
-
     }
-
 
     private fun registerGlobalActivityLifecycleCallbacks() {
         val application = context.applicationContext as Application;

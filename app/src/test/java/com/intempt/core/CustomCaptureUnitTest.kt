@@ -5,7 +5,6 @@ import android.content.SharedPreferences
 import android.content.res.AssetManager
 import android.view.View
 import android.widget.CheckBox
-import android.widget.CompoundButton
 import android.widget.DatePicker
 import android.widget.EditText
 import android.widget.ListView
@@ -105,7 +104,6 @@ class CustomCaptureUnitTest {
             }
         }
     """.trimIndent()
-
     private val mockProfId = "prof_test_id_123456"
     private val mockedSesId = "ses_test_id_123456"
     private val mockedPagId = "pag_test_id_123456"
@@ -144,15 +142,14 @@ class CustomCaptureUnitTest {
 
 
         config = spy(ConfigManagerService(context))
+        logger = spy(LoggerManagerService(config))
+        utils = spy(UtilsService(logger))
 
         storage = spy(StorageManagerService(context, utils))
-        logger = spy(LoggerManagerService(config))
         httpSrv = spy(HttpManagerService(config, logger))
         customCaptureSrv = CustomCaptureService(storage, logger)
-        utils = spy(UtilsService(logger))
+
         intemptEvent = spy(IntemptEventManagerService(context, storage, utils, config))
-
-
         testDispatcher = UnconfinedTestDispatcher(testScheduler)
 
 
@@ -170,7 +167,8 @@ class CustomCaptureUnitTest {
             customCaptureSrv,
             config,
             eventPoolSrv,
-            intemptEvent
+            intemptEvent,
+            utils
         )
 
 

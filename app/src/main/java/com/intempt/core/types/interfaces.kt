@@ -9,11 +9,20 @@ import androidx.fragment.app.FragmentManager
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import java.util.Optional
+import java.util.concurrent.CompletableFuture
 
 interface ModificationProvider {
     suspend fun getByGroup(data: List<String>): JsonElement?
     suspend fun getByName(data: List<String>): JsonElement?
+
+    @JvmSynthetic
+    fun getByGroupAsync(data: List<String>): CompletableFuture<JsonElement?>
+
+    @JvmSynthetic
+    fun getByNameAsync(data: List<String>): CompletableFuture<JsonElement?>
 }
+
+
 
 interface IntemptEventProvider {
     val eventId: String
