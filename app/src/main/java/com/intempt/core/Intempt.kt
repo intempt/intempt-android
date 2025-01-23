@@ -7,6 +7,10 @@ import com.intempt.core.intemptCore.IntemptCoreComponent
 import com.intempt.core.intemptCore.IntemptCoreModule
 import com.intempt.core.intemptCore.IntemptCoreService
 import com.intempt.core.types.ModificationProvider
+import io.ktor.client.statement.HttpResponse
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import java.util.concurrent.CompletableFuture
 
 
 object Intempt  {
@@ -104,6 +108,10 @@ object Intempt  {
 
     fun productView(productId:String){
         intemptCore.capture.productView(productId)
+    }
+
+    suspend fun recommendation(id:String, quantity:Int, fields:List<String>, productId:String?): JsonObject? {
+        return intemptCore.capture.recommendation(id, quantity, fields, productId)
     }
 
     fun logOut() {

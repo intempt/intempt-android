@@ -85,10 +85,10 @@ internal class ModificationsService @Inject constructor(
     }
 
     private suspend fun request(body:JSONObject?): JsonElement? {
-       if(body === null) return null
+       if(body === null) return null;
        val url = config.optimizationUrl;
 
-       return  utils.withTryCatchSuspend("Error in request"){
+       return utils.withTryCatchSuspend("Error in request"){
            http.post(url, body)?.bodyAsText().let {
                val jsonResponse = it?.let { it1 -> Json.parseToJsonElement(it1).jsonObject }
                logger.log("POST | Response: $jsonResponse")

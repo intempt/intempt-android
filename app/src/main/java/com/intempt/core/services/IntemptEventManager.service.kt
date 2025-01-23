@@ -42,6 +42,7 @@ import com.intempt.core.types.AppVisibilityState
 import com.intempt.core.types.IdTypeKeys
 import com.intempt.core.types.IntemptEventProvider
 import com.intempt.core.types.Product
+import com.intempt.core.types.RecommendationBody
 import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -269,6 +270,20 @@ internal open class IntemptEventManagerService @Inject constructor(
                 accountAttributes = accountAttributes,
             )
         )
+    }
+
+    fun generateRecommendationBody(quantity:Int, fields:List<String>,productId:String?): Map<String, Any?>{
+        val map = mutableMapOf<String, Any>();
+
+        map["profileId"] = storage.getProfileId();
+        map["sourceId"] = config.sourceId;
+        map["limit"] = quantity;
+        map["fields"] = fields;
+        productId?.let {
+            map["productId"] = it
+        }
+
+        return map;
     }
 
     fun generateTrackEventPayload(

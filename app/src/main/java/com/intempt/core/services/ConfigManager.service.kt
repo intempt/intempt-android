@@ -36,6 +36,8 @@ class ConfigManagerService  @Inject constructor(
     private val _isAutoCaptureEnabled: Boolean;
 
     val sourceId: String get() = _sourceId;
+    val organization: String get() = _organizationId;
+    val project: String get() = _projectId;
     val isTextCaptureEnabled: Boolean get() = _isTextCaptureEnabled;
     val isTouchEnabled: Boolean get() = _isTouchEnabled;
     val isAutoCaptureEnabled: Boolean get() = _isAutoCaptureEnabled;
@@ -51,6 +53,10 @@ class ConfigManagerService  @Inject constructor(
     val optimizationUrl:String
         get() = "${Constants.API_URL}/${_organizationId}/projects/${_projectId}/optimization/choose-api"
 
+
+    fun recommendationUrl(id:String):String{
+        return "${Constants.API_URL}/${_organizationId}/projects/${_projectId}/feeds/${id}/data"
+    }
 
 
     init {

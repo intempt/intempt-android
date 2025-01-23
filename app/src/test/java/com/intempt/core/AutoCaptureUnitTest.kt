@@ -20,7 +20,6 @@ import com.intempt.core.autocapture.lifecycleCallbacksTracker.LifecycleCallBacks
 import com.intempt.core.autocapture.lifecycleCallbacksTracker.LifecycleCallbackService
 import com.intempt.core.autocapture.lifecycleCallbacksTracker.ScreenTrackerService
 import com.intempt.core.autocapture.lifecycleCallbacksTracker.TouchTrackerService
-import com.intempt.core.eventModels.UiElementEvent
 import com.intempt.core.services.ConfigManagerService
 import com.intempt.core.services.HttpManagerService
 import com.intempt.core.services.IntemptEventManagerService
@@ -42,6 +41,7 @@ import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
 import org.json.JSONObject
+import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -53,6 +53,7 @@ import org.mockito.Mockito.doAnswer
 import org.mockito.Mockito.doReturn
 import org.mockito.Mockito.doThrow
 import org.mockito.Mockito.mock
+import org.mockito.Mockito.reset
 import org.mockito.Mockito.spy
 import org.mockito.Mockito.verify
 import org.mockito.Mockito.`when`
@@ -96,7 +97,6 @@ class AutoCaptureUnitTest {
     private lateinit var installUpgradeComponent: InstallUpgradeTrackerComponent
     private lateinit var lifecycleService: LifecycleCallbackService
     private lateinit var lifecycleComponent: LifecycleCallBacksComponent
-
 
     private val testScheduler = TestCoroutineScheduler()
     private lateinit var testDispatcher: TestDispatcher

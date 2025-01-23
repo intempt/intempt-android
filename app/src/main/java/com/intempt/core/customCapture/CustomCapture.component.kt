@@ -1,7 +1,6 @@
 package com.intempt.core.customCapture
 
 import android.view.View
-import android.view.ViewGroup
 import android.widget.CheckBox
 import android.widget.CompoundButton
 import android.widget.DatePicker
@@ -19,13 +18,13 @@ import com.intempt.core.services.ConfigManagerService
 import com.intempt.core.services.IntemptEventManagerService
 import com.intempt.core.services.UtilsService
 import com.intempt.core.services.eventPool.EventPoolManagerService
-import com.intempt.core.types.AutoCaptureParam
 import com.intempt.core.types.DefaultConfigs
-import com.intempt.core.types.DispatchEventProps
 import com.intempt.core.types.EventType
 import com.intempt.core.types.Product
-import com.intempt.core.types.ScreenEventProps
-import com.intempt.core.types.UiEventProps
+import io.ktor.client.statement.HttpResponse
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import java.util.concurrent.CompletableFuture
 
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -317,6 +316,10 @@ internal class CustomCaptureComponent @Inject constructor(
             )
             eventPool.emitEvent(newEvent)
         }
+    }
+
+    suspend fun recommendation(id:String, quantity:Int, fields:List<String>, productId:String?): JsonObject? {
+        return eventPool.getFeedData(id, quantity, fields, productId)
     }
 }
 
