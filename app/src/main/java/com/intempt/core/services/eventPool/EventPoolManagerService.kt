@@ -127,14 +127,6 @@ internal open class EventPoolManagerService @Inject constructor(
                 logger.log("POST | Response: $jsonResponse")
                 jsonResponse
         }
-
-//        return coroutineScope.future {
-//            http.post(url, body)?.bodyAsText().let {
-//                val jsonResponse = it?.let { it1 -> Json.parseToJsonElement(it1).jsonObject }
-//                logger.log("POST | Response: $jsonResponse")
-//                jsonResponse
-//            }
-//        }
     }
 
 

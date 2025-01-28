@@ -17,6 +17,7 @@ import kotlinx.coroutines.future.future
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.jsonObject
+import org.json.JSONArray
 import org.json.JSONObject
 import java.util.concurrent.CompletableFuture
 import javax.inject.Inject
@@ -54,7 +55,7 @@ internal class ModificationsService @Inject constructor(
 
     private suspend fun getModification(params: ModificationGetParam): JsonElement? {
         val (optimizationType, data, isNameType) = params
-        val paramType = if (isNameType) "name" else "group"
+        val paramType = if (isNameType) "names" else "groups"
 
 
         val body = generateBody(
@@ -68,14 +69,13 @@ internal class ModificationsService @Inject constructor(
          val profileId: String = storage.getProfileId();
          val sourceId: String = config.sourceId;
          val deviceType = "mobile";
-
        return utils.withTryCatch("Error generating request body"){
             JSONObject().apply {
                put("identification", JSONObject().apply {
                    put("profileId", profileId)
                    put("sourceId", sourceId)
                })
-               put(paramType, data)
+               put(paramType, JSONArray(data))
                put("optimizationType", optimizationType)
                put("device", deviceType)
            }
