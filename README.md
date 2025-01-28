@@ -38,7 +38,7 @@ An Android SDK for user tracking enables developers to capture, analyze, and und
 
 # Documentation
 
-Refer to the SDK documentation for full setup:[Android SDK](https://docs.intempt.com/docs/android-sdk)
+Refer to the SDK documentation for full setup: [Android SDK](https://docs.intempt.com/docs/android-sdk)
 
 # About Intempt
 
