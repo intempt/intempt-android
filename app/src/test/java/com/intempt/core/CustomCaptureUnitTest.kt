@@ -45,6 +45,7 @@ import org.mockito.ArgumentMatchers.anyInt
 import org.mockito.ArgumentMatchers.anyString
 import org.mockito.Mockito.doAnswer
 import org.mockito.Mockito.doNothing
+import org.mockito.Mockito.doReturn
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.spy
 import org.mockito.Mockito.verify
@@ -88,10 +89,10 @@ class CustomCaptureUnitTest {
     private val jsonConfig = """
         {
             "auth": {
-                "INTEMPT_API_KEY": "9643576a2cfa47729a1eb63213074e78.1a4f98ffc8f648d3a4c8455a2041cae5",
-                "INTEMPT_SOURCE_ID": "687499928542224384",
-                "INTEMPT_ORGANIZATION_ID": "intempt2",
-                "INTEMPT_PROJECT_ID": "intempt2_project"
+                "INTEMPT_API_KEY": "1c75007239cf420c929602f74b872906.95084d4f10804fc3b4820dfae579a0a7",
+                "INTEMPT_SOURCE_ID": "1430727403234930688",
+                "INTEMPT_ORGANIZATION_ID": "intempt_internal_use_only",
+                "INTEMPT_PROJECT_ID": "intempt_android"
             },
             "options": {
                 "isLoggingEnabled": true,
@@ -104,7 +105,7 @@ class CustomCaptureUnitTest {
             }
         }
     """.trimIndent()
-    private val mockProfId = "prof_test_id_123456"
+    private val mockProfId = "prof_8fde9691-9040-4bbf-bae6-9ca5567f62d0"
     private val mockedSesId = "ses_test_id_123456"
     private val mockedPagId = "pag_test_id_123456"
 
@@ -146,6 +147,9 @@ class CustomCaptureUnitTest {
         utils = spy(UtilsService(logger))
 
         storage = spy(StorageManagerService(context, utils))
+
+        doReturn(mockProfId).`when`(storage).getProfileId()
+
         httpSrv = spy(HttpManagerService(config, logger))
         customCaptureSrv = CustomCaptureService(storage, logger)
 
@@ -365,6 +369,23 @@ class CustomCaptureUnitTest {
 
        component.disableLogging()
         assertTrue(!config.isLoggingEnabled)
+    }
+
+//    @Test
+    fun `should call recommendation API`() = runTest {
+        val id = "246";
+        val quantity = 3;
+        val fields = listOf("id","price")
+        val productId = "26701";
+
+        val res = component.recommendation(
+            id = id,
+            quantity = quantity,
+            fields = fields,
+            productId = productId
+        )
+
+    assertNotNull(res)
     }
 
 
