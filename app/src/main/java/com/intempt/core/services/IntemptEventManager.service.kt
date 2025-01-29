@@ -275,7 +275,8 @@ internal open class IntemptEventManagerService @Inject constructor(
     fun generateRecommendationBody(quantity:Int, fields:List<String>,productId:String?): Map<String, Any?>{
         val map = mutableMapOf<String, Any>();
 
-        map["profileId"] = storage.getProfileId();
+        map["id"] = storage.getProfileId();
+        map["type"] = "profile";
         map["sourceId"] = config.sourceId;
         map["limit"] = quantity;
         map["fields"] = fields;

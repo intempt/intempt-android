@@ -79,22 +79,6 @@ dependencies {
     testImplementation(libs.logback.classic)
 }
 
-//publishing {
-//    publications {
-//        create<MavenPublication>("release") {
-//            afterEvaluate {
-//                from(components["release"])
-//                groupId = project.findProperty("GROUP") as String
-//                artifactId = project.findProperty("ARTIFACT_ID") as String
-//                version = project.findProperty("VERSION") as String
-//            }
-//        }
-//    }
-//    repositories {
-//        mavenLocal()
-//    }
-//}
-
 mavenPublishing {
     coordinates(
         groupId = project.findProperty("GROUP") as String,
