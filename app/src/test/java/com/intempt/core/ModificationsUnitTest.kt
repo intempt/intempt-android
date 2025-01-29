@@ -157,7 +157,7 @@ class ModificationsUnitTest {
     }
 
 
-    //@Test
+    @Test
     fun `should call personalization modification by group`() = runTest {
         modComponent.personalizationHandler.getByGroup(listOf("test_experiment_name"))
 
