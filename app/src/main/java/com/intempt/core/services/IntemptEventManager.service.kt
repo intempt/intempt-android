@@ -206,7 +206,7 @@ internal open class IntemptEventManagerService @Inject constructor(
 
     }
 
-    fun generateInstallUpgradeEventPayload():Array<IntemptEventProvider> {
+    fun generateInstallUpgradeEventPayload(token: String):Array<IntemptEventProvider> {
         val eventProps = getBaseEventProps()
 
         val currentVersionCode: Long = getCurrentVersionCode();
@@ -227,7 +227,9 @@ internal open class IntemptEventManagerService @Inject constructor(
                 previousBuildType = previousBuildType,
                 currentBuildType = currentBuildType,
                 appVisibilityState = appVisibilityState,
-                isUpgrade = isUpgrade
+                isUpgrade = isUpgrade,
+                token = token,
+                config = config
             )
         )
     }

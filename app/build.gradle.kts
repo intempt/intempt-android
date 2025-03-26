@@ -5,6 +5,7 @@ plugins {
     alias(libs.plugins.gradleup.nmcp)
     id("kotlin-kapt")
     id("maven-publish")
+    id("com.google.gms.google-services")
 }
 
 
@@ -69,6 +70,12 @@ dependencies {
     implementation(libs.androidx.appcompat)
     implementation(libs.material)
     implementation(kotlin("script-runtime"))
+    implementation("com.google.firebase:firebase-messaging:24.1.0")
+    implementation(platform("com.google.firebase:firebase-bom:33.10.0"))
+// https://mvnrepository.com/artifact/com.fasterxml.jackson.module/jackson-module-kotlin
+    implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.18.3")
+// https://mvnrepository.com/artifact/com.github.bumptech.glide/glide
+    implementation("com.github.bumptech.glide:glide:4.15.1")
 
     testImplementation(libs.junit)
     testImplementation(libs.mockito.core)

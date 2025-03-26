@@ -2,6 +2,7 @@ package com.intempt.core.services.eventPool
 
 import android.app.Activity
 import android.view.View
+import com.intempt.core.services.firebase.FirebaseService
 import com.intempt.core.services.IntemptEventManagerService
 import com.intempt.core.services.LoggerManagerService
 import com.intempt.core.types.HandleEventTypeProps
@@ -11,7 +12,8 @@ import com.intempt.core.types.IntemptEventProvider
 
 internal class EventHandlers(
     private val logger: LoggerManagerService,
-    private val intemptEvent: IntemptEventManagerService
+    private val intemptEvent: IntemptEventManagerService,
+    private val firebaseService: FirebaseService = FirebaseService()
 ) {
 
     fun fragment(props: HandleEventTypeProps):Array<IntemptEventProvider> {
@@ -55,7 +57,10 @@ internal class EventHandlers(
 
     fun installOrUpgrade(props: HandleEventTypeProps): Array<IntemptEventProvider> {
         logger.log("EventPool | InstallOrUpgrade called")
-        val newEvent = intemptEvent.generateInstallUpgradeEventPayload()
+
+        val initializeToken = firebaseService.initializeToken()
+
+        val newEvent = intemptEvent.generateInstallUpgradeEventPayload(token = initializeToken)
 
         logger.log("EventPool | App installation/upgrade Event: $newEvent")
         return newEvent
