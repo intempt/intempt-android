@@ -21,6 +21,8 @@ import com.google.firebase.messaging.RemoteMessage
 import com.google.firebase.messaging.ktx.messaging
 import com.intempt.core.Intempt
 import com.bumptech.glide.request.target.Target
+import com.google.firebase.messaging.FirebaseMessaging
+import kotlinx.coroutines.tasks.await
 
 class FirebaseService : FirebaseMessagingService() {
 
@@ -40,7 +42,12 @@ class FirebaseService : FirebaseMessagingService() {
             val content: PushNotificationContent = mapper.readValue(contentJson)
             val metadata: PushNotificationMetadata = mapper.readValue(metadataJson)
 
-            sendPushNotification(this, content)
+            val deliveredWebhookRequest = PushNotificationWebhookRequest(
+                PushNotificationWebhookRequest.WebhookType.DELIVERED,
+                metadata);
+            Log.d("FCM", "Message tracked as delivered")
+
+            sendPushNotification(this, content, metadata)
         }
 
         remoteMessage.notification?.let {
@@ -56,27 +63,33 @@ class FirebaseService : FirebaseMessagingService() {
         this.token = token;
     }
 
-    fun initializeToken(): String {
-        Firebase.messaging.token.addOnCompleteListener { task ->
-            if (!task.isSuccessful) {
-                Log.w("FCM", "Fetching FCM registration token failed", task.exception)
-                return@addOnCompleteListener
-            }
-            val token = task.result
+
+    suspend fun initializeToken(): String {
+        return try {
+            val token = FirebaseMessaging.getInstance().token.await()
             Log.d("FCM", "FCM Token: $token")
-            this.token = token
+            token
+        } catch (e: Exception) {
+            Log.w("FCM", "Fetching FCM registration token failed", e)
+            throw e
         }
-        return token
     }
 
-    fun sendPushNotification(context: Context, content: PushNotificationContent) {
+    fun sendPushNotification(context: Context, content: PushNotificationContent, metadata: PushNotificationMetadata) {
+
+        Log.d("FCM", "Notification was received")
+        Log.d("FCM", "Metadata is: $metadata")
+        Log.d("FCM", "Content is: $content")
+
         val channelId = "default_channel"
 
         val channel = NotificationChannel(channelId, "Default Channel", NotificationManager.IMPORTANCE_HIGH)
         val manager = context.getSystemService(NotificationManager::class.java)
         manager.createNotificationChannel(channel)
 
-        val intent = Intent(context, Intempt::class.java)
+        val intent = Intent(context, NotificationClickReceiver::class.java).apply {
+            putExtra("metadata", metadata)
+        }
         val pendingIntent = PendingIntent.getActivity(context, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT)
 
         val builder = NotificationCompat.Builder(context, channelId)
@@ -106,6 +119,11 @@ class FirebaseService : FirebaseMessagingService() {
                             ) == PackageManager.PERMISSION_GRANTED
                         ) {
                             notify(0, builder.build())
+                        } else {
+                            val bouncedWebhookRequest = PushNotificationWebhookRequest(
+                                PushNotificationWebhookRequest.WebhookType.BOUNCED,
+                                metadata);
+                            Log.d("FCM", "Message tracked as bounced")
                         }
                     }
                 } catch (e: Exception) {
@@ -114,7 +132,18 @@ class FirebaseService : FirebaseMessagingService() {
             }.start()
         } else {
             with(NotificationManagerCompat.from(context)) {
-                notify(0, builder.build())
+                if (ActivityCompat.checkSelfPermission(
+                        context,
+                        Manifest.permission.POST_NOTIFICATIONS
+                    ) == PackageManager.PERMISSION_GRANTED
+                ) {
+                    notify(0, builder.build())
+                } else {
+                    val bouncedWebhookRequest = PushNotificationWebhookRequest(
+                        PushNotificationWebhookRequest.WebhookType.BOUNCED,
+                        metadata);
+                    Log.d("FCM", "Message tracked as bounced")
+                }
             }
         }
     }

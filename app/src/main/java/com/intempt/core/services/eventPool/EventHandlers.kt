@@ -7,7 +7,12 @@ import com.intempt.core.services.IntemptEventManagerService
 import com.intempt.core.services.LoggerManagerService
 import com.intempt.core.types.HandleEventTypeProps
 import com.intempt.core.types.IntemptEventProvider
-
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.future.future
+import kotlinx.coroutines.withContext
+import java.util.concurrent.CompletableFuture
 
 
 internal class EventHandlers(
@@ -15,7 +20,7 @@ internal class EventHandlers(
     private val intemptEvent: IntemptEventManagerService,
     private val firebaseService: FirebaseService = FirebaseService()
 ) {
-
+    private val coroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     fun fragment(props: HandleEventTypeProps):Array<IntemptEventProvider> {
         val newEvent = intemptEvent.generateFragmentTransitionEventPayload()
         return newEvent ?: arrayOf()
@@ -55,14 +60,16 @@ internal class EventHandlers(
             return newEvent ?: arrayOf()
     }
 
-    fun installOrUpgrade(props: HandleEventTypeProps): Array<IntemptEventProvider> {
+    fun installOrUpgrade(props: HandleEventTypeProps): CompletableFuture<Array<IntemptEventProvider>> {
         logger.log("EventPool | InstallOrUpgrade called")
 
-        val initializeToken = firebaseService.initializeToken()
+        return coroutineScope.future {
+            val token = withContext(Dispatchers.IO) { firebaseService.initializeToken() }
+            val newEvent = intemptEvent.generateInstallUpgradeEventPayload(token = token)
 
-        val newEvent = intemptEvent.generateInstallUpgradeEventPayload(token = initializeToken)
-
-        logger.log("EventPool | App installation/upgrade Event: $newEvent")
-        return newEvent
+            logger.log("EventPool | App installation/upgrade Event: $newEvent")
+            newEvent
+        }
     }
+
 }

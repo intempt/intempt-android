@@ -6,6 +6,7 @@ plugins {
     id("kotlin-kapt")
     id("maven-publish")
     id("com.google.gms.google-services")
+    id("kotlin-parcelize")
 }
 
 

@@ -1,5 +1,9 @@
 package com.intempt.core.services.firebase
 
+import android.os.Parcelable
+import kotlinx.parcelize.Parcelize
+
+@Parcelize
 data class PushNotificationMetadata(
     val orgId: String,
     val projectId: String,
@@ -9,4 +13,4 @@ data class PushNotificationMetadata(
     val masterId: String,
     val accountId: String,
     val templateId: String,
-)
+) : Parcelable

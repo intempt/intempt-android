@@ -70,30 +70,43 @@ internal open class EventPoolManagerService @Inject constructor(
         eventQueue.add(event)
     }
 
-    fun dispatchEvent(props: DispatchEventProps, serviceName:String) {
+    fun dispatchEvent(props: DispatchEventProps, serviceName: String) {
         if (!config.isUserOptIn) return
-        val (eventName,entityName, event, type, context, view) = props
+        val (eventName, entityName, event, type, context, view) = props
         logger.log("$serviceName | Received Event: $eventName; Type:$type")
 
-         val payload = event ?: handleEventType(
+        if (event != null) {
+            emitEvent(
+                IntemptEvent(
+                    name = eventName,
+                    type = entityName,
+                    payload = event
+                )
+            )
+            return
+        }
+
+        handleEventType(
             HandleEventTypeProps(
                 type = type,
                 entityName = entityName,
                 context = context,
                 view = view
             )
-         )
-        if(!payload.isNullOrEmpty()){
-            logger.log("AutoCapture | Successfully called function '${props.type}' on EventTypeHandler.")
-            emitEvent(
-                IntemptEvent(
-                    name = eventName,
-                    type = entityName,
-                    payload = payload
+        ).thenAccept { payload ->
+            if (payload.isNotEmpty()) {
+                logger.log("AutoCapture | Successfully called function '${props.type}' on EventTypeHandler.")
+                emitEvent(
+                    IntemptEvent(
+                        name = eventName,
+                        type = entityName,
+                        payload = payload
+                    )
                 )
-            )
+            }
         }
     }
+
 
     fun emitEvent(event: IntemptEvent):Boolean {
         val isEmitted = _eventReceiver.tryEmit(event)
@@ -151,27 +164,33 @@ internal open class EventPoolManagerService @Inject constructor(
         }
     }
 
-    private fun handleEventType(props: HandleEventTypeProps): Array<IntemptEventProvider>? {
+    private fun handleEventType(props: HandleEventTypeProps): CompletableFuture<Array<IntemptEventProvider>> {
         logger.log("handleEventType | $props")
-        try {
+
+        return try {
             val handler = eventHandlers::class.declaredFunctions.find { it.name == props.type }
 
-            if(handler != null) {
-                handler.isAccessible = true;
+            if (handler != null) {
+                handler.isAccessible = true
 
-                return handler.call(eventHandlers, props) as Array<IntemptEventProvider>;
-            }
-            else{
-
+                val result = handler.call(eventHandlers, props)
+                if (result is CompletableFuture<*>) {
+                    @Suppress("UNCHECKED_CAST")
+                    result as CompletableFuture<Array<IntemptEventProvider>>
+                } else {
+                    CompletableFuture.completedFuture(result as Array<IntemptEventProvider>)
+                }
+            } else {
                 logger.log("AutoCapture | Function '${props.type}' not found on EventTypeHandler.")
-                return null
+                CompletableFuture.completedFuture(emptyArray())
             }
         } catch (e: Exception) {
             e.printStackTrace()
             logger.error("AutoCapture | Error invoking function '${props.type}' on EventTypeHandler: ${e.message}")
-            return null
+            CompletableFuture.completedFuture(emptyArray())
         }
     }
+
 
     private fun sendConsentEvent(event: IntemptEvent){
         val requestBodyJson = JSONObject(event.payload.first().toFormated())

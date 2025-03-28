@@ -1,6 +1,7 @@
 package com.intempt.core
 
 import android.content.Context
+import android.util.Log
 import android.view.View
 import com.google.firebase.FirebaseApp
 import com.intempt.core.intemptCore.DaggerIntemptCoreComponent
@@ -29,8 +30,10 @@ object Intempt  {
 
             experiment = intemptCore.modification.experimentHandler
             personalization = intemptCore.modification.personalizationHandler
-
+            Log.d("FCM", "Application has started config")
             FirebaseApp.initializeApp(context);
+            Log.d("FCM", "Application has ended config")
+
         }
         catch (e:Exception){
             println("Intempt initialization failed")
