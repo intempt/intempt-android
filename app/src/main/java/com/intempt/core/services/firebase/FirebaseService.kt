@@ -13,21 +13,20 @@ import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.bumptech.glide.Glide
-import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
-import com.google.firebase.ktx.Firebase
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
-import com.google.firebase.messaging.ktx.messaging
-import com.intempt.core.Intempt
 import com.bumptech.glide.request.target.Target
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.google.firebase.messaging.FirebaseMessaging
+import com.intempt.core.services.firebase.model.PushNotificationContent
+import com.intempt.core.services.firebase.model.PushNotificationMetadata
 import kotlinx.coroutines.tasks.await
 
 class FirebaseService : FirebaseMessagingService() {
 
     var token: String = ""
-    val mapper = ObjectMapper()
+    val mapper = jacksonObjectMapper()
 
     override fun onMessageReceived(remoteMessage: RemoteMessage) {
         super.onMessageReceived(remoteMessage)
@@ -75,7 +74,7 @@ class FirebaseService : FirebaseMessagingService() {
         }
     }
 
-    fun sendPushNotification(context: Context, content: PushNotificationContent, metadata: PushNotificationMetadata) {
+    private fun sendPushNotification(context: Context, content: PushNotificationContent, metadata: PushNotificationMetadata) {
 
         Log.d("FCM", "Notification was received")
         Log.d("FCM", "Metadata is: $metadata")
@@ -90,14 +89,16 @@ class FirebaseService : FirebaseMessagingService() {
         val intent = Intent(context, NotificationClickReceiver::class.java).apply {
             putExtra("metadata", metadata)
         }
-        val pendingIntent = PendingIntent.getActivity(context, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT)
+        val pendingIntentClickable = PendingIntent.getBroadcast(context, 0, intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE)
+
 
         val builder = NotificationCompat.Builder(context, channelId)
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setSmallIcon(android.R.drawable.sym_def_app_icon)
             .setContentTitle(content.title)
             .setContentText(content.body)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setContentIntent(pendingIntent)
+            .setContentIntent(pendingIntentClickable)
             .setAutoCancel(true)
 
         if (content.image.isNotEmpty()) {

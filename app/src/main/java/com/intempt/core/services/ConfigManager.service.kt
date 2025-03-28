@@ -53,6 +53,8 @@ class ConfigManagerService  @Inject constructor(
     val optimizationUrl:String
         get() = "${Constants.API_URL}/${_organizationId}/projects/${_projectId}/optimization/choose-api"
 
+    val pushNotificationWebhookUrl:String
+        get() = "${Constants.API_URL}/${_organizationId}/projects/${_projectId}/webhooks/events/push-notification"
 
     fun recommendationUrl(id:String):String{
         return "${Constants.API_URL}/${_organizationId}/projects/${_projectId}/feeds/${id}/data"
