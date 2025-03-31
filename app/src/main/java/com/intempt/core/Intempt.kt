@@ -30,10 +30,11 @@ object Intempt  {
 
             experiment = intemptCore.modification.experimentHandler
             personalization = intemptCore.modification.personalizationHandler
-            Log.d("FCM", "Application has started config")
-            FirebaseApp.initializeApp(context);
-            Log.d("FCM", "Application has ended config")
-
+            if (FirebaseApp.getApps(context).isEmpty()) {
+                Log.d("FCM", "Application has started config")
+                FirebaseApp.initializeApp(context);
+                Log.d("FCM", "Application has ended config")
+            }
         }
         catch (e:Exception){
             println("Intempt initialization failed")
