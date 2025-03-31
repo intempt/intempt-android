@@ -25,7 +25,7 @@ data class PushNotificationWebhookRequest(
 
     var destinationType: String = "firebase_cloud_messaging",
 
-    var status: String = "test"
+    var status: String
 ) {
     constructor(type: WebhookType, metadata: PushNotificationMetadata) : this(
         type = type,
@@ -36,7 +36,8 @@ data class PushNotificationWebhookRequest(
         accountId = metadata.accountId.toLong(),
         pipelineId = metadata.pipelineId.toLong(),
         transformerId = metadata.transformerId.toLong(),
-        templateId = metadata.templateId.toLong()
+        templateId = metadata.templateId.toLong(),
+        status = type.toString().lowercase()
     )
 
     enum class WebhookType(val receivedType: String) {

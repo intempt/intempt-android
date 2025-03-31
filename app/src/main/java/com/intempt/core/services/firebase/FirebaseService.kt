@@ -19,8 +19,12 @@ import com.google.firebase.messaging.RemoteMessage
 import com.bumptech.glide.request.target.Target
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.google.firebase.messaging.FirebaseMessaging
+import com.intempt.core.services.ConfigManagerService
+import com.intempt.core.services.HttpManagerService
+import com.intempt.core.services.LoggerManagerService
 import com.intempt.core.services.firebase.model.PushNotificationContent
 import com.intempt.core.services.firebase.model.PushNotificationMetadata
+import com.intempt.core.services.firebase.webhook.WebhookService
 import kotlinx.coroutines.tasks.await
 
 class FirebaseService : FirebaseMessagingService() {
@@ -30,6 +34,10 @@ class FirebaseService : FirebaseMessagingService() {
 
     override fun onMessageReceived(remoteMessage: RemoteMessage) {
         super.onMessageReceived(remoteMessage)
+        val config = ConfigManagerService(this)
+        val logger = LoggerManagerService(config);
+        val http = HttpManagerService(config, logger)
+        val webhookService = WebhookService(config, logger, http)
 
         Log.d("FCM", "Received message from: ${remoteMessage.from}")
 
@@ -45,8 +53,8 @@ class FirebaseService : FirebaseMessagingService() {
                 PushNotificationWebhookRequest.WebhookType.DELIVERED,
                 metadata);
             Log.d("FCM", "Message tracked as delivered")
-
-            sendPushNotification(this, content, metadata)
+            webhookService.sendPushNotificationWebhook(mapper.valueToTree(deliveredWebhookRequest))
+            sendPushNotification(this, content, metadata, webhookService)
         }
 
         remoteMessage.notification?.let {
@@ -72,13 +80,17 @@ class FirebaseService : FirebaseMessagingService() {
             Log.w("FCM", "Fetching FCM registration token failed", e)
             throw e
         }
+
+
     }
 
-    private fun sendPushNotification(context: Context, content: PushNotificationContent, metadata: PushNotificationMetadata) {
+    private fun sendPushNotification(context: Context, content: PushNotificationContent,
+                                     metadata: PushNotificationMetadata, webhookService: WebhookService) {
 
         Log.d("FCM", "Notification was received")
         Log.d("FCM", "Metadata is: $metadata")
         Log.d("FCM", "Content is: $content")
+
 
         val channelId = "default_channel"
 
@@ -125,6 +137,7 @@ class FirebaseService : FirebaseMessagingService() {
                                 PushNotificationWebhookRequest.WebhookType.BOUNCED,
                                 metadata);
                             Log.d("FCM", "Message tracked as bounced")
+                            webhookService.sendPushNotificationWebhook(mapper.valueToTree(bouncedWebhookRequest))
                         }
                     }
                 } catch (e: Exception) {
@@ -144,6 +157,7 @@ class FirebaseService : FirebaseMessagingService() {
                         PushNotificationWebhookRequest.WebhookType.BOUNCED,
                         metadata);
                     Log.d("FCM", "Message tracked as bounced")
+                    webhookService.sendPushNotificationWebhook(mapper.valueToTree(bouncedWebhookRequest))
                 }
             }
         }

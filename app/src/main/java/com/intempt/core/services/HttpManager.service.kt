@@ -18,7 +18,7 @@ import javax.inject.Singleton
 
 
 @Singleton
-internal class HttpManagerService @Inject constructor(
+class HttpManagerService @Inject constructor(
     private val config: ConfigManagerService,
     private val logger: LoggerManagerService
 ){

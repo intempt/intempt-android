@@ -45,19 +45,19 @@ class ConfigManagerService  @Inject constructor(
 
 
     val consentUrl:String
-        get() = "${Constants.API_URL}/${_organizationId}/projects/${_projectId}/consents/data"
+        get() = "${Constants.API_URL}/v1/${_organizationId}/projects/${_projectId}/consents/data"
 
     val eventsUrl:String
-        get() = "${Constants.API_URL}/${_organizationId}/projects/${_projectId}/sources/${_sourceId}/track"
+        get() = "${Constants.API_URL}/v1/${_organizationId}/projects/${_projectId}/sources/${_sourceId}/track"
 
     val optimizationUrl:String
-        get() = "${Constants.API_URL}/${_organizationId}/projects/${_projectId}/optimization/choose-api"
+        get() = "${Constants.API_URL}/v1/${_organizationId}/projects/${_projectId}/optimization/choose-api"
 
     val pushNotificationWebhookUrl:String
-        get() = "${Constants.API_URL}/${_organizationId}/projects/${_projectId}/webhooks/events/push-notification"
+        get() = "${Constants.API_URL}/webhooks/events/push-notification"
 
     fun recommendationUrl(id:String):String{
-        return "${Constants.API_URL}/${_organizationId}/projects/${_projectId}/feeds/${id}/data"
+        return "${Constants.API_URL}/v1/${_organizationId}/projects/${_projectId}/feeds/${id}/data"
     }
 
 

@@ -17,9 +17,9 @@ import java.util.concurrent.CompletableFuture
 
 internal class EventHandlers(
     private val logger: LoggerManagerService,
-    private val intemptEvent: IntemptEventManagerService,
-    private val firebaseService: FirebaseService = FirebaseService()
+    private val intemptEvent: IntemptEventManagerService
 ) {
+    private val firebaseService: FirebaseService = FirebaseService()
     private val coroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     fun fragment(props: HandleEventTypeProps):Array<IntemptEventProvider> {
         val newEvent = intemptEvent.generateFragmentTransitionEventPayload()
