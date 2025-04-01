@@ -1,5 +1,6 @@
 package com.intempt.core.services.firebase.webhook
 
+import android.util.Log
 import com.fasterxml.jackson.databind.JsonNode
 import com.intempt.core.autocapture.BaseComponent
 import com.intempt.core.services.ConfigManagerService
@@ -22,6 +23,7 @@ class WebhookService (
     private var lastDispatchTime: Long = System.currentTimeMillis();
 
     fun sendPushNotificationWebhook(requestBodyJson: JsonNode) {
+        Log.d("FCM", "sendPushNotificationWebhook triggered")
         coroutineScope.launch {
             try {
                 http.post(config.pushNotificationWebhookUrl, JSONObject(requestBodyJson.toString()))

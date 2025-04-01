@@ -131,7 +131,7 @@ class FirebaseService : FirebaseMessagingService() {
                                 Manifest.permission.POST_NOTIFICATIONS
                             ) == PackageManager.PERMISSION_GRANTED
                         ) {
-                            notify(0, builder.build())
+                            notify(System.currentTimeMillis().toInt(), builder.build())
                         } else {
                             val bouncedWebhookRequest = PushNotificationWebhookRequest(
                                 PushNotificationWebhookRequest.WebhookType.BOUNCED,
@@ -151,7 +151,7 @@ class FirebaseService : FirebaseMessagingService() {
                         Manifest.permission.POST_NOTIFICATIONS
                     ) == PackageManager.PERMISSION_GRANTED
                 ) {
-                    notify(0, builder.build())
+                    notify(System.currentTimeMillis().toInt(), builder.build())
                 } else {
                     val bouncedWebhookRequest = PushNotificationWebhookRequest(
                         PushNotificationWebhookRequest.WebhookType.BOUNCED,
