@@ -8,6 +8,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.net.Uri
 import android.util.Log
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
@@ -98,21 +99,39 @@ class FirebaseService : FirebaseMessagingService() {
         val manager = context.getSystemService(NotificationManager::class.java)
         manager.createNotificationChannel(channel)
 
-        val intent = Intent(context, NotificationClickReceiver::class.java).apply {
-            putExtra("metadata", metadata)
+        val intentTest: Intent = when {
+            content.webUrl.isNotBlank() -> {
+                Log.d("FCM", "Creating VIEW intent for ${content.webUrl}")
+                Intent(Intent.ACTION_VIEW, Uri.parse(content.webUrl))
+            }
+            else -> {
+                Log.d("FCM", "Creating launch intent for package")
+                context.packageManager.getLaunchIntentForPackage(context.packageName) ?: Intent()
+            }
         }
-        val pendingIntentClickable = PendingIntent.getBroadcast(context, 0, intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE)
+        intentTest.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        val dispatcherIntent = Intent(context, NotificationDispatcherActivity::class.java).apply {
+            putExtra("metadata", metadata)
+            putExtra("intent_test", intentTest)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+        }
 
+        val pendingIntent = PendingIntent.getActivity(
+            context,
+            System.currentTimeMillis().toInt(),
+            dispatcherIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
 
         val builder = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(android.R.drawable.sym_def_app_icon)
             .setContentTitle(content.title)
             .setContentText(content.body)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setContentIntent(pendingIntentClickable)
+            .setContentIntent(pendingIntent)
             .setAutoCancel(true)
 
+        val requestCode = System.currentTimeMillis().toInt();
         if (content.image.isNotEmpty()) {
             Thread {
                 try {
@@ -125,40 +144,39 @@ class FirebaseService : FirebaseMessagingService() {
                     builder.setStyle(NotificationCompat.BigPictureStyle().bigPicture(bitmap))
                         .setLargeIcon(bitmap)
 
-                    with(NotificationManagerCompat.from(context)) {
-                        if (ActivityCompat.checkSelfPermission(
-                                context,
-                                Manifest.permission.POST_NOTIFICATIONS
-                            ) == PackageManager.PERMISSION_GRANTED
-                        ) {
-                            notify(System.currentTimeMillis().toInt(), builder.build())
-                        } else {
-                            val bouncedWebhookRequest = PushNotificationWebhookRequest(
-                                PushNotificationWebhookRequest.WebhookType.BOUNCED,
-                                metadata);
-                            Log.d("FCM", "Message tracked as bounced")
-                            webhookService.sendPushNotificationWebhook(mapper.valueToTree(bouncedWebhookRequest))
-                        }
-                    }
+                    notifySafely(context, webhookService, metadata, builder, requestCode)
                 } catch (e: Exception) {
                     e.printStackTrace()
                 }
             }.start()
         } else {
-            with(NotificationManagerCompat.from(context)) {
-                if (ActivityCompat.checkSelfPermission(
-                        context,
-                        Manifest.permission.POST_NOTIFICATIONS
-                    ) == PackageManager.PERMISSION_GRANTED
-                ) {
-                    notify(System.currentTimeMillis().toInt(), builder.build())
-                } else {
-                    val bouncedWebhookRequest = PushNotificationWebhookRequest(
-                        PushNotificationWebhookRequest.WebhookType.BOUNCED,
-                        metadata);
-                    Log.d("FCM", "Message tracked as bounced")
-                    webhookService.sendPushNotificationWebhook(mapper.valueToTree(bouncedWebhookRequest))
-                }
+            notifySafely(context, webhookService, metadata, builder, requestCode)
+            }
+        }
+
+    private fun notifySafely(
+        context: Context,
+        webhookService: WebhookService,
+        metadata: PushNotificationMetadata,
+        builder: NotificationCompat.Builder,
+        notificationId: Int
+    ) {
+        with(NotificationManagerCompat.from(context)) {
+            if (ActivityCompat.checkSelfPermission(
+                    context,
+                    Manifest.permission.POST_NOTIFICATIONS
+                ) == PackageManager.PERMISSION_GRANTED
+            ) {
+                notify(notificationId, builder.build())
+                Log.d("FCM", "Notification shown with ID: $notificationId")
+            } else {
+                Log.w("FCM", "POST_NOTIFICATIONS permission not granted. Tracking as bounced.")
+                val bouncedWebhookRequest = PushNotificationWebhookRequest(
+                    PushNotificationWebhookRequest.WebhookType.BOUNCED,
+                    metadata
+                )
+                val mapper = jacksonObjectMapper()
+                webhookService.sendPushNotificationWebhook(mapper.valueToTree(bouncedWebhookRequest))
             }
         }
     }

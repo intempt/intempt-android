@@ -79,7 +79,8 @@ dependencies {
     implementation("com.github.bumptech.glide:glide:4.15.1")
 // https://mvnrepository.com/artifact/org.projectlombok/lombok
     compileOnly("org.projectlombok:lombok:1.18.36")
-
+// https://mvnrepository.com/artifact/androidx.lifecycle/lifecycle-runtime-ktx
+    runtimeOnly("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
 
     testImplementation(libs.junit)
     testImplementation(libs.mockito.core)
