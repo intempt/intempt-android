@@ -23,7 +23,7 @@ data class PushNotificationWebhookRequest(
 
     var subject: String = "firebase_cloud_messaging",
 
-    var destinationType: String = "push_notification",
+    var destinationType: String = "firebase_cloud_messaging",
 
     var status: String
 ) {
