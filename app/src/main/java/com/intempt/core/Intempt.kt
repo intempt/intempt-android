@@ -1,16 +1,15 @@
 package com.intempt.core
 
 import android.content.Context
+import android.util.Log
 import android.view.View
+import com.google.firebase.FirebaseApp
 import com.intempt.core.intemptCore.DaggerIntemptCoreComponent
 import com.intempt.core.intemptCore.IntemptCoreComponent
 import com.intempt.core.intemptCore.IntemptCoreModule
 import com.intempt.core.intemptCore.IntemptCoreService
 import com.intempt.core.types.ModificationProvider
-import io.ktor.client.statement.HttpResponse
-import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
-import java.util.concurrent.CompletableFuture
 
 
 object Intempt  {
@@ -31,6 +30,11 @@ object Intempt  {
 
             experiment = intemptCore.modification.experimentHandler
             personalization = intemptCore.modification.personalizationHandler
+            if (FirebaseApp.getApps(context).isEmpty()) {
+                Log.d("FCM", "Application has started config")
+                FirebaseApp.initializeApp(context);
+                Log.d("FCM", "Application has ended config")
+            }
         }
         catch (e:Exception){
             println("Intempt initialization failed")

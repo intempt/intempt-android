@@ -1,6 +1,7 @@
 package com.intempt.core.eventModels
 
 import android.content.Context
+import com.intempt.core.services.ConfigManagerService
 import com.intempt.core.services.StorageManagerService
 import com.intempt.core.types.AppVisibilityState
 import com.intempt.core.types.IntemptEventProvider
@@ -18,6 +19,8 @@ internal data class InstallOrUpgradeEvent(
     private val currentBuildType: String,
     private val appVisibilityState: AppVisibilityState,
     private val isUpgrade: Boolean,
+    private val token: String,
+    private val config: ConfigManagerService
 ): IntemptEventProvider {
     override fun getEventTime(): Long {
         return timestamp
@@ -36,7 +39,10 @@ internal data class InstallOrUpgradeEvent(
                 "previousBuildType" to previousBuildType,
                 "currentBuildType" to currentBuildType,
                 "appVisibilityState" to appVisibilityState,
-                "isUpgrade" to isUpgrade,
+                "isUpgrade" to isUpgrade
+            ),
+            "userAttributes" to mapOf(
+                "fcm_token_" + config.sourceId to token
             )
         )
     }
@@ -57,6 +63,9 @@ internal data class InstallOrUpgradeEvent(
                     currentBuildType: ${appVisibilityState},
                     currentBuildType: ${appVisibilityState},
                 },
+                userAttributes: {
+                    fcm_token_${config.sourceId}: $token
+                }
             }
         """
         return output.trimIndent()
