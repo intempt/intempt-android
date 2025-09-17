@@ -19,7 +19,7 @@ internal data class InstallOrUpgradeEvent(
     private val currentBuildType: String,
     private val appVisibilityState: AppVisibilityState,
     private val isUpgrade: Boolean,
-    private val token: String,
+    private val fcmToken: String,
     private val config: ConfigManagerService
 ): IntemptEventProvider {
     override fun getEventTime(): Long {
@@ -42,7 +42,7 @@ internal data class InstallOrUpgradeEvent(
                 "isUpgrade" to isUpgrade
             ),
             "userAttributes" to mapOf(
-                "fcm_token_" + config.sourceId to token
+                "fcm_token_" + config.sourceId to fcmToken
             )
         )
     }
@@ -64,7 +64,7 @@ internal data class InstallOrUpgradeEvent(
                     currentBuildType: ${appVisibilityState},
                 },
                 userAttributes: {
-                    fcm_token_${config.sourceId}: $token
+                    fcm_token_${config.sourceId}: $fcmToken
                 }
             }
         """

@@ -43,6 +43,7 @@ import com.intempt.core.types.IdTypeKeys
 import com.intempt.core.types.IntemptEventProvider
 import com.intempt.core.types.Product
 import com.intempt.core.types.RecommendationBody
+import com.google.firebase.messaging.FirebaseMessaging
 import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -52,7 +53,8 @@ internal open class IntemptEventManagerService @Inject constructor(
     private val context: Context,
     private val storage: StorageManagerService,
     private val utils: UtilsService,
-    private val config: ConfigManagerService
+    private val config: ConfigManagerService,
+    private val logger: LoggerManagerService
 ) {
     @SuppressLint("HardwareIds")
     fun generateSessionEventPayload(
@@ -228,7 +230,7 @@ internal open class IntemptEventManagerService @Inject constructor(
                 currentBuildType = currentBuildType,
                 appVisibilityState = appVisibilityState,
                 isUpgrade = isUpgrade,
-                token = token,
+                fcmToken = getFCMToken(context),
                 config = config
             )
         )
@@ -470,6 +472,18 @@ internal open class IntemptEventManagerService @Inject constructor(
             buildTypeField.get(null) as String
         } catch (e: Exception) {
             null
+        }
+    }
+
+    private fun getFCMToken(context: Context): String {
+        return try {
+            // For synchronous token retrieval, we'll use a cached approach
+            // The token will be updated when onNewToken is called
+            val sharedPrefs = context.getSharedPreferences("intempt_fcm", Context.MODE_PRIVATE)
+            sharedPrefs.getString("fcm_token", "") ?: ""
+        } catch (e: Exception) {
+            logger.error("IntemptEventManager | Error getting FCM token: ${e.message}")
+            ""
         }
     }
 
