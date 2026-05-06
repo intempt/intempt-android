@@ -1,6 +1,6 @@
 # Intempt Android SDK
 
-Lightweight Android SDK for tracking user behavior, running experiments, and delivering personalizations with Intempt.
+Android SDK for the [Intempt](https://intempt.com) analytics platform. Automatic event tracking with experiments and personalizations.
 
 ## Installation
 
@@ -32,16 +32,16 @@ Intempt.identify("john@example.com", null, mapOf("plan" to "pro"))
 
 ## Features
 
-- **Auto-tracking** -- automatically capture screen views, taps, and app lifecycle events
-- **Custom events** -- send any structured event with arbitrary properties
-- **User identification** -- link events to a known user with `identify()`
-- **Consent management** -- respect user privacy preferences before collecting data
-- **Experiments** -- serve server-side experiment variants to your users
-- **Personalizations** -- deliver targeted content and campaigns in real time
+- **Auto-tracking** — automatically capture screen views, taps, and app lifecycle events
+- **Custom events** — send any structured event with arbitrary properties
+- **User identification** — link events to a known user with `identify()`
+- **Consent management** — respect user privacy preferences before collecting data
+- **Experiments** — serve server-side experiment variants to your users
+- **Personalizations** — deliver targeted content and campaigns in real time
 
 ## Documentation
 
-Full integration guide: [docs.intempt.com/docs/android-sdk](https://docs.intempt.com/docs/android-sdk)
+Full documentation: [docs.intempt.com](https://docs.intempt.com/docs/android-sdk)
 
 ## Requirements
 
@@ -50,4 +50,4 @@ Full integration guide: [docs.intempt.com/docs/android-sdk](https://docs.intempt
 
 ## License
 
-MIT -- see [LICENSE](LICENSE) for details.
+MIT — see [LICENSE](LICENSE) for details.
