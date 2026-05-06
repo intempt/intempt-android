@@ -17,14 +17,17 @@ dependencies {
 ```kotlin
 import com.intempt.core.Intempt
 
-// Initialize the SDK
-Intempt.configure(context, "YOUR_SOURCE_ID", "YOUR_API_KEY")
+// Initialize in Application.onCreate() or Activity
+Intempt.initialize(context)
 
 // Track a custom event
 Intempt.track("purchase_completed", mapOf(
     "item_id" to "sku_123",
-    "amount" to 49.99
+    "amount" to "49.99"
 ))
+
+// Identify a user
+Intempt.identify("john@example.com", null, mapOf("plan" to "pro"))
 ```
 
 ## Features
