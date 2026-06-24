@@ -11,3 +11,5 @@ sonar-project.properties
 .cxx
 local.properties
 gradle.properties
+
+google-services.json

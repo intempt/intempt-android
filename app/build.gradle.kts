@@ -126,7 +126,13 @@ mavenPublishing {
     }
 
     signing{
-        useGpgCmd()
+        // Local builds (e.g. publishToMavenLocal) have no GPG key — skip signing.
+        // Real releases must sign: run without -PSKIP_SIGNING=true.
+        val skipSigning = project.findProperty("SKIP_SIGNING") == "true"
+        isRequired = !skipSigning
+        if (!skipSigning) {
+            useGpgCmd()
+        }
     }
 
 }
