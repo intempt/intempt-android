@@ -30,14 +30,20 @@ object Intempt  {
 
             experiment = intemptCore.modification.experimentHandler
             personalization = intemptCore.modification.personalizationHandler
-            if (FirebaseApp.getApps(context).isEmpty()) {
-                Log.d("FCM", "Application has started config")
-                FirebaseApp.initializeApp(context);
-                Log.d("FCM", "Application has ended config")
-            }
         }
         catch (e:Exception){
             println("Intempt initialization failed")
+        }
+
+        // Push notifications are OPTIONAL. They only work when the host app has configured
+        // Firebase (google-services plugin + google-services.json). If it hasn't, skip
+        // gracefully — never fail core analytics init over a missing push setup.
+        try {
+            if (FirebaseApp.getApps(context).isEmpty()) {
+                FirebaseApp.initializeApp(context)
+            }
+        } catch (e: Exception) {
+            Log.i("FCM", "Firebase not configured; push notifications are disabled.")
         }
     }
 
