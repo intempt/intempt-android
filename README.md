@@ -107,6 +107,11 @@ Full documentation: [docs.intempt.com](https://docs.intempt.com/docs/android-sdk
 - Android API 31+
 - Kotlin
 
+## Releasing
+
+Maintainers: releases are automated and publish **only from `main`** via a tag. See
+[RELEASING.md](RELEASING.md) for the step-by-step.
+
 ## License
 
 MIT — see [LICENSE](LICENSE) for details.
