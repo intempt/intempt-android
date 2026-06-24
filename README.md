@@ -107,10 +107,18 @@ Full documentation: [docs.intempt.com](https://docs.intempt.com/docs/android-sdk
 - Android API 31+
 - Kotlin
 
-## Releasing
+## For devs
 
-Maintainers: releases are automated and publish **only from `main`** via a tag. See
-[RELEASING.md](RELEASING.md) for the step-by-step.
+Releases publish to Maven Central automatically, **only from `main`**, when you push a `v*` tag:
+
+```bash
+git checkout main
+git pull origin main
+git tag v2.0.1
+git push origin v2.0.1
+```
+
+Full release guide: [RELEASING.md](RELEASING.md).
 
 ## License
 
