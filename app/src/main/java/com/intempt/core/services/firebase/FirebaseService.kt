@@ -33,36 +33,64 @@ class FirebaseService : FirebaseMessagingService() {
     var token: String = ""
     val mapper = jacksonObjectMapper()
 
+    companion object {
+        private const val TAG = "FCM"
+    }
+
     override fun onMessageReceived(remoteMessage: RemoteMessage) {
         super.onMessageReceived(remoteMessage)
+        Log.d(TAG, "Received message from=${remoteMessage.from} messageId=${remoteMessage.messageId}")
+
+        // An Intempt push always carries a "content" entry in the FCM data payload.
+        // Any other message — a plain notification message, a different sender, or a
+        // malformed payload — is not ours to render. Log and bail out gracefully so we
+        // never crash the host app on an unexpected message.
+        val contentJson = remoteMessage.data["content"]
+        if (contentJson == null) {
+            Log.i(TAG, "Ignoring non-Intempt message (no 'content' data field). " +
+                    "data=${remoteMessage.data} notificationTitle=${remoteMessage.notification?.title}")
+            return
+        }
+
+        val content = try {
+            mapper.readValue<PushNotificationContent>(contentJson)
+        } catch (e: Exception) {
+            Log.e(TAG, "Ignoring Intempt push: could not parse content=$contentJson", e)
+            return
+        }
+
+        // Metadata is needed for delivery/open/bounce tracking but not for rendering.
+        // If it is absent or malformed we still show the notification, just without tracking.
+        val metadata = remoteMessage.data["metadata"]?.let { metaJson ->
+            try {
+                mapper.readValue<PushNotificationMetadata>(metaJson)
+            } catch (e: Exception) {
+                Log.e(TAG, "Could not parse metadata=$metaJson; rendering without tracking", e)
+                null
+            }
+        }
+
         val config = ConfigManagerService(this)
-        val logger = LoggerManagerService(config);
+        val logger = LoggerManagerService(config)
         val http = HttpManagerService(config, logger)
         val webhookService = WebhookService(config, logger, http)
 
-        Log.d("FCM", "Received message from: ${remoteMessage.from}")
-
-        remoteMessage.data.isNotEmpty().let {
-            Log.d("FCM", "Message data: ${remoteMessage.data}")
-            val contentJson = remoteMessage.data["content"] ?: "{}"
-            val metadataJson = remoteMessage.data["metadata"] ?: "{}"
-
-            val content: PushNotificationContent = mapper.readValue(contentJson)
-            val metadata: PushNotificationMetadata = mapper.readValue(metadataJson)
-
-            val deliveredWebhookRequest = PushNotificationWebhookRequest(
-                PushNotificationWebhookRequest.WebhookType.DELIVERED,
-                metadata);
-            Log.d("FCM", "Message tracked as delivered")
-            webhookService.sendPushNotificationWebhook(mapper.valueToTree(deliveredWebhookRequest))
-            sendPushNotification(this, content, metadata, webhookService)
+        if (metadata != null) {
+            // Webhook IDs are parsed as Long; a non-numeric value must not crash the app
+            // or block rendering. Track best-effort and continue.
+            try {
+                val deliveredWebhookRequest = PushNotificationWebhookRequest(
+                    PushNotificationWebhookRequest.WebhookType.DELIVERED,
+                    metadata
+                )
+                Log.d(TAG, "Tracking push as delivered")
+                webhookService.sendPushNotificationWebhook(mapper.valueToTree(deliveredWebhookRequest))
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to build/send delivered webhook; rendering anyway", e)
+            }
         }
 
-        remoteMessage.notification?.let {
-            Log.d("FCM", "Message body: ${it.body}")
-        }
-
-
+        sendPushNotification(this, content, metadata, webhookService)
     }
 
     override fun onNewToken(token: String) {
@@ -86,7 +114,7 @@ class FirebaseService : FirebaseMessagingService() {
     }
 
     private fun sendPushNotification(context: Context, content: PushNotificationContent,
-                                     metadata: PushNotificationMetadata, webhookService: WebhookService) {
+                                     metadata: PushNotificationMetadata?, webhookService: WebhookService) {
 
         Log.d("FCM", "Notification was received")
         Log.d("FCM", "Metadata is: $metadata")
@@ -100,7 +128,7 @@ class FirebaseService : FirebaseMessagingService() {
         manager.createNotificationChannel(channel)
 
         val intentTest: Intent = when {
-            content.webUrl.isNotBlank() -> {
+            !content.webUrl.isNullOrBlank() -> {
                 Log.d("FCM", "Creating VIEW intent for ${content.webUrl}")
                 Intent(Intent.ACTION_VIEW, Uri.parse(content.webUrl))
             }
@@ -111,7 +139,7 @@ class FirebaseService : FirebaseMessagingService() {
         }
         intentTest.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
         val dispatcherIntent = Intent(context, NotificationDispatcherActivity::class.java).apply {
-            putExtra("metadata", metadata)
+            metadata?.let { putExtra("metadata", it) }
             putExtra("intent_test", intentTest)
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
         }
@@ -132,7 +160,7 @@ class FirebaseService : FirebaseMessagingService() {
             .setAutoCancel(true)
 
         val requestCode = System.currentTimeMillis().toInt();
-        if (content.image.isNotEmpty()) {
+        if (!content.image.isNullOrEmpty()) {
             Thread {
                 try {
                     val bitmap: Bitmap = Glide.with(context)
@@ -157,7 +185,7 @@ class FirebaseService : FirebaseMessagingService() {
     private fun notifySafely(
         context: Context,
         webhookService: WebhookService,
-        metadata: PushNotificationMetadata,
+        metadata: PushNotificationMetadata?,
         builder: NotificationCompat.Builder,
         notificationId: Int
     ) {
@@ -171,12 +199,14 @@ class FirebaseService : FirebaseMessagingService() {
                 Log.d("FCM", "Notification shown with ID: $notificationId")
             } else {
                 Log.w("FCM", "POST_NOTIFICATIONS permission not granted. Tracking as bounced.")
-                val bouncedWebhookRequest = PushNotificationWebhookRequest(
-                    PushNotificationWebhookRequest.WebhookType.BOUNCED,
-                    metadata
-                )
-                val mapper = jacksonObjectMapper()
-                webhookService.sendPushNotificationWebhook(mapper.valueToTree(bouncedWebhookRequest))
+                metadata?.let {
+                    val bouncedWebhookRequest = PushNotificationWebhookRequest(
+                        PushNotificationWebhookRequest.WebhookType.BOUNCED,
+                        it
+                    )
+                    val mapper = jacksonObjectMapper()
+                    webhookService.sendPushNotificationWebhook(mapper.valueToTree(bouncedWebhookRequest))
+                }
             }
         }
     }

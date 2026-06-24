@@ -5,7 +5,6 @@ plugins {
     alias(libs.plugins.gradleup.nmcp)
     id("kotlin-kapt")
     id("maven-publish")
-    id("com.google.gms.google-services")
     id("kotlin-parcelize")
 }
 
@@ -125,8 +124,11 @@ mavenPublishing {
         }
     }
 
-    signing{
-        useGpgCmd()
+    // Releases are signed (RELEASE_SIGNING_ENABLED=true in gradle.properties). In CI the key
+    // is provided in-memory via env vars ORG_GRADLE_PROJECT_signingInMemoryKey /
+    // ...signingInMemoryKeyPassword. Local publishToMavenLocal can skip with -PSKIP_SIGNING=true.
+    signing {
+        isRequired = project.findProperty("SKIP_SIGNING") != "true"
     }
 
 }
