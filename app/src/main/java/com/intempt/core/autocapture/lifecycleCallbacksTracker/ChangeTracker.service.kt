@@ -1,5 +1,6 @@
 package com.intempt.core.autocapture.lifecycleCallbacksTracker
 import android.R
+import android.text.InputType
 import android.app.Activity
 import android.os.Handler
 import android.os.Looper
@@ -36,6 +37,12 @@ internal open class ChangeTrackerService @Inject constructor(
     val logger: LoggerManagerService,
     private val utils: UtilsService,
 ) {
+
+    private companion object {
+        /** Stands in for a secret. A fixed string, not derived from the value or its
+         *  length, so nothing about the contents leaks. */
+        const val MASKED_VALUE = "[masked]"
+    }
 
     private val previousStateMap = mutableMapOf<Int, Any?>()
     private val debounceDelay = Constants.DEBOUNCE_DELAY
@@ -83,15 +90,42 @@ internal open class ChangeTrackerService @Inject constructor(
                 || view is ListView
     }
 
+    /**
+     * True when this field holds a secret and its contents must never be captured.
+     *
+     * Covers every password variant Android defines, including the number-pad PIN
+     * variant. `TYPE_TEXT_VARIATION_VISIBLE_PASSWORD` is included deliberately: the user
+     * having chosen to reveal it on screen does not make it safe to send off-device.
+     */
+    private fun isSensitiveInput(view: EditText): Boolean {
+        val variation = view.inputType and InputType.TYPE_MASK_VARIATION
+        val cls = view.inputType and InputType.TYPE_MASK_CLASS
+        return when {
+            cls == InputType.TYPE_CLASS_TEXT && variation == InputType.TYPE_TEXT_VARIATION_PASSWORD -> true
+            cls == InputType.TYPE_CLASS_TEXT && variation == InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD -> true
+            cls == InputType.TYPE_CLASS_TEXT && variation == InputType.TYPE_TEXT_VARIATION_WEB_PASSWORD -> true
+            cls == InputType.TYPE_CLASS_NUMBER && variation == InputType.TYPE_NUMBER_VARIATION_PASSWORD -> true
+            else -> false
+        }
+    }
+
     private fun getViewValue(view: View): Any? {
         return when (view) {
             is CompoundButton -> view.isChecked
-            is EditText -> view.text.toString()
+            // Autocapture used to send raw EditText contents for every field, password
+            // inputs included, so a host app's login screen exfiltrated credentials
+            // verbatim with no way to opt out short of disabling autocapture entirely.
+            // Sensitive fields now report only that they changed, never what to.
+            is EditText -> if (isSensitiveInput(view)) MASKED_VALUE else view.text.toString()
             is Spinner -> view.selectedItem
             is SeekBar -> view.progress
             is RatingBar -> view.rating
             is DatePicker -> "${view.year}-${view.month}-${view.dayOfMonth}"
-            is TimePicker -> "${view.hour}:${view.minute}"
+            // getHour/getMinute are API 23; currentHour/currentMinute cover older levels
+            is TimePicker -> if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M)
+                "${view.hour}:${view.minute}"
+            else
+                @Suppress("DEPRECATION") "${view.currentHour}:${view.currentMinute}"
             is ListView -> view.selectedItemId
             else -> null
         }

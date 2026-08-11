@@ -138,7 +138,6 @@ internal class StorageManagerService @Inject constructor(
 
     fun clearAllStorage() {
         coroutineScope.launch {
-            val profileId = getProfileId()
 
             // Clear all entries in SessionPrefs
             val sessionPrefs = context.getSharedPreferences(StorageKeys.SessionPrefs.key, Context.MODE_PRIVATE)
@@ -152,16 +151,21 @@ internal class StorageManagerService @Inject constructor(
             val fragmentPrefs = context.getSharedPreferences(StorageKeys.FragmentPrefs.key, Context.MODE_PRIVATE)
             fragmentPrefs.edit().clear().apply()
 
-            // Restore the profileId in UserPrefs after clearing
             val userPrefs = context.getSharedPreferences(StorageKeys.UserPrefs.key, Context.MODE_PRIVATE)
             userPrefs.edit().clear().apply()
 
             localStore.clear()
 
+            // Issue a FRESH anonymous profileId rather than restoring the previous one.
+            //
+            // This previously read getProfileId() before clearing and wrote the same value
+            // back, so logOut() did not actually separate identities: the next user of a
+            // shared device inherited the previous user's profile, and their events were
+            // attributed to it. Rotating here is the whole point of logging out.
             setStorageItem(
                 StorageKeys.UserPrefs.key,
                 StorageKeys.ProfileId.key,
-                profileId
+                utils.generateId(IdTypeKeys.ProfileId.key)
             ) { key, value ->
                 putString(key, value)
             }

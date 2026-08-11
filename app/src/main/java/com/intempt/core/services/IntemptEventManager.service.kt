@@ -1,6 +1,7 @@
 package com.intempt.core.services
 
 import android.annotation.SuppressLint
+import android.text.InputType
 import android.app.Activity
 import android.content.ContentResolver
 import android.content.Context
@@ -412,6 +413,25 @@ internal open class IntemptEventManagerService @Inject constructor(
         }
     }
 
+    /**
+     * True for password inputs, whose contents must never leave the device.
+     *
+     * Mirrors ChangeTrackerService.isSensitiveInput. Both sites need it: ChangeTracker
+     * decides what to compare for change detection, this decides what to send.
+     */
+    private fun isSensitiveInput(view: View): Boolean {
+        val edit = view as? EditText ?: return false
+        val variation = edit.inputType and InputType.TYPE_MASK_VARIATION
+        val cls = edit.inputType and InputType.TYPE_MASK_CLASS
+        return when {
+            cls == InputType.TYPE_CLASS_TEXT && variation == InputType.TYPE_TEXT_VARIATION_PASSWORD -> true
+            cls == InputType.TYPE_CLASS_TEXT && variation == InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD -> true
+            cls == InputType.TYPE_CLASS_TEXT && variation == InputType.TYPE_TEXT_VARIATION_WEB_PASSWORD -> true
+            cls == InputType.TYPE_CLASS_NUMBER && variation == InputType.TYPE_NUMBER_VARIATION_PASSWORD -> true
+            else -> false
+        }
+    }
+
     private fun getViewTextValue(view: View?):String? {
         if(view == null) return ""
         return utils.withTryCatch("Error getting text from view"){
@@ -419,8 +439,11 @@ internal open class IntemptEventManagerService @Inject constructor(
             val disabledText = "*****"
             val isTextCaptureDisabled = view.getTag(R.id.intemptDoNotCapture) as? Boolean == true
 
-
-            if (isTextCaptureDisabled || !config.isTextCaptureEnabled) {
+            // A password field is masked unconditionally — not merely when the host app
+            // remembered to tag it, and not merely when text capture is switched off.
+            // This is the site that builds the event payload, so without the check here a
+            // credential still reaches the wire even with ChangeTracker masking in place.
+            if (isTextCaptureDisabled || !config.isTextCaptureEnabled || isSensitiveInput(view)) {
                 disabledText
             } else {
                 text ?: ""
@@ -446,7 +469,13 @@ internal open class IntemptEventManagerService @Inject constructor(
                     is EditText -> view.text.toString()
                     is DatePicker -> "${view.month}-${view.dayOfMonth}-${view.year}"
                     is RatingBar -> view.rating.toString()
-                    is TimePicker -> String.format(Locale.US,"%02d:%02d", view.hour, view.minute)
+                    // getHour/getMinute are API 23; currentHour/currentMinute cover older levels
+                    is TimePicker ->
+                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M)
+                            String.format(Locale.US, "%02d:%02d", view.hour, view.minute)
+                        else
+                            @Suppress("DEPRECATION")
+                            String.format(Locale.US, "%02d:%02d", view.currentHour, view.currentMinute)
                     is ListView -> view.selectedItem?.toString() ?: ""
                     else -> ""
                 }

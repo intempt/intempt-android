@@ -9,6 +9,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.net.Uri
+import android.os.Build
 import android.util.Log
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
@@ -123,9 +124,15 @@ class FirebaseService : FirebaseMessagingService() {
 
         val channelId = "default_channel"
 
-        val channel = NotificationChannel(channelId, "Default Channel", NotificationManager.IMPORTANCE_HIGH)
-        val manager = context.getSystemService(NotificationManager::class.java)
-        manager.createNotificationChannel(channel)
+        // NotificationChannel is API 26. Below that, channels do not exist and posting a
+        // notification without one is correct, so the whole block is skipped rather than
+        // crashing on class resolution.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel =
+                NotificationChannel(channelId, "Default Channel", NotificationManager.IMPORTANCE_HIGH)
+            context.getSystemService(NotificationManager::class.java)
+                .createNotificationChannel(channel)
+        }
 
         val intentTest: Intent = when {
             !content.webUrl.isNullOrBlank() -> {
@@ -182,6 +189,27 @@ class FirebaseService : FirebaseMessagingService() {
             }
         }
 
+    /**
+     * Whether this app may post a notification right now.
+     *
+     * `checkSelfPermission(POST_NOTIFICATIONS)` alone is the wrong test. That permission
+     * only exists from API 33; below it the call cannot report the real state, and it also
+     * misses a user who disabled notifications in system settings — which is possible on
+     * every API level.
+     *
+     * The distinction matters beyond correctness: a wrong answer here posts a BOUNCED
+     * webhook, and journeys branch on that. Reporting a delivered push as bounced sends
+     * the wrong follow-up message to a real person.
+     */
+    private fun notificationsAllowed(context: Context): Boolean {
+        if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) return false
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return true
+        return ActivityCompat.checkSelfPermission(
+            context,
+            Manifest.permission.POST_NOTIFICATIONS
+        ) == PackageManager.PERMISSION_GRANTED
+    }
+
     private fun notifySafely(
         context: Context,
         webhookService: WebhookService,
@@ -190,15 +218,11 @@ class FirebaseService : FirebaseMessagingService() {
         notificationId: Int
     ) {
         with(NotificationManagerCompat.from(context)) {
-            if (ActivityCompat.checkSelfPermission(
-                    context,
-                    Manifest.permission.POST_NOTIFICATIONS
-                ) == PackageManager.PERMISSION_GRANTED
-            ) {
+            if (notificationsAllowed(context)) {
                 notify(notificationId, builder.build())
                 Log.d("FCM", "Notification shown with ID: $notificationId")
             } else {
-                Log.w("FCM", "POST_NOTIFICATIONS permission not granted. Tracking as bounced.")
+                Log.w("FCM", "Notifications are disabled for this app. Tracking as bounced.")
                 metadata?.let {
                     val bouncedWebhookRequest = PushNotificationWebhookRequest(
                         PushNotificationWebhookRequest.WebhookType.BOUNCED,

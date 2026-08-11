@@ -12,7 +12,7 @@ import java.io.InputStream
 import org.json.JSONObject
 import javax.inject.Inject
 import javax.inject.Singleton
-import java.util.Base64
+import android.util.Base64
 
 
 @Singleton
@@ -84,7 +84,10 @@ class ConfigManagerService  @Inject constructor(
     fun token(): String {
         if (_apiKey.isEmpty()) return ""
         val (username, password) = _apiKey.split(".")
-        return Base64.getEncoder().encodeToString("$username:$password".toByteArray())
+        // android.util.Base64 (API 1), not java.util.Base64 (API 26). This is the auth
+        // path — on API 21-25 the java.util version throws and every request fails.
+        // NO_WRAP is required: the default inserts newlines, which corrupts an HTTP header.
+        return Base64.encodeToString("$username:$password".toByteArray(), Base64.NO_WRAP)
     }
 
     private fun getConfigs(): ConfigResult {
