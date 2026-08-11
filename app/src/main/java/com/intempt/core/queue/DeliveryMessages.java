@@ -451,6 +451,26 @@ import org.json.JSONObject;
                         logAboutMessage("Cannot post message to " + url + ".", e);
                         deleteEvents = false;
                         mTrackEngageRetryAfter = e.getRetryAfter() * 1000;
+                    } catch (final RemoteService.ClientErrorException e) {
+                        // Must precede the IOException catch below: ClientErrorException
+                        // extends IOException, so without this branch every 4xx falls
+                        // through to deleteEvents = false and is retried forever. A
+                        // rejected key or malformed body never becomes valid, and because
+                        // the batch is never deleted it blocks the queue head and stops
+                        // all delivery. 429 is deliberately excluded — the gateway uses it
+                        // for backpressure, so retrying is correct there.
+                        final int status = e.getResponseCode();
+                        if (HttpStatusPolicy.shouldDrop(status)) {
+                            QueueLog.e(
+                                    LOGTAG,
+                                    "Unrecoverable status " + status + " posting to " + url
+                                            + "; dropping this batch so it cannot block the queue",
+                                    e);
+                            deleteEvents = true;
+                        } else {
+                            logAboutMessage("Retryable client error from " + url + ".", e);
+                            deleteEvents = false;
+                        }
                     } catch (final IOException e) {
                         logAboutMessage("Cannot post message to " + url + ".", e);
                         deleteEvents = false;
