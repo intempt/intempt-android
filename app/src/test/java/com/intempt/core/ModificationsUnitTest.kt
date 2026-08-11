@@ -31,7 +31,6 @@ import org.mockito.MockitoAnnotations
 import org.mockito.kotlin.any
 import org.mockito.kotlin.anyOrNull
 import org.mockito.kotlin.argumentCaptor
-import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.doThrow
 import org.mockito.kotlin.eq
 import org.mockito.kotlin.verify
@@ -116,7 +115,12 @@ class ModificationsUnitTest {
         utils = spy(UtilsService(logger))
 
         storage = spy(StorageManagerService(context,utils))
-        httpSrv = spy(HttpManagerService(config, logger))
+        // A mock, not a spy. Every stubbing form on a spy risks invoking the real
+        // method — that is what produced UncaughtExceptionsBeforeTest here, and chasing
+        // it test-by-test kept moving the failure rather than fixing it. These tests only
+        // verify that post() was called and that errors yield null, so a mock that never
+        // calls through is both sufficient and immune to the whole problem.
+        httpSrv = mock(HttpManagerService::class.java)
         modSrv = spy(ModificationsService(storage, config, logger, httpSrv, utils))
         modComponent = ModificationComponent(modSrv)
         apiUrl = config.optimizationUrl
@@ -131,13 +135,7 @@ class ModificationsUnitTest {
 
     @Test
     fun `should call experiment modification by name`() = runTest {
-        // httpSrv is a spy, so whenever(httpSrv.post(...)) would invoke the REAL post
-        // while setting the stub up — firing an actual HTTP call whose failure lands on
-        // a coroutine and is reported against the next test as
-        // UncaughtExceptionsBeforeTest. doReturn().whenever() never calls the real
-        // method. The four error-path tests below already used this form, which is why
-        // they were the only ones passing.
-        doReturn(null).whenever(httpSrv).post(any(), any(), any())
+        whenever(httpSrv.post(any(), any(), any())).thenReturn(null)
 
         modComponent.experimentHandler.getByName(listOf("test_experiment_name"))
 
@@ -146,13 +144,7 @@ class ModificationsUnitTest {
 
     @Test
     fun `should call experiment modification by group`() = runTest {
-        // httpSrv is a spy, so whenever(httpSrv.post(...)) would invoke the REAL post
-        // while setting the stub up — firing an actual HTTP call whose failure lands on
-        // a coroutine and is reported against the next test as
-        // UncaughtExceptionsBeforeTest. doReturn().whenever() never calls the real
-        // method. The four error-path tests below already used this form, which is why
-        // they were the only ones passing.
-        doReturn(null).whenever(httpSrv).post(any(), any(), any())
+        whenever(httpSrv.post(any(), any(), any())).thenReturn(null)
 
         modComponent.experimentHandler.getByGroup(listOf("test_experiment_name"))
 
@@ -162,13 +154,7 @@ class ModificationsUnitTest {
 
     @Test
     fun `should call personalization modification by name`() = runTest {
-        // httpSrv is a spy, so whenever(httpSrv.post(...)) would invoke the REAL post
-        // while setting the stub up — firing an actual HTTP call whose failure lands on
-        // a coroutine and is reported against the next test as
-        // UncaughtExceptionsBeforeTest. doReturn().whenever() never calls the real
-        // method. The four error-path tests below already used this form, which is why
-        // they were the only ones passing.
-        doReturn(null).whenever(httpSrv).post(any(), any(), any())
+        whenever(httpSrv.post(any(), any(), any())).thenReturn(null)
 
         modComponent.personalizationHandler.getByName(listOf("test_experiment_name"))
 
@@ -181,7 +167,7 @@ class ModificationsUnitTest {
         // This test never stubbed post at all, so the spy called the real method and
         // attempted a live HTTP request — the same leak as the other three, by omission
         // rather than by using the wrong stubbing form.
-        doReturn(null).whenever(httpSrv).post(any(), any(), any())
+        whenever(httpSrv.post(any(), any(), any())).thenReturn(null)
 
         modComponent.personalizationHandler.getByGroup(listOf("test_experiment_name"))
 

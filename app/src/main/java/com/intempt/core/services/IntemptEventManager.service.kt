@@ -1,6 +1,7 @@
 package com.intempt.core.services
 
 import android.annotation.SuppressLint
+import androidx.core.content.pm.PackageInfoCompat
 import android.text.InputType
 import android.app.Activity
 import android.content.ContentResolver
@@ -479,12 +480,10 @@ internal open class IntemptEventManagerService @Inject constructor(
     }
 
     private fun getCurrentVersionCode(): Long {
-        val versionCode = context
-            .packageManager
-            .getPackageInfo(context.packageName, 0)
-            .longVersionCode
-
-        return versionCode
+        // PackageInfoCompat, not .longVersionCode: the latter is API 28.
+        return PackageInfoCompat.getLongVersionCode(
+            context.packageManager.getPackageInfo(context.packageName, 0)
+        )
     }
 
     private fun getConsumerAppBuildType(): String? {

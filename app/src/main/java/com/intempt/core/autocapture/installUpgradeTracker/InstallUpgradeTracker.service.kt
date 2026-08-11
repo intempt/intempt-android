@@ -1,6 +1,7 @@
 package com.intempt.core.autocapture.installUpgradeTracker
 
 import android.content.Context
+import androidx.core.content.pm.PackageInfoCompat
 import com.intempt.core.services.LoggerManagerService
 import com.intempt.core.services.StorageManagerService
 import com.intempt.core.services.UtilsService
@@ -64,8 +65,12 @@ internal class InstallUpgradeTrackerService @Inject constructor(
     fun getConsumerAppVersionCode(): Long {
         return try {
             val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
-            logger.log("InstallUpgradeTrackerService | Consumer App packageInfo code: ${packageInfo.longVersionCode}")
-            return packageInfo.longVersionCode
+            // PackageInfoCompat, not packageInfo.longVersionCode: the latter is API 28 and
+            // lint caught it. The compat helper returns the same Long and falls back to the
+            // deprecated Int versionCode below 28.
+            val code = PackageInfoCompat.getLongVersionCode(packageInfo)
+            logger.log("InstallUpgradeTrackerService | Consumer App packageInfo code: $code")
+            return code
         } catch (e: Exception) {
             e.printStackTrace()
             logger.error("InstallUpgradeTrackerService | Error getting consumer app version code: ${e.message}")
