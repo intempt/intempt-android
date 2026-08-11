@@ -19,7 +19,7 @@ android {
     }
 
     defaultConfig {
-        minSdk = 23
+        minSdk = 24
         buildConfigField("String", "sdkVersion", "\"${project.property("VERSION")}\"")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

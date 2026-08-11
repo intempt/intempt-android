@@ -225,10 +225,12 @@ internal open class ChangeTrackerService @Inject constructor(
     }
 
     private fun handleDatePicker(view: DatePicker, activity: Activity) {
-        view.setOnDateChangedListener { _, _, _, _ ->
+        // init() rather than setOnDateChangedListener(): the latter is API 26, and lint
+        // caught it crashing below that. init() takes the same listener and has existed
+        // since API 1, so it works at every level the SDK supports.
+        view.init(view.year, view.month, view.dayOfMonth) { _, _, _, _ ->
             runnableWrapper[0] = debounceAndLog(handler, runnableWrapper[0], view, activity)
         }
-
     }
 
     private fun handleRatingBar(view: RatingBar, activity: Activity) {
