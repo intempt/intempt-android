@@ -6,8 +6,13 @@ plugins {
     id("kotlin-kapt")
     id("maven-publish")
     id("kotlin-parcelize")
+    id("jacoco")
+    alias(libs.plugins.ktlint)
 }
 
+jacoco {
+    toolVersion = "0.8.12"
+}
 
 android {
     namespace = "com.intempt.core"
@@ -15,24 +20,6 @@ android {
 
     buildFeatures {
         buildConfig = true
-
-    }
-
-    testOptions {
-        unitTests.all {
-            // One JVM per test class. Production code creates thirteen coroutine scopes on
-            // real dispatchers (Dispatchers.IO/Main) and only two of them are injectable,
-            // so background work routinely outlives the test that started it. Sharing a
-            // JVM meant such a coroutine's exception reached the global uncaught handler
-            // and kotlinx.coroutines.test reported it against whichever test happened to
-            // start next — in a different class. That made one leak look like a series of
-            // unrelated failures that moved after every fix.
-            //
-            // This contains attribution so a failure names the class responsible. It does
-            // not fix the leaks themselves; making those dispatchers injectable is a
-            // separate piece of work, tracked.
-            it.setForkEvery(1)
-        }
     }
 
     defaultConfig {
@@ -46,16 +33,22 @@ android {
     }
 
     buildTypes {
+        debug {
+            // Without this AGP does not instrument the unit-test classpath, jacoco records
+            // no execution data, and the report renders a confident 0% — worse than no
+            // report, because it looks like a measurement.
+            enableUnitTestCoverage = true
+        }
+
         release {
             isMinifyEnabled = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
+                "proguard-rules.pro",
             )
 
             testProguardFiles("proguard-test.pro")
         }
-
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_1_8
@@ -64,8 +57,6 @@ android {
     kotlinOptions {
         jvmTarget = "1.8"
     }
-
-
 }
 
 dependencies {
@@ -122,13 +113,13 @@ mavenPublishing {
     coordinates(
         groupId = project.findProperty("GROUP") as String,
         artifactId = project.findProperty("ARTIFACT_ID") as String,
-        version = project.findProperty("VERSION") as String
+        version = project.findProperty("VERSION") as String,
     )
 
     pom {
         name = project.findProperty("POM_NAME") as String
         description = project.findProperty("POM_DESCRIPTION") as String
-        inceptionYear= project.findProperty("POM_INCEPTION_YEAR") as String
+        inceptionYear = project.findProperty("POM_INCEPTION_YEAR") as String
         url = project.findProperty("POM_URL") as String
 
         licenses {
@@ -158,5 +149,55 @@ mavenPublishing {
     signing {
         isRequired = project.findProperty("SKIP_SIGNING") != "true"
     }
+}
 
+// Coverage on the JVM unit tests.
+//
+// Known limitation: every unit-test file here runs under RobolectricTestRunner, and
+// Robolectric's sandbox classloader reloads application classes, discarding JaCoCo's
+// instrumentation. The report therefore currently shows near-zero regardless of what the
+// tests actually exercise — only HttpStatusPolicyTest, which touches no Android types,
+// registers. The wiring is correct and left in place; the number becomes meaningful either
+// when non-Robolectric unit tests exist or when coverage is taken from the instrumented
+// suite via createDebugCoverageReport, which is the path Mixpanel uses.
+//
+// Deliberately not gated on a threshold. A floor enforced against a broken measurement
+// would be worse than no floor.
+tasks.register<JacocoReport>("jacocoTestReport") {
+    dependsOn("testDebugUnitTest")
+    reports {
+        xml.required.set(true)
+        html.required.set(true)
+    }
+    // AGP 8 nests javac output one level deeper than AGP 7 did
+    // (intermediates/javac/debug/compileDebugJavaWithJavac/classes), and getting this path
+    // wrong yields a report that renders a confident 0% rather than failing.
+    val excluded =
+        listOf(
+            "**/R.class",
+            "**/R$*.class",
+            "**/BuildConfig.*",
+            "**/Manifest*.*",
+            "**/*_Factory*.*",
+            "**/*_MembersInjector*.*",
+            "**/Dagger*.*", // Dagger-generated
+        )
+    classDirectories.setFrom(
+        files(
+            fileTree("${layout.buildDirectory.get()}/tmp/kotlin-classes/debug") { exclude(excluded) },
+            fileTree("${layout.buildDirectory.get()}/intermediates/javac/debug") { exclude(excluded) },
+        ),
+    )
+    sourceDirectories.setFrom(files("src/main/java"))
+    executionData.setFrom(fileTree(layout.buildDirectory).include("**/*.exec", "**/*.ec"))
+}
+
+ktlint {
+    android.set(true)
+    // The vendored substrate is Java and deliberately kept close to upstream; ktlint only
+    // covers Kotlin, so this governs our own code.
+    ignoreFailures.set(false)
+    filter {
+        exclude { it.file.path.contains("/generated/") }
+    }
 }

@@ -20,6 +20,7 @@ import com.intempt.core.autocapture.lifecycleCallbacksTracker.LifecycleCallBacks
 import com.intempt.core.autocapture.lifecycleCallbacksTracker.LifecycleCallbackService
 import com.intempt.core.autocapture.lifecycleCallbacksTracker.ScreenTrackerService
 import com.intempt.core.autocapture.lifecycleCallbacksTracker.TouchTrackerService
+import com.intempt.core.queue.DeliveryMessages
 import com.intempt.core.services.ConfigManagerService
 import com.intempt.core.services.HttpManagerService
 import com.intempt.core.services.IntemptEventManagerService
@@ -30,7 +31,6 @@ import com.intempt.core.services.eventPool.EventPoolManagerService
 import com.intempt.core.types.Constants
 import com.intempt.core.types.DispatchEventProps
 import com.intempt.core.types.StorageKeys
-import com.intempt.core.queue.DeliveryMessages
 import junit.framework.TestCase.assertNotNull
 import junit.framework.TestCase.assertTrue
 import junit.framework.TestCase.fail
@@ -42,7 +42,6 @@ import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
 import org.json.JSONObject
-import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -54,7 +53,6 @@ import org.mockito.Mockito.doAnswer
 import org.mockito.Mockito.doReturn
 import org.mockito.Mockito.doThrow
 import org.mockito.Mockito.mock
-import org.mockito.Mockito.reset
 import org.mockito.Mockito.spy
 import org.mockito.Mockito.verify
 import org.mockito.Mockito.`when`
@@ -74,7 +72,7 @@ import java.io.ByteArrayInputStream
 @RunWith(RobolectricTestRunner::class)
 @Config(
     sdk = [34],
-    manifest= Config.NONE
+    manifest = Config.NONE,
 )
 class AutoCaptureUnitTest {
     private lateinit var mockResources: Resources
@@ -102,7 +100,8 @@ class AutoCaptureUnitTest {
     private val testScheduler = TestCoroutineScheduler()
     private lateinit var testDispatcher: TestDispatcher
     private val mockAssets: AssetManager = mock(AssetManager::class.java)
-    private val jsonConfig = """
+    private val jsonConfig =
+        """
         {
             "auth": {
                 "INTEMPT_API_KEY": "9643576a2cfa47729a1eb63213074e78.1a4f98ffc8f648d3a4c8455a2041cae5",
@@ -120,11 +119,10 @@ class AutoCaptureUnitTest {
                 "timeBuffer": 5000
             }
         }
-    """.trimIndent()
+        """.trimIndent()
     private val mockProfId = "prof_test_id_123456"
     private val mockedSesId = "ses_test_id_123456"
     private val mockedPagId = "pag_test_id_123456"
-
 
     @OptIn(ExperimentalCoroutinesApi::class)
     @Before
@@ -133,7 +131,7 @@ class AutoCaptureUnitTest {
         ShadowLog.stream = System.out
         ShadowLog.clear()
 
-         mockResources = mock(Resources::class.java)
+        mockResources = mock(Resources::class.java)
         `when`(mockResources.getResourceEntryName(anyInt())).thenAnswer { invocation ->
             val resourceId = invocation.arguments[0] as Int
             "mocked_resource_entry_name_$resourceId"
@@ -179,200 +177,210 @@ class AutoCaptureUnitTest {
             null
         }.whenever(utils).debounce(any(), any(), anyOrNull(), any())
 
-
         httpSrv = spy(HttpManagerService(config, logger))
         storage = spy(StorageManagerService(context, utils))
         intemptEvent = spy(IntemptEventManagerService(context, storage, utils, config))
 
         testDispatcher = UnconfinedTestDispatcher(testScheduler)
 
-        eventPoolSrv = spy(
-            EventPoolManagerService(
-                config,
-                logger,
-                httpSrv,
-                intemptEvent,
-                mock(DeliveryMessages::class.java),
-                dispatcher = testDispatcher
+        eventPoolSrv =
+            spy(
+                EventPoolManagerService(
+                    config,
+                    logger,
+                    httpSrv,
+                    intemptEvent,
+                    mock(DeliveryMessages::class.java),
+                    dispatcher = testDispatcher,
+                ),
             )
-        )
 
-
-        installUpgradeSrv = spy(InstallUpgradeTrackerService(
-            context,eventPoolSrv, storage, logger, utils
-        ))
-        installUpgradeComponent = spy(
-            InstallUpgradeTrackerComponent(
-                srv = installUpgradeSrv,
-                dispatcher = testDispatcher
-            ),
-
-        )
+        installUpgradeSrv =
+            spy(
+                InstallUpgradeTrackerService(
+                    context, eventPoolSrv, storage, logger, utils,
+                ),
+            )
+        installUpgradeComponent =
+            spy(
+                InstallUpgradeTrackerComponent(
+                    srv = installUpgradeSrv,
+                    dispatcher = testDispatcher,
+                ),
+            )
 
         touchTrackerSrv = spy(TouchTrackerService(eventPoolSrv, config, utils))
         changeTrackerService = spy(ChangeTrackerService(eventPoolSrv, logger, utils))
         screenTrackerService = spy(ScreenTrackerService(eventPoolSrv, logger, utils, storage))
 
-
         testScheduler.advanceUntilIdle()
 
         Robolectric.flushForegroundThreadScheduler()
     }
 
     @Test
-    fun `should call installUpgrade`() = runTest {
-        interceptHttpRequest()
-        installUpgradeComponent.start()
+    fun `should call installUpgrade`() =
+        runTest {
+            interceptHttpRequest()
+            installUpgradeComponent.start()
 
-        verify(eventPoolSrv).dispatchEvent(any<DispatchEventProps>(), anyString())
+            verify(eventPoolSrv).dispatchEvent(any<DispatchEventProps>(), anyString())
 
-        testScheduler.advanceUntilIdle()
-    }
-
-    @Test
-    fun `should fail installUpgrade`() = runTest {
-        doThrow(RuntimeException("Simulated error during dispatchEvent"))
-            .`when`(eventPoolSrv).dispatchEvent(any<DispatchEventProps>(), anyString())
-
-        installUpgradeComponent.start()
-
-        verify(eventPoolSrv).dispatchEvent(any<DispatchEventProps>(), anyString())
-
-        testScheduler.advanceUntilIdle()
-
-        assertTrue(true)
-    }
-
-    @Test
-    fun `should call for change event`() = runTest {
-        toggleButton = ToggleButton(activity).apply { id = View.generateViewId() }
-        rootView = configureRootView(toggleButton)
-        activity.setContentView(rootView)
-        lifecycleComponent = configLifeCycleComponent(){
-            doNothing().`when`(lifecycleService).handleScreenView(any<Activity>())
-            doNothing().`when`(lifecycleService).handleScreenLeave(any<Activity>())
-            doNothing().`when`(lifecycleService).handleFragmentVisibility(any<Fragment>())
-            doNothing().`when`(lifecycleService).handleFragmentAdd(any<Fragment>())
-            doNothing().`when`(lifecycleService).handleFragmentRemove(any<Fragment>())
+            testScheduler.advanceUntilIdle()
         }
-        lifecycleComponent.onActivityResumed(activity)
-        Robolectric.flushForegroundThreadScheduler()
-
-        interceptHttpRequest()
-
-        toggleButton.isChecked = !toggleButton.isChecked
-
-        verify(eventPoolSrv).dispatchEvent(any<DispatchEventProps>(), anyString())
-
-        testScheduler.advanceUntilIdle()
-    }
 
     @Test
-    fun `should fail on change event`() = runTest {
-        toggleButton = ToggleButton(activity).apply { id = View.generateViewId() }
-        rootView = configureRootView(toggleButton)
-        activity.setContentView(rootView)
-        lifecycleComponent = configLifeCycleComponent(){
-            doNothing().`when`(lifecycleService).handleScreenView(any<Activity>())
-            doNothing().`when`(lifecycleService).handleScreenLeave(any<Activity>())
-            doNothing().`when`(lifecycleService).handleFragmentVisibility(any<Fragment>())
-            doNothing().`when`(lifecycleService).handleFragmentAdd(any<Fragment>())
-            doNothing().`when`(lifecycleService).handleFragmentRemove(any<Fragment>())
+    fun `should fail installUpgrade`() =
+        runTest {
+            doThrow(RuntimeException("Simulated error during dispatchEvent"))
+                .`when`(eventPoolSrv).dispatchEvent(any<DispatchEventProps>(), anyString())
+
+            installUpgradeComponent.start()
+
+            verify(eventPoolSrv).dispatchEvent(any<DispatchEventProps>(), anyString())
+
+            testScheduler.advanceUntilIdle()
+
+            assertTrue(true)
         }
-        lifecycleComponent.onActivityResumed(activity)
-        Robolectric.flushForegroundThreadScheduler()
 
-        doThrow(RuntimeException("Simulated error during dispatchEvent"))
-            .`when`(eventPoolSrv).dispatchEvent(any<DispatchEventProps>(), anyString())
+    @Test
+    fun `should call for change event`() =
+        runTest {
+            toggleButton = ToggleButton(activity).apply { id = View.generateViewId() }
+            rootView = configureRootView(toggleButton)
+            activity.setContentView(rootView)
+            lifecycleComponent =
+                configLifeCycleComponent {
+                    doNothing().`when`(lifecycleService).handleScreenView(any<Activity>())
+                    doNothing().`when`(lifecycleService).handleScreenLeave(any<Activity>())
+                    doNothing().`when`(lifecycleService).handleFragmentVisibility(any<Fragment>())
+                    doNothing().`when`(lifecycleService).handleFragmentAdd(any<Fragment>())
+                    doNothing().`when`(lifecycleService).handleFragmentRemove(any<Fragment>())
+                }
+            lifecycleComponent.onActivityResumed(activity)
+            Robolectric.flushForegroundThreadScheduler()
 
-        toggleButton.isChecked = !toggleButton.isChecked
+            interceptHttpRequest()
 
-        verify(eventPoolSrv).dispatchEvent(any<DispatchEventProps>(), anyString())
+            toggleButton.isChecked = !toggleButton.isChecked
 
-        testScheduler.advanceUntilIdle()
+            verify(eventPoolSrv).dispatchEvent(any<DispatchEventProps>(), anyString())
 
-        assertTrue(true)
-    }
+            testScheduler.advanceUntilIdle()
+        }
 
+    @Test
+    fun `should fail on change event`() =
+        runTest {
+            toggleButton = ToggleButton(activity).apply { id = View.generateViewId() }
+            rootView = configureRootView(toggleButton)
+            activity.setContentView(rootView)
+            lifecycleComponent =
+                configLifeCycleComponent {
+                    doNothing().`when`(lifecycleService).handleScreenView(any<Activity>())
+                    doNothing().`when`(lifecycleService).handleScreenLeave(any<Activity>())
+                    doNothing().`when`(lifecycleService).handleFragmentVisibility(any<Fragment>())
+                    doNothing().`when`(lifecycleService).handleFragmentAdd(any<Fragment>())
+                    doNothing().`when`(lifecycleService).handleFragmentRemove(any<Fragment>())
+                }
+            lifecycleComponent.onActivityResumed(activity)
+            Robolectric.flushForegroundThreadScheduler()
+
+            doThrow(RuntimeException("Simulated error during dispatchEvent"))
+                .`when`(eventPoolSrv).dispatchEvent(any<DispatchEventProps>(), anyString())
+
+            toggleButton.isChecked = !toggleButton.isChecked
+
+            verify(eventPoolSrv).dispatchEvent(any<DispatchEventProps>(), anyString())
+
+            testScheduler.advanceUntilIdle()
+
+            assertTrue(true)
+        }
+
+    //    @Test
     @OptIn(ExperimentalCoroutinesApi::class)
-//    @Test
-    fun `should fail touch event`() = runTest {
-        imageView = ImageView(activity).apply {
-            id = View.generateViewId()
-            layoutParams = ViewGroup.LayoutParams(200, 200)
-            isFocusable = true
-            isClickable = true
+    fun `should fail touch event`() =
+        runTest {
+            imageView =
+                ImageView(activity).apply {
+                    id = View.generateViewId()
+                    layoutParams = ViewGroup.LayoutParams(200, 200)
+                    isFocusable = true
+                    isClickable = true
+                }
+            rootView = configureRootView(imageView)
+            activity.setContentView(rootView)
+            Robolectric.flushForegroundThreadScheduler()
+
+            doAnswer { invocation ->
+                val action = invocation.getArgument<() -> Unit>(3) // Get the action (4th argument)
+                action()
+                null
+            }.whenever(utils).debounce(any(), any(), anyOrNull(), any())
+
+            lifecycleComponent =
+                configLifeCycleComponent {
+                    doNothing().`when`(lifecycleService).handleScreenView(any<Activity>())
+                    doNothing().`when`(lifecycleService).handleScreenLeave(any<Activity>())
+                    doNothing().`when`(lifecycleService).handleFragmentVisibility(any<Fragment>())
+                    doNothing().`when`(lifecycleService).handleFragmentAdd(any<Fragment>())
+                    doNothing().`when`(lifecycleService).handleFragmentRemove(any<Fragment>())
+                    doNothing().`when`(lifecycleService).registerChangeEventListener(any<Activity>())
+                }
+            testScheduler.advanceUntilIdle()
+            lifecycleComponent.onActivityResumed(activity)
+            Robolectric.flushForegroundThreadScheduler()
+
+            doThrow(RuntimeException("Simulated error during dispatchEvent"))
+                .`when`(eventPoolSrv).dispatchEvent(any<DispatchEventProps>(), anyString())
+
+            val motionEventDown =
+                MotionEvent.obtain(
+                    System.currentTimeMillis(),
+                    System.currentTimeMillis(),
+                    MotionEvent.ACTION_DOWN,
+                    100f, // Coordinates within the ImageView
+                    100f,
+                    0,
+                )
+            activity.dispatchTouchEvent(motionEventDown)
+
+            val motionEventUp =
+                MotionEvent.obtain(
+                    System.currentTimeMillis(),
+                    System.currentTimeMillis(),
+                    MotionEvent.ACTION_UP,
+                    100f, // Coordinates within the ImageView
+                    100f,
+                    0,
+                )
+            activity.dispatchTouchEvent(motionEventUp)
+            advanceTimeBy(Constants.DEBOUNCE_DELAY)
+            Robolectric.flushForegroundThreadScheduler()
+
+            // Verify that dispatchEvent was called despite the simulated error
+            verify(eventPoolSrv).dispatchEvent(any<DispatchEventProps>(), anyString())
+
+            // Ensure all coroutines are completed
+            testScheduler.advanceUntilIdle()
+
+            // Assert the test doesn't crash
+            assertTrue(true)
         }
-        rootView = configureRootView(imageView)
-        activity.setContentView(rootView)
-        Robolectric.flushForegroundThreadScheduler()
 
-        doAnswer { invocation ->
-            val action = invocation.getArgument<() -> Unit>(3)  // Get the action (4th argument)
-            action()
-            null
-        }.whenever(utils).debounce(any(), any(), anyOrNull(), any())
-
-
-        lifecycleComponent = configLifeCycleComponent(){
-            doNothing().`when`(lifecycleService).handleScreenView(any<Activity>())
-            doNothing().`when`(lifecycleService).handleScreenLeave(any<Activity>())
-            doNothing().`when`(lifecycleService).handleFragmentVisibility(any<Fragment>())
-            doNothing().`when`(lifecycleService).handleFragmentAdd(any<Fragment>())
-            doNothing().`when`(lifecycleService).handleFragmentRemove(any<Fragment>())
-            doNothing().`when`(lifecycleService).registerChangeEventListener(any<Activity>())
-        }
-        testScheduler.advanceUntilIdle()
-        lifecycleComponent.onActivityResumed(activity)
-        Robolectric.flushForegroundThreadScheduler()
-
-        doThrow(RuntimeException("Simulated error during dispatchEvent"))
-            .`when`(eventPoolSrv).dispatchEvent(any<DispatchEventProps>(), anyString())
-
-        val motionEventDown = MotionEvent.obtain(
-            System.currentTimeMillis(),
-            System.currentTimeMillis(),
-            MotionEvent.ACTION_DOWN,
-            100f, // Coordinates within the ImageView
-            100f,
-            0
-        )
-        activity.dispatchTouchEvent(motionEventDown)
-
-        val motionEventUp = MotionEvent.obtain(
-            System.currentTimeMillis(),
-            System.currentTimeMillis(),
-            MotionEvent.ACTION_UP,
-            100f, // Coordinates within the ImageView
-            100f,
-            0
-        )
-        activity.dispatchTouchEvent(motionEventUp)
-        advanceTimeBy(Constants.DEBOUNCE_DELAY)
-        Robolectric.flushForegroundThreadScheduler()
-
-        // Verify that dispatchEvent was called despite the simulated error
-        verify(eventPoolSrv).dispatchEvent(any<DispatchEventProps>(), anyString())
-
-        // Ensure all coroutines are completed
-        testScheduler.advanceUntilIdle()
-
-        // Assert the test doesn't crash
-        assertTrue(true)
-
-    }
-
-    private fun configLifeCycleComponent(block: () -> Unit):LifecycleCallBacksComponent{
-        lifecycleService = spy(
-            LifecycleCallbackService(
-                screenTrackerService,
-                touchTrackerSrv,
-                changeTrackerService
+    private fun configLifeCycleComponent(block: () -> Unit): LifecycleCallBacksComponent  {
+        lifecycleService =
+            spy(
+                LifecycleCallbackService(
+                    screenTrackerService,
+                    touchTrackerSrv,
+                    changeTrackerService,
+                ),
             )
-        )
 
         block()
-
 
         lifecycleComponent = spy(LifecycleCallBacksComponent(lifecycleService))
 
@@ -381,20 +389,22 @@ class AutoCaptureUnitTest {
         return lifecycleComponent
     }
 
-    private fun configureRootView(view:View):ViewGroup{
-        val rootView = LinearLayout(activity).apply {
-            id = R.id.content
-            orientation = LinearLayout.VERTICAL
-        }
+    private fun configureRootView(view: View): ViewGroup  {
+        val rootView =
+            LinearLayout(activity).apply {
+                id = R.id.content
+                orientation = LinearLayout.VERTICAL
+            }
 
-        rootView.layoutParams = LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.WRAP_CONTENT,
-            LinearLayout.LayoutParams.WRAP_CONTENT
-        )
+        rootView.layoutParams =
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+            )
 
         rootView.measure(
             View.MeasureSpec.makeMeasureSpec(1080, View.MeasureSpec.EXACTLY),
-            View.MeasureSpec.makeMeasureSpec(1920, View.MeasureSpec.EXACTLY)
+            View.MeasureSpec.makeMeasureSpec(1920, View.MeasureSpec.EXACTLY),
         )
         rootView.layout(0, 0, rootView.measuredWidth, rootView.measuredHeight)
 
@@ -409,33 +419,31 @@ class AutoCaptureUnitTest {
         return rootView
     }
 
-    private fun interceptHttpRequest() = runBlocking {
-        doAnswer { invocation ->
-            try {
-                val url = invocation.getArgument<String>(0)
-                val jsonPayload = invocation.getArgument<JSONObject>(1)
+    private fun interceptHttpRequest() =
+        runBlocking {
+            doAnswer { invocation ->
+                try {
+                    val url = invocation.getArgument<String>(0)
+                    val jsonPayload = invocation.getArgument<JSONObject>(1)
 
-                println("URL: $url")
+                    println("URL: $url")
 
-                println("Captured HTTP request payload: $jsonPayload")
-                assertNotNull("Captured HTTP request payload:", jsonPayload)
-                val type = jsonPayload
-                    .getJSONArray("track")
-                    .getJSONObject(0)
-                    .getString("type")
+                    println("Captured HTTP request payload: $jsonPayload")
+                    assertNotNull("Captured HTTP request payload:", jsonPayload)
+                    val type =
+                        jsonPayload
+                            .getJSONArray("track")
+                            .getJSONObject(0)
+                            .getString("type")
 
+                    println("Captured HTTP request payload type: $type")
+                } catch (e: Exception) {
+                    fail("An exception was thrown during the post request: ${e.message}")
+                } finally {
+                    testScheduler.advanceUntilIdle()
+                }
 
-
-                println("Captured HTTP request payload type: $type")
-            } catch(e: Exception){
-                fail("An exception was thrown during the post request: ${e.message}")
-            } finally {
                 testScheduler.advanceUntilIdle()
-            }
-
-
-            testScheduler.advanceUntilIdle()
-        }.whenever(httpSrv).post(any(), any<JSONObject>(), any())
-    }
-
+            }.whenever(httpSrv).post(any(), any<JSONObject>(), any())
+        }
 }

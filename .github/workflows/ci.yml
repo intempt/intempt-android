@@ -77,6 +77,26 @@ jobs:
       - name: Lint
         run: ./gradlew :app:lintDebug --stacktrace
 
+      # 1,876 pre-existing violations are frozen in app/config/ktlint/baseline.xml, so this
+      # gates new Kotlin only. Reformatting the existing codebase would be a 200-file diff
+      # with no behavioural change; it can happen incrementally.
+      - name: ktlint
+        run: ./gradlew :app:ktlintCheck --stacktrace
+
+      # Uploaded for visibility, not gated. Robolectric's classloader discards JaCoCo
+      # instrumentation, so this under-reports badly until coverage moves to the
+      # instrumented suite. See the note in app/build.gradle.kts.
+      - name: Coverage report
+        run: ./gradlew :app:jacocoTestReport --stacktrace
+        continue-on-error: true
+
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: app/build/reports/jacoco/
+
       - name: Upload lint report
         if: always()
         uses: actions/upload-artifact@v4

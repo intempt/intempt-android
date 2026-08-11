@@ -7,6 +7,7 @@ import com.intempt.core.autocapture.sessionTracker.SessionTrackerComponent
 import com.intempt.core.services.ConfigManagerService
 import com.intempt.core.services.LoggerManagerService
 import com.intempt.core.services.StorageManagerService
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -15,35 +16,33 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-internal class AutoCaptureComponent @Inject constructor(
-    val logger: LoggerManagerService,
-    private val context: Context,
-    private val storage: StorageManagerService,
-    private val config: ConfigManagerService,
-    private val session: SessionTrackerComponent,
-    private val installUpgrade: InstallUpgradeTrackerComponent,
-    private val lifecycleCallBacks: LifecycleCallBacksComponent,
-): BaseComponent(logger) {
+internal class AutoCaptureComponent
+    @Inject
+    constructor(
+        val logger: LoggerManagerService,
+        private val context: Context,
+        private val storage: StorageManagerService,
+        private val config: ConfigManagerService,
+        private val session: SessionTrackerComponent,
+        private val installUpgrade: InstallUpgradeTrackerComponent,
+        private val lifecycleCallBacks: LifecycleCallBacksComponent,
+        private val dispatcher: CoroutineDispatcher = Dispatchers.IO,
+    ) : BaseComponent(logger) {
+        private val coroutineScope = CoroutineScope(SupervisorJob() + dispatcher)
 
-    private val coroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        fun start()  {
+            if (!config.isAutoCaptureEnabled) return
 
-    fun start(){
-        if(!config.isAutoCaptureEnabled) return
+            coroutineScope.launch {
+                storage.validateProfileId()
+                registerGlobalActivityLifecycleCallbacks()
+                session.start()
+                installUpgrade.start()
+            }
+        }
 
-        coroutineScope.launch {
-            storage.validateProfileId()
-            registerGlobalActivityLifecycleCallbacks();
-            session.start()
-            installUpgrade.start()
+        private fun registerGlobalActivityLifecycleCallbacks() {
+            val application = context.applicationContext as Application
+            application.registerActivityLifecycleCallbacks(lifecycleCallBacks)
         }
     }
-
-    private fun registerGlobalActivityLifecycleCallbacks() {
-        val application = context.applicationContext as Application;
-        application.registerActivityLifecycleCallbacks(lifecycleCallBacks)
-    }
-}
-
-
-
-

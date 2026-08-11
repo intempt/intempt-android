@@ -10,7 +10,6 @@ import com.intempt.core.types.DispatchEventProps
 import com.intempt.core.types.EventType
 import com.intempt.core.types.HandleEventTypeProps
 import com.intempt.core.types.IntemptEventProvider
-import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -19,10 +18,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
-import kotlinx.coroutines.future.future
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
 import org.json.JSONObject
@@ -33,174 +30,171 @@ import kotlin.reflect.full.declaredFunctions
 import kotlin.reflect.jvm.isAccessible
 
 @Singleton
-internal open class EventPoolManagerService @Inject constructor(
-    private val config: ConfigManagerService,
-    private val logger: LoggerManagerService,
-    private val http: HttpManagerService,
-    private val intemptEvent: IntemptEventManagerService,
-    private val delivery: DeliveryMessages,
-    private val dispatcher: CoroutineDispatcher = Dispatchers.IO
-): BaseComponent(logger){
+internal open class EventPoolManagerService
+    @Inject
+    constructor(
+        private val config: ConfigManagerService,
+        private val logger: LoggerManagerService,
+        private val http: HttpManagerService,
+        private val intemptEvent: IntemptEventManagerService,
+        private val delivery: DeliveryMessages,
+        private val dispatcher: CoroutineDispatcher = Dispatchers.IO,
+    ) : BaseComponent(logger) {
 
-    private val coroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        private val coroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    // Retained: sendConsentEvent still stamps this. Consent posts immediately and has
-    // never been queued, so it does not move to the durable queue.
-    private var lastDispatchTime: Long = System.currentTimeMillis();
+        // Retained: sendConsentEvent still stamps this. Consent posts immediately and has
+        // never been queued, so it does not move to the durable queue.
+        private var lastDispatchTime: Long = System.currentTimeMillis()
 
-    private val eventHandlers = EventHandlers(logger, intemptEvent);
-    private var eventReceiverJob: Job? = null
-    private val _eventReceiver = MutableSharedFlow<IntemptEvent>(replay = 10)
+        private val eventHandlers = EventHandlers(logger, intemptEvent)
+        private var eventReceiverJob: Job? = null
+        private val _eventReceiver = MutableSharedFlow<IntemptEvent>(replay = 10)
 
-    val eventReceiver: SharedFlow<IntemptEvent> = _eventReceiver;
+        val eventReceiver: SharedFlow<IntemptEvent> = _eventReceiver
 
-
-
-    init {
-        startEventCollection()
-    }
-
-    fun dispatchEvent(props: DispatchEventProps, serviceName: String) {
-        if (!config.isUserOptIn) return
-        val (eventName, entityName, event, type, context, view) = props
-        logger.log("$serviceName | Received Event: $eventName; Type:$type")
-
-        if (event != null) {
-            emitEvent(
-                IntemptEvent(
-                    name = eventName,
-                    type = entityName,
-                    payload = event
-                )
-            )
-            return
+        init {
+            startEventCollection()
         }
 
-        handleEventType(
-            HandleEventTypeProps(
-                type = type,
-                entityName = entityName,
-                context = context,
-                view = view
-            )
-        ).thenAccept { payload ->
-            if (payload.isNotEmpty()) {
-                logger.log("AutoCapture | Successfully called function '${props.type}' on EventTypeHandler.")
+        fun dispatchEvent(
+            props: DispatchEventProps,
+            serviceName: String,
+        ) {
+            if (!config.isUserOptIn) return
+            val (eventName, entityName, event, type, context, view) = props
+            logger.log("$serviceName | Received Event: $eventName; Type:$type")
+
+            if (event != null) {
                 emitEvent(
                     IntemptEvent(
                         name = eventName,
                         type = entityName,
-                        payload = payload
-                    )
+                        payload = event,
+                    ),
                 )
+                return
             }
-        }
-    }
 
-
-    fun emitEvent(event: IntemptEvent):Boolean {
-        val isEmitted = _eventReceiver.tryEmit(event)
-        logger.log("EventPool | Event is emitted: $isEmitted")
-        return isEmitted
-    }
-
-    fun subscribe(
-        job:Job,
-        callback: (value: IntemptEvent) -> Unit
-    ) {
-        try {
-            eventReceiverJob = CoroutineScope(dispatcher + job).launch {
-                eventReceiver.collect { value ->
-                    callback(value)
+            handleEventType(
+                HandleEventTypeProps(
+                    type = type,
+                    entityName = entityName,
+                    context = context,
+                    view = view,
+                ),
+            ).thenAccept { payload ->
+                if (payload.isNotEmpty()) {
+                    logger.log("AutoCapture | Successfully called function '${props.type}' on EventTypeHandler.")
+                    emitEvent(
+                        IntemptEvent(
+                            name = eventName,
+                            type = entityName,
+                            payload = payload,
+                        ),
+                    )
                 }
             }
         }
-        catch (e: Exception) {
-            logger.log("Error during collection: ${e.message}")
+
+        fun emitEvent(event: IntemptEvent): Boolean {
+            val isEmitted = _eventReceiver.tryEmit(event)
+            logger.log("EventPool | Event is emitted: $isEmitted")
+            return isEmitted
         }
-    }
 
+        fun subscribe(
+            job: Job,
+            callback: (value: IntemptEvent) -> Unit,
+        ) {
+            try {
+                eventReceiverJob =
+                    CoroutineScope(dispatcher + job).launch {
+                        eventReceiver.collect { value ->
+                            callback(value)
+                        }
+                    }
+            } catch (e: Exception) {
+                logger.log("Error during collection: ${e.message}")
+            }
+        }
 
-    suspend fun getFeedData(id:String, quantity:Int, fields:List<String>, productId:String?): JsonObject? {
-        val url = config.recommendationUrl(id);
-        val body = JSONObject(intemptEvent.generateRecommendationBody(quantity, fields, productId))
+        suspend fun getFeedData(
+            id: String,
+            quantity: Int,
+            fields: List<String>,
+            productId: String?,
+        ): JsonObject? {
+            val url = config.recommendationUrl(id)
+            val body = JSONObject(intemptEvent.generateRecommendationBody(quantity, fields, productId))
 
-        return http.post(url, body)?.bodyAsText().let {
+            return http.post(url, body)?.bodyAsText().let {
                 val jsonResponse = it?.let { it1 -> Json.parseToJsonElement(it1).jsonObject }
                 logger.log("POST | Response: $jsonResponse")
                 jsonResponse
-        }
-    }
-
-
-    private fun startEventCollection(){
-        logger.log("EventPoolManagerService | Started collecting events")
-        subscribe(Job()) { event ->
-            logger.log("IntemptCoreService | Received event of type: ${event.getEventType()}");
-
-            when(event.getEventType()){
-                EventType.Consent.value -> sendConsentEvent(event)
-                // Hands off and returns. delivery.enqueueEvent only posts a Message to
-                // the worker thread, so this collector never waits on disk or network.
-                //
-                // That matters more than it looks: _eventReceiver is a
-                // MutableSharedFlow(replay = 10) emitted via tryEmit, which returns false
-                // and drops the event when the buffer is full. There are two subscribers
-                // (here and SessionTracker), so a collector that blocked on I/O would
-                // cause silent drops upstream of the durable queue -- reintroducing the
-                // exact loss this work exists to eliminate. Keep this callback
-                // non-suspending and non-blocking.
-                else -> delivery.enqueueEvent(JSONObject(event.toFormated()))
             }
         }
-    }
 
-    private fun handleEventType(props: HandleEventTypeProps): CompletableFuture<Array<IntemptEventProvider>> {
-        logger.log("handleEventType | $props")
+        private fun startEventCollection()  {
+            logger.log("EventPoolManagerService | Started collecting events")
+            subscribe(Job()) { event ->
+                logger.log("IntemptCoreService | Received event of type: ${event.getEventType()}")
 
-        return try {
-            val handler = eventHandlers::class.declaredFunctions.find { it.name == props.type }
-
-            if (handler != null) {
-                handler.isAccessible = true
-
-                val result = handler.call(eventHandlers, props)
-                if (result is CompletableFuture<*>) {
-                    @Suppress("UNCHECKED_CAST")
-                    result as CompletableFuture<Array<IntemptEventProvider>>
-                } else {
-                    CompletableFuture.completedFuture(result as Array<IntemptEventProvider>)
+                when (event.getEventType()) {
+                    EventType.Consent.value -> sendConsentEvent(event)
+                    // Hands off and returns. delivery.enqueueEvent only posts a Message to
+                    // the worker thread, so this collector never waits on disk or network.
+                    //
+                    // That matters more than it looks: _eventReceiver is a
+                    // MutableSharedFlow(replay = 10) emitted via tryEmit, which returns false
+                    // and drops the event when the buffer is full. There are two subscribers
+                    // (here and SessionTracker), so a collector that blocked on I/O would
+                    // cause silent drops upstream of the durable queue -- reintroducing the
+                    // exact loss this work exists to eliminate. Keep this callback
+                    // non-suspending and non-blocking.
+                    else -> delivery.enqueueEvent(JSONObject(event.toFormated()))
                 }
-            } else {
-                logger.log("AutoCapture | Function '${props.type}' not found on EventTypeHandler.")
+            }
+        }
+
+        private fun handleEventType(props: HandleEventTypeProps): CompletableFuture<Array<IntemptEventProvider>> {
+            logger.log("handleEventType | $props")
+
+            return try {
+                val handler = eventHandlers::class.declaredFunctions.find { it.name == props.type }
+
+                if (handler != null) {
+                    handler.isAccessible = true
+
+                    val result = handler.call(eventHandlers, props)
+                    if (result is CompletableFuture<*>) {
+                        @Suppress("UNCHECKED_CAST")
+                        result as CompletableFuture<Array<IntemptEventProvider>>
+                    } else {
+                        CompletableFuture.completedFuture(result as Array<IntemptEventProvider>)
+                    }
+                } else {
+                    logger.log("AutoCapture | Function '${props.type}' not found on EventTypeHandler.")
+                    CompletableFuture.completedFuture(emptyArray())
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                logger.error("AutoCapture | Error invoking function '${props.type}' on EventTypeHandler: ${e.message}")
                 CompletableFuture.completedFuture(emptyArray())
             }
-        } catch (e: Exception) {
-            e.printStackTrace()
-            logger.error("AutoCapture | Error invoking function '${props.type}' on EventTypeHandler: ${e.message}")
-            CompletableFuture.completedFuture(emptyArray())
         }
-    }
 
+        private fun sendConsentEvent(event: IntemptEvent)  {
+            val requestBodyJson = JSONObject(event.payload.first().toFormated())
 
-    private fun sendConsentEvent(event: IntemptEvent){
-        val requestBodyJson = JSONObject(event.payload.first().toFormated())
-
-        coroutineScope.launch {
-            try {
-                http.post(config.consentUrl, requestBodyJson)
-                logger.log("Successfully sent events to server")
-                lastDispatchTime = System.currentTimeMillis()
-            }
-            catch (e: Exception) {
-                logger.error("sendConsentEvent | Exception occurred while sending events: ${e.message}")
+            coroutineScope.launch {
+                try {
+                    http.post(config.consentUrl, requestBodyJson)
+                    logger.log("Successfully sent events to server")
+                    lastDispatchTime = System.currentTimeMillis()
+                } catch (e: Exception) {
+                    logger.error("sendConsentEvent | Exception occurred while sending events: ${e.message}")
+                }
             }
         }
     }
-
-
-
-
-}
-
-

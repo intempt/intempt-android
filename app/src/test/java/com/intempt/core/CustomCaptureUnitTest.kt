@@ -17,6 +17,7 @@ import android.widget.TimePicker
 import android.widget.ToggleButton
 import com.intempt.core.customCapture.CustomCaptureComponent
 import com.intempt.core.customCapture.CustomCaptureService
+import com.intempt.core.queue.DeliveryMessages
 import com.intempt.core.services.ConfigManagerService
 import com.intempt.core.services.HttpManagerService
 import com.intempt.core.services.IntemptEventManagerService
@@ -25,7 +26,6 @@ import com.intempt.core.services.StorageManagerService
 import com.intempt.core.services.UtilsService
 import com.intempt.core.services.eventPool.EventPoolManagerService
 import com.intempt.core.types.StorageKeys
-import com.intempt.core.queue.DeliveryMessages
 import junit.framework.TestCase.assertEquals
 import junit.framework.TestCase.assertNotNull
 import junit.framework.TestCase.assertNull
@@ -65,11 +65,10 @@ import org.robolectric.annotation.Config
 import org.robolectric.shadows.ShadowLog
 import java.io.ByteArrayInputStream
 
-
 @RunWith(RobolectricTestRunner::class)
 @Config(
     sdk = [34],
-    manifest=Config.NONE
+    manifest = Config.NONE,
 )
 class CustomCaptureUnitTest {
     private lateinit var customCaptureSrv: CustomCaptureService
@@ -89,7 +88,8 @@ class CustomCaptureUnitTest {
 
     private val mockAssets: AssetManager = mock(AssetManager::class.java)
 
-    private val jsonConfig = """
+    private val jsonConfig =
+        """
         {
             "auth": {
                 "INTEMPT_API_KEY": "1c75007239cf420c929602f74b872906.95084d4f10804fc3b4820dfae579a0a7",
@@ -107,12 +107,10 @@ class CustomCaptureUnitTest {
                 "timeBuffer": 5000
             }
         }
-    """.trimIndent()
+        """.trimIndent()
     private val mockProfId = "prof_8fde9691-9040-4bbf-bae6-9ca5567f62d0"
     private val mockedSesId = "ses_test_id_123456"
     private val mockedPagId = "pag_test_id_123456"
-
-
 
     @OptIn(ExperimentalCoroutinesApi::class)
     @Before
@@ -120,7 +118,6 @@ class CustomCaptureUnitTest {
         MockitoAnnotations.openMocks(this)
         ShadowLog.stream = System.out
         ShadowLog.clear()
-
 
         context = spy(RuntimeEnvironment.getApplication())
 
@@ -144,7 +141,6 @@ class CustomCaptureUnitTest {
 
         `when`(mockSharedPreferences.edit()).thenReturn(mockEditor)
 
-
         config = spy(ConfigManagerService(context))
         logger = spy(LoggerManagerService(config))
         utils = spy(UtilsService(logger))
@@ -159,63 +155,64 @@ class CustomCaptureUnitTest {
         intemptEvent = spy(IntemptEventManagerService(context, storage, utils, config))
         testDispatcher = UnconfinedTestDispatcher(testScheduler)
 
-
         delivery = mock(DeliveryMessages::class.java)
 
-
-        eventPoolSrv = spy(
-            EventPoolManagerService(
-                config,
-                logger,
-                httpSrv,
-                intemptEvent,
-                delivery,
-                dispatcher = testDispatcher
+        eventPoolSrv =
+            spy(
+                EventPoolManagerService(
+                    config,
+                    logger,
+                    httpSrv,
+                    intemptEvent,
+                    delivery,
+                    dispatcher = testDispatcher,
+                ),
             )
-        )
 
-        component = CustomCaptureComponent(
-            customCaptureSrv,
-            config,
-            eventPoolSrv,
-            intemptEvent,
-            utils
-        )
-
+        component =
+            CustomCaptureComponent(
+                customCaptureSrv,
+                config,
+                eventPoolSrv,
+                intemptEvent,
+                utils,
+            )
 
         testScheduler.advanceUntilIdle()
     }
 
+    @Test
+    fun `should receive event of type identify`() =
+        runTest {
+            interceptTrackHttpRequest("identify")
+            component.identify(
+                "test_userID",
+                "test_eventTitle",
+                mapOf("test" to "test"),
+                mapOf("test" to "test"),
+            )
+        }
 
     @Test
-    fun `should receive event of type identify`() = runTest {
-        interceptTrackHttpRequest("identify")
-        component.identify(
-            "test_userID",
-            "test_eventTitle",
-            mapOf("test" to "test"),
-            mapOf("test" to "test")
-        )
-    }
+    fun `should receive event of type group`() =
+        runTest {
+            interceptTrackHttpRequest("group")
+            component.group(
+                "test_accountID",
+                "test_eventTitle",
+                mapOf("test" to "test"),
+            )
+        }
 
     @Test
-    fun `should receive event of type group`() = runTest {
-       interceptTrackHttpRequest("group")
-       component.group(
-            "test_accountID",
-            "test_eventTitle",
-            mapOf("test" to "test"),
-        )
-    }
-
-    @Test
-    fun `should receive event of type track`() = runTest {
-         interceptTrackHttpRequest("track")
-         component.track(
+    fun `should receive event of type track`() =
+        runTest {
+            interceptTrackHttpRequest("track")
+            component.track(
                 "test_TrackTitle",
-                mapOf("test" to "test")
-         )
-    }
+                mapOf("test" to "test"),
+            )
+        }
 
     @Test
     fun `should receive event of type record`() {
@@ -227,57 +224,59 @@ class CustomCaptureUnitTest {
     }
 
     @Test
-    fun `should receive event of type alias`()  {
+    fun `should receive event of type alias`() {
         interceptTrackHttpRequest("alias")
         component.alias(
             "test_userId",
-             "test_anotherUserId"
+            "test_anotherUserId",
         )
     }
 
     @Test
-    fun `should receive event of type consent`() = runTest {
-        interceptConsentHttpRequest()
+    fun `should receive event of type consent`() =
+        runTest {
+            interceptConsentHttpRequest()
 
-        component.consent(
-            "reject",
-            System.currentTimeMillis() + 100000000,
-            "test_email",
-            "test_message",
-            "Test",
-        )
-    }
-
-    @Test
-    fun `should receive event of type productAdd`() = runTest {
-        interceptConsentHttpRequest()
-
-        component.productAdd(
-            "prt1231231231_23",
-            1
-
-        )
-    }
+            component.consent(
+                "reject",
+                System.currentTimeMillis() + 100000000,
+                "test_email",
+                "test_message",
+                "Test",
+            )
+        }
 
     @Test
-    fun `should receive event of type productView`() = runTest {
-        interceptConsentHttpRequest()
+    fun `should receive event of type productAdd`() =
+        runTest {
+            interceptConsentHttpRequest()
 
-        component.productView("productView_id")
-    }
+            component.productAdd(
+                "prt1231231231_23",
+                1,
+            )
+        }
 
     @Test
-    fun `should receive event of type productOrdered`() = runTest {
-        interceptConsentHttpRequest()
+    fun `should receive event of type productView`() =
+        runTest {
+            interceptConsentHttpRequest()
 
-        component.productOrdered(
-           listOf(
-              mapOf( "productId" to "prt1231231231_23", "quantity" to 1),
-              mapOf( "productId" to "sdfgdfgdfg1234234", "quantity" to 45)
-           )
+            component.productView("productView_id")
+        }
 
-        )
-    }
+    @Test
+    fun `should receive event of type productOrdered`() =
+        runTest {
+            interceptConsentHttpRequest()
+
+            component.productOrdered(
+                listOf(
+                    mapOf("productId" to "prt1231231231_23", "quantity" to 1),
+                    mapOf("productId" to "sdfgdfgdfg1234234", "quantity" to 45),
+                ),
+            )
+        }
 
     @Test
     fun `should clear storage on logout`() {
@@ -293,7 +292,6 @@ class CustomCaptureUnitTest {
         val userPrefs = context.getSharedPreferences(StorageKeys.UserPrefs.key, Context.MODE_PRIVATE)
         userPrefs.edit().putString(StorageKeys.ProfileId.key, mockProfId).apply()
 
-
         component.logOut()
         testScheduler.advanceUntilIdle()
 
@@ -305,21 +303,21 @@ class CustomCaptureUnitTest {
     }
 
     @Test
-    fun `should add intemptDoNotCapture tag`(){
-
-        val viewsToTest = listOf(
-            EditText(context),
-            Spinner(context),
-            ToggleButton(context),
-            CheckBox(context),
-            RadioButton(context),
-            TextView(context),
-            SeekBar(context),
-            RatingBar(context),
-            TimePicker(context),
-            DatePicker(context),
-            ListView(context)
-        )
+    fun `should add intemptDoNotCapture tag`()  {
+        val viewsToTest =
+            listOf(
+                EditText(context),
+                Spinner(context),
+                ToggleButton(context),
+                CheckBox(context),
+                RadioButton(context),
+                TextView(context),
+                SeekBar(context),
+                RatingBar(context),
+                TimePicker(context),
+                DatePicker(context),
+                ListView(context),
+            )
 
         val unsupportedView = View(context)
 
@@ -337,8 +335,11 @@ class CustomCaptureUnitTest {
         verify(logger, atLeastOnce()).error(messageCaptor.capture())
 
         // Verify that the specific error message is present in the captured logs
-        assertTrue(messageCaptor.allValues.any { it.trim() == "Can't accept view of type ${unsupportedView.javaClass.name}. Supported types are: EditText, Spinner, ToggleButton, CheckBox, RadioButton, CompoundButton, TextView, SeekBar, RatingBar, TimePicker, DatePicker, ListView.".trim() })
-
+        assertTrue(
+            messageCaptor.allValues.any {
+                it.trim() == "Can't accept view of type ${unsupportedView.javaClass.name}. Supported types are: EditText, Spinner, ToggleButton, CheckBox, RadioButton, CompoundButton, TextView, SeekBar, RatingBar, TimePicker, DatePicker, ListView.".trim()
+            },
+        )
     }
 
     @Test
@@ -363,82 +364,83 @@ class CustomCaptureUnitTest {
 
     @Test
     fun `should change isUserOptIn value`() {
-       component.optIn()
+        component.optIn()
         assertTrue(config.isUserOptIn)
 
-       component.optOut()
+        component.optOut()
         assertTrue(!config.isUserOptIn)
     }
 
     @Test
     fun `should change isLoggingEnabled value`() {
-       component.enableLogging()
+        component.enableLogging()
         assertTrue(config.isLoggingEnabled)
 
-       component.disableLogging()
+        component.disableLogging()
         assertTrue(!config.isLoggingEnabled)
     }
 
 //    @Test
-    fun `should call recommendation API`() = runTest {
-        val id = "246";
-        val quantity = 3;
-        val fields = listOf("id","price")
-        val productId = "26701";
+    fun `should call recommendation API`() =
+        runTest {
+            val id = "246"
+            val quantity = 3
+            val fields = listOf("id", "price")
+            val productId = "26701"
 
-        val res = component.recommendation(
-            id = id,
-            quantity = quantity,
-            fields = fields,
-            productId = productId
-        )
+            val res =
+                component.recommendation(
+                    id = id,
+                    quantity = quantity,
+                    fields = fields,
+                    productId = productId,
+                )
 
-    assertNotNull(res)
-    }
+            assertNotNull(res)
+        }
 
+    private fun interceptTrackHttpRequest(expectedEventType: String) =
+        runBlocking {
+            doAnswer { invocation ->
+                try {
+                    val url = invocation.getArgument<String>(0)
+                    val jsonPayload = invocation.getArgument<JSONObject>(1)
 
-    private fun interceptTrackHttpRequest(expectedEventType: String) = runBlocking {
-        doAnswer { invocation ->
-            try {
-                val url = invocation.getArgument<String>(0)
-                val jsonPayload = invocation.getArgument<JSONObject>(1)
+                    println("URL: $url")
+                    println("Captured HTTP request payload: $jsonPayload")
+                    assertNotNull("Captured HTTP request payload:", jsonPayload)
+                    val type =
+                        jsonPayload
+                            .getJSONArray("track")
+                            .getJSONObject(0)
+                            .getString("type")
 
-                println("URL: $url")
-                println("Captured HTTP request payload: $jsonPayload")
-                assertNotNull("Captured HTTP request payload:", jsonPayload)
-                val type = jsonPayload
-                    .getJSONArray("track")
-                    .getJSONObject(0)
-                    .getString("type")
+                    assertEquals("Expected event type to be '$expectedEventType'", expectedEventType, type)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    fail("An exception was thrown during the post request: ${e.message}")
+                } finally {
+                    testScheduler.advanceUntilIdle()
+                }
+            }.whenever(httpSrv).post(any(), any<JSONObject>(), any())
+        }
 
-                assertEquals("Expected event type to be '$expectedEventType'", expectedEventType, type)
+    private fun interceptConsentHttpRequest() =
+        runBlocking {
+            doAnswer { invocation ->
+                try {
+                    val url = invocation.getArgument<String>(0)
+                    val jsonPayload = invocation.getArgument<JSONObject>(1)
 
-            } catch(e: Exception){
-                e.printStackTrace()
-                fail("An exception was thrown during the post request: ${e.message}")
-            } finally {
-                testScheduler.advanceUntilIdle()
-            }
-        }.whenever(httpSrv).post(any(), any<JSONObject>(), any())
-    }
-
-    private fun interceptConsentHttpRequest() = runBlocking {
-        doAnswer { invocation ->
-            try {
-                val url = invocation.getArgument<String>(0)
-                val jsonPayload = invocation.getArgument<JSONObject>(1)
-
-                println("URL: $url")
-                println("Captured HTTP request payload: $jsonPayload")
-                assertNotNull("Captured HTTP request payload:", jsonPayload)
-
-            } catch(e: Exception){
-                e.printStackTrace()
-                fail("An exception was thrown during the post request: ${e.message}")
-            } finally {
-                testScheduler.advanceUntilIdle()
-            }
-
-        }.whenever(httpSrv).post(any(), any<JSONObject>(), any())
-    }
+                    println("URL: $url")
+                    println("Captured HTTP request payload: $jsonPayload")
+                    assertNotNull("Captured HTTP request payload:", jsonPayload)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    fail("An exception was thrown during the post request: ${e.message}")
+                } finally {
+                    testScheduler.advanceUntilIdle()
+                }
+            }.whenever(httpSrv).post(any(), any<JSONObject>(), any())
+        }
 }

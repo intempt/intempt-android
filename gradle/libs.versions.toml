@@ -13,6 +13,7 @@ material = "1.12.0"
 runner = "1.6.2"
 vanniktech="0.28.0"
 nmcp="0.0.8"
+ktlint="12.1.1"
 dagger="2.52"
 lifecycleProcess="2.8.7"
 uiAndroid = "1.7.5"
@@ -76,3 +77,4 @@ kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-kapt = { id="kotlin-kapt"}
 vanniktech-deployer = { id="com.vanniktech.maven.publish", version.ref = "vanniktech"}
 gradleup-nmcp= {id="com.gradleup.nmcp", version.ref="nmcp"}
+ktlint = { id = "org.jlleitschuh.gradle.ktlint", version.ref = "ktlint" }
