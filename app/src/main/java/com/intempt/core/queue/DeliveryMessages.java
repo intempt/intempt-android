@@ -407,10 +407,21 @@ import org.json.JSONObject;
                     final String lastId = eventsData[0];
                     final String rawMessage = eventsData[1];
 
-                    // Intempt posts the batch as a raw JSON body. Mixpanel posted
-                    // data=base64(json) as application/x-www-form-urlencoded, which
-                    // our ingestion endpoint does not accept.
-                    final byte[] requestBody = rawMessage.getBytes(StandardCharsets.UTF_8);
+                    // Intempt posts the batch as a raw JSON body wrapped in its ingestion
+                    // envelope. Mixpanel posted data=base64(json) as
+                    // application/x-www-form-urlencoded, which our endpoint does not accept.
+                    final JSONObject envelope = TrackPayloadBuilder.build(rawMessage);
+                    if (envelope == null) {
+                        // Unparseable batch: drop it rather than retry forever. Same
+                        // reasoning as an unrecoverable 4xx — retaining it would block the
+                        // queue head and lose every event behind it too.
+                        QueueLog.e(LOGTAG, "Dropping unparseable batch so it cannot block the queue");
+                        dbAdapter.cleanupEvents(lastId, table);
+                        eventsData = dbAdapter.generateDataString(table);
+                        queueCount = eventsData != null ? Integer.valueOf(eventsData[2]) : 0;
+                        continue;
+                    }
+                    final byte[] requestBody = envelope.toString().getBytes(StandardCharsets.UTF_8);
 
                     boolean deleteEvents = true;
                     RemoteService.RequestResult result;
