@@ -130,35 +130,26 @@ class ModificationsUnitTest {
 
     @Test
     fun `should call experiment modification by name`() = runTest {
-        whenever(httpSrv.post(any(), any(), any())).thenReturn(mock(HttpResponse::class.java))
+        // Returns null rather than mock(HttpResponse): request() calls Ktor's
+        // bodyAsText() extension, which a bare mock cannot satisfy. The throw lands
+        // on a coroutine and surfaces as UncaughtExceptionsBeforeTest in whichever
+        // test runs next. `?.bodyAsText()` short-circuits on null, and these tests
+        // only verify that post() was called.
+        whenever(httpSrv.post(any(), any(), any())).thenReturn(null)
 
         modComponent.experimentHandler.getByName(listOf("test_experiment_name"))
 
         verify(httpSrv).post(eq(apiUrl), captor.capture(), any())
     }
 
-    // Quarantined, not deleted — this fails on main too. It was invisible until CI
-    // started running tests on pull requests, because publish.yml only fires on a v*
-    // tag. It is unrelated to the delivery-queue work: this file has no reference to
-    // com.intempt.core.queue.
-    //
-    // Symptom: kotlinx.coroutines.test.UncaughtExceptionsBeforeTest, which means an
-    // exception reached the TestScope's uncaught handler *before this test began* —
-    // so it leaked from the preceding test rather than originating here.
-    //
-    // Likely cause: mock(HttpResponse::class.java) is a bare Mockito mock, and
-    // ModificationsService.request() calls Ktor's bodyAsText() extension on it, which
-    // needs real internals (call, coroutineContext). The resulting throw escapes
-    // UtilsService.withTryCatchSuspend because that catches Exception rather than
-    // Throwable.
-    //
-    // Proper fix: build the response from a Ktor MockEngine-backed client instead of
-    // mocking HttpResponse directly. Tracked separately; @Ignore keeps it visible in
-    // test reports instead of silently commented out.
-    @org.junit.Ignore("Pre-existing failure, fails on main. Replace mock(HttpResponse) with a MockEngine-backed response.")
     @Test
     fun `should call experiment modification by group`() = runTest {
-        whenever(httpSrv.post(any(), any(), any())).thenReturn(mock(HttpResponse::class.java))
+        // Returns null rather than mock(HttpResponse): request() calls Ktor's
+        // bodyAsText() extension, which a bare mock cannot satisfy. The throw lands
+        // on a coroutine and surfaces as UncaughtExceptionsBeforeTest in whichever
+        // test runs next. `?.bodyAsText()` short-circuits on null, and these tests
+        // only verify that post() was called.
+        whenever(httpSrv.post(any(), any(), any())).thenReturn(null)
 
         modComponent.experimentHandler.getByGroup(listOf("test_experiment_name"))
 
@@ -168,7 +159,12 @@ class ModificationsUnitTest {
 
     @Test
     fun `should call personalization modification by name`() = runTest {
-        whenever(httpSrv.post(any(), any(), any())).thenReturn(mock(HttpResponse::class.java))
+        // Returns null rather than mock(HttpResponse): request() calls Ktor's
+        // bodyAsText() extension, which a bare mock cannot satisfy. The throw lands
+        // on a coroutine and surfaces as UncaughtExceptionsBeforeTest in whichever
+        // test runs next. `?.bodyAsText()` short-circuits on null, and these tests
+        // only verify that post() was called.
+        whenever(httpSrv.post(any(), any(), any())).thenReturn(null)
 
         modComponent.personalizationHandler.getByName(listOf("test_experiment_name"))
 
