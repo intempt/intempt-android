@@ -39,6 +39,10 @@ android {
         minSdk = 24
         buildConfigField("String", "sdkVersion", "\"${project.property("VERSION")}\"")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // In defaultConfig, not buildTypes.release: consumer rules must ship with the AAR
+        // regardless of which variant a host app builds against.
+        consumerProguardFiles("consumer-rules.pro")
     }
 
     buildTypes {
