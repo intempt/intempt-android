@@ -102,6 +102,13 @@ dependencies {
 // https://mvnrepository.com/artifact/androidx.lifecycle/lifecycle-runtime-ktx
     runtimeOnly("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
 
+    // Instrumented tests. These artifacts were already declared in the version catalog
+    // but never wired to a source set, because app/src/androidTest did not exist.
+    androidTestImplementation(libs.androidx.junit)
+    androidTestImplementation(libs.androidx.runner.test)
+    androidTestImplementation(libs.androidx.rules.test)
+    androidTestImplementation(libs.androidx.core.test)
+
     testImplementation(libs.junit)
     testImplementation(libs.mockito.core)
     testImplementation(libs.mockito.kotlin)
