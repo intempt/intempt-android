@@ -46,7 +46,7 @@ public class DeliveryMessages {
     private static final String DEFAULT_SERVER_HOST = "api.intempt.com";
 
 
-    /* package */ DeliveryMessages(final Context context, QueueConfig config) {
+    public DeliveryMessages(final Context context, QueueConfig config) {
         mContext = context;
         mConfig = config;
         mWorker = createWorker();
