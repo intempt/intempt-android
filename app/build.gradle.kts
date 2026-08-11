@@ -18,6 +18,23 @@ android {
 
     }
 
+    testOptions {
+        unitTests.all {
+            // One JVM per test class. Production code creates thirteen coroutine scopes on
+            // real dispatchers (Dispatchers.IO/Main) and only two of them are injectable,
+            // so background work routinely outlives the test that started it. Sharing a
+            // JVM meant such a coroutine's exception reached the global uncaught handler
+            // and kotlinx.coroutines.test reported it against whichever test happened to
+            // start next — in a different class. That made one leak look like a series of
+            // unrelated failures that moved after every fix.
+            //
+            // This contains attribution so a failure names the class responsible. It does
+            // not fix the leaks themselves; making those dispatchers injectable is a
+            // separate piece of work, tracked.
+            it.setForkEvery(1)
+        }
+    }
+
     defaultConfig {
         minSdk = 24
         buildConfigField("String", "sdkVersion", "\"${project.property("VERSION")}\"")

@@ -19,7 +19,9 @@ import com.intempt.core.queue.DeliveryMessages
 import junit.framework.TestCase.assertFalse
 import junit.framework.TestCase.assertTrue
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.TestCoroutineScheduler
 import kotlinx.coroutines.test.runTest
 import org.junit.Before
@@ -57,6 +59,7 @@ class SessionTrackerUnitTest {
     private lateinit var intemptEvent: IntemptEventManagerService
     private lateinit var utils: UtilsService
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     @Before
     fun setUp() {
         ShadowLog.stream = System.out
@@ -76,9 +79,12 @@ class SessionTrackerUnitTest {
         // flow collector on it, so leaving the default means a real Dispatchers.IO
         // coroutine outlives the test; anything it throws reaches the global uncaught
         // handler and is reported against whichever test runs next, in any class, since
-        // Gradle shares one JVM across the suite. This is the only one of five
-        // construction sites that was missing it — and the source of a failure that kept
-        // appearing to move between tests.
+        // Gradle shares one JVM across the suite. This was the only one of five
+        // construction sites missing it.
+        //
+        // Unconfined rather than Standard, matching the other four sites: Standard queues
+        // work until its scheduler is advanced, and nothing advances this one, so the
+        // collector would never run and "should collect events" would fail.
         eventPool = spy(
             EventPoolManagerService(
                 config,
@@ -86,7 +92,7 @@ class SessionTrackerUnitTest {
                 httpSrv,
                 intemptEvent,
                 mock(DeliveryMessages::class.java),
-                dispatcher = StandardTestDispatcher(TestCoroutineScheduler())
+                dispatcher = UnconfinedTestDispatcher(TestCoroutineScheduler())
             )
         )
 
