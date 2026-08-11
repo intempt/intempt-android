@@ -17,33 +17,28 @@ package com.intempt.core.queue;
 
 
 import android.content.Context;
-import android.os.Build;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.Looper;
 import android.os.Message;
 import android.os.Process;
-import android.util.DisplayMetrics;
 
-import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Iterator;
-import java.util.Map;
 import java.util.Set;
 import javax.net.ssl.SSLSocketFactory;
 import org.json.JSONException;
 import org.json.JSONObject;
 
 /**
- * Manage communication of events with the internal database and the Mixpanel servers.
+ * Manage communication of events with the internal database and the Intempt ingestion API.
  *
- * <p>This class straddles the thread boundary between user threads and a logical Mixpanel thread.
+ * <p>This class straddles the thread boundary between user threads and a logical delivery thread.
  */
 /* package */ class DeliveryMessages {
 
@@ -51,11 +46,9 @@ import org.json.JSONObject;
     private static final String DEFAULT_SERVER_HOST = "api.intempt.com";
 
 
-    /** Do not call directly. You should call DeliveryMessages.getInstance() */
     /* package */ DeliveryMessages(final Context context, QueueConfig config) {
         mContext = context;
         mConfig = config;
-        mInstanceName = config.getInstanceName();
         mWorker = createWorker();
         getPoster().checkIsServerBlocked();
     }
@@ -64,27 +57,6 @@ import org.json.JSONObject;
         return new Worker();
     }
 
-    /**
-     * Use this to get an instance of DeliveryMessages instead of creating one directly for yourself.
-     *
-     * @param messageContext should be the Main Activity of the application associated with these
-     *     messages.
-     * @param config The QueueConfig configuration settings for the DeliveryMessages instance.
-     */
-    public static DeliveryMessages getInstance(final Context messageContext, QueueConfig config) {
-        synchronized (sInstances) {
-            final Context appContext = messageContext.getApplicationContext();
-            DeliveryMessages ret;
-            String instanceName = config.getInstanceName();
-            if (!sInstances.containsKey(instanceName)) {
-                ret = new DeliveryMessages(appContext, config);
-                sInstances.put(instanceName, ret);
-            } else {
-                ret = sInstances.get(instanceName);
-            }
-            return ret;
-        }
-    }
 
     public void setNetworkErrorListener(NetworkErrorListener errorListener) {
         mNetworkErrorListener = errorListener;
@@ -100,13 +72,6 @@ import org.json.JSONObject;
         mWorker.runMessage(m);
     }
 
-    // Must be thread safe.
-
-    // Must be thread safe.
-
-    // Must be thread safe.
-
-    // Must be thread safe.
 
     public void postToServer(final QueueDescription flushDescription) {
         final Message m = Message.obtain();
@@ -126,8 +91,6 @@ import org.json.JSONObject;
     }
 
 
-
-
     public void hardKill() {
         final Message m = Message.obtain();
         m.what = KILL_WORKER;
@@ -143,7 +106,7 @@ import org.json.JSONObject;
     }
 
     protected EventDbAdapter makeDbAdapter(Context context) {
-        return EventDbAdapter.getInstance(context, mConfig);
+        return new EventDbAdapter(context, mConfig);
     }
 
     private volatile HttpService mHttpService;
@@ -231,8 +194,6 @@ import org.json.JSONObject;
         private final boolean mIsAutomatic;
         private final Set<String> mExcludeProperties;
     }
-
-
 
 
     static class QueueMessageDescription extends QueueDescription {
@@ -338,8 +299,6 @@ import org.json.JSONObject;
                     mDbAdapter = makeDbAdapter(mContext);
                     mDbAdapter.cleanupEvents(
                             System.currentTimeMillis() - mConfig.getDataExpiration(), EventDbAdapter.Table.EVENTS);
-                    mDbAdapter.cleanupEvents(
-                            System.currentTimeMillis() - mConfig.getDataExpiration(), EventDbAdapter.Table.PEOPLE);
                 }
 
                 try {
@@ -579,7 +538,6 @@ import org.json.JSONObject;
 
     // Used across thread boundaries
     private final Worker mWorker;
-    private final String mInstanceName;
     protected final Context mContext;
     protected final QueueConfig mConfig;
     protected NetworkErrorListener mNetworkErrorListener;
@@ -595,5 +553,4 @@ import org.json.JSONObject;
 
     private static final String LOGTAG = "Intempt.Messages";
 
-    private static final Map<String, DeliveryMessages> sInstances = new HashMap<>();
 }
