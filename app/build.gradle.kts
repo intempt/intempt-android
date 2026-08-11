@@ -57,6 +57,26 @@ android {
     kotlinOptions {
         jvmTarget = "1.8"
     }
+
+    testOptions {
+        unitTests.all {
+            // A JVM per test class. This is containment, not a fix.
+            //
+            // Production code still starts coroutines on hardcoded dispatchers in scopes
+            // that outlive the test that triggered them. When such a coroutine throws after
+            // its test has finished, the exception reaches the global handler, and
+            // kotlinx.coroutines.test reports it against whichever test starts next —
+            // in whichever class. So a single leak presents as an unrelated failure, and
+            // "fixing" the named test does nothing but move the failure elsewhere.
+            //
+            // Removing this was tried on the strength of one clean local run and CI
+            // disagreed: ModificationsUnitTest failed with UncaughtExceptionsBeforeTest,
+            // a class whose own dispatcher is injected and which therefore cannot be the
+            // source. Slower hardware changes the timing enough to surface leaks that a
+            // fast local machine hides, so this stays until every scope is injectable.
+            it.forkEvery = 1
+        }
+    }
 }
 
 dependencies {
@@ -180,7 +200,8 @@ tasks.register<JacocoReport>("jacocoTestReport") {
             "**/Manifest*.*",
             "**/*_Factory*.*",
             "**/*_MembersInjector*.*",
-            "**/Dagger*.*", // Dagger-generated
+            // Dagger-generated
+            "**/Dagger*.*",
         )
     classDirectories.setFrom(
         files(
