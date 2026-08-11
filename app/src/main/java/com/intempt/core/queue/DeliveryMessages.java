@@ -26,6 +26,7 @@ import android.os.Process;
 import android.util.DisplayMetrics;
 
 import java.io.File;
+import java.nio.charset.StandardCharsets;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.net.MalformedURLException;
@@ -46,22 +47,9 @@ import org.json.JSONObject;
  */
 /* package */ class DeliveryMessages {
 
-    /**
-     * Removes any property whose key appears in {@code excludeProperties} from {@code target},
-     * skipping keys in {@link MixpanelOptions#RESERVED_PROPERTY_KEYS} that ingestion or identity
-     * require. Package-private + static so it can be unit-tested directly.
-     */
-    /* package */ static void applyExcludeProperties(JSONObject target, Set<String> excludeProperties) {
-        if (target == null || excludeProperties == null || excludeProperties.isEmpty()) {
-            return;
-        }
-        for (final String key : excludeProperties) {
-            if (MixpanelOptions.RESERVED_PROPERTY_KEYS.contains(key)) {
-                continue;
-            }
-            target.remove(key);
-        }
-    }
+    // Replaces Mixpanel's MPConstants.URL.DEFAULT_SERVER_HOST, not inherited.
+    private static final String DEFAULT_SERVER_HOST = "api.intempt.com";
+
 
     /** Do not call directly. You should call DeliveryMessages.getInstance() */
     /* package */ DeliveryMessages(final Context context, QueueConfig config) {
@@ -113,42 +101,12 @@ import org.json.JSONObject;
     }
 
     // Must be thread safe.
-    public void peopleMessage(final PeopleDescription peopleDescription) {
-        final Message m = Message.obtain();
-        m.what = ENQUEUE_PEOPLE;
-        m.obj = peopleDescription;
-
-        mWorker.runMessage(m);
-    }
 
     // Must be thread safe.
-    public void groupMessage(final GroupDescription groupDescription) {
-        final Message m = Message.obtain();
-        m.what = ENQUEUE_GROUP;
-        m.obj = groupDescription;
-
-        mWorker.runMessage(m);
-    }
 
     // Must be thread safe.
-    public void pushAnonymousPeopleMessage(
-            final PushAnonymousPeopleDescription pushAnonymousPeopleDescription) {
-        final Message m = Message.obtain();
-        m.what = PUSH_ANONYMOUS_PEOPLE_RECORDS;
-        m.obj = pushAnonymousPeopleDescription;
-
-        mWorker.runMessage(m);
-    }
 
     // Must be thread safe.
-    public void clearAnonymousUpdatesMessage(
-            final QueueDescription clearAnonymousUpdatesDescription) {
-        final Message m = Message.obtain();
-        m.what = CLEAR_ANONYMOUS_UPDATES;
-        m.obj = clearAnonymousUpdatesDescription;
-
-        mWorker.runMessage(m);
-    }
 
     public void postToServer(final QueueDescription flushDescription) {
         final Message m = Message.obtain();
@@ -167,31 +125,8 @@ import org.json.JSONObject;
         mWorker.runMessage(m);
     }
 
-    public void updateEventProperties(
-            final UpdateEventsPropertiesDescription updateEventsProperties) {
-        final Message m = Message.obtain();
-        m.what = REWRITE_EVENT_PROPERTIES;
-        m.obj = updateEventsProperties;
 
-        mWorker.runMessage(m);
-    }
 
-    public void removeResidualImageFiles(File fileOrDirectory) {
-        final Message m = Message.obtain();
-        m.what = REMOVE_RESIDUAL_IMAGE_FILES;
-        m.obj = fileOrDirectory;
-        mWorker.runMessage(m);
-    }
-
-    /**
-     * If first launch, track FIRST_OPEN event and set hasLaunched flag
-     */
-    public void checkFirstLaunchMessage(final FirstLaunchDescription firstLaunchDescription) {
-        final Message m = Message.obtain();
-        m.what = CHECK_FIRST_LAUNCH;
-        m.obj = firstLaunchDescription;
-        mWorker.runMessage(m);
-    }
 
     public void hardKill() {
         final Message m = Message.obtain();
@@ -232,7 +167,7 @@ import org.json.JSONObject;
 
     /**
      * Extracts the host from a URL string.
-     * Falls back to the default Mixpanel API host if extraction fails.
+     * Falls back to the default Intempt API host if extraction fails.
      */
     private String extractHostFromUrl(String urlString) {
         try {
@@ -297,49 +232,8 @@ import org.json.JSONObject;
         private final Set<String> mExcludeProperties;
     }
 
-    static class PeopleDescription extends QueueMessageDescription {
-        public PeopleDescription(JSONObject message, String token) {
-            super(token, message);
-        }
 
-        @Override
-        public String toString() {
-            return getMessage().toString();
-        }
 
-        public boolean isAnonymous() {
-            return !getMessage().has("$distinct_id");
-        }
-    }
-
-    static class GroupDescription extends QueueMessageDescription {
-        public GroupDescription(JSONObject message, String token) {
-            super(token, message);
-        }
-
-        @Override
-        public String toString() {
-            return getMessage().toString();
-        }
-    }
-
-    static class PushAnonymousPeopleDescription extends QueueDescription {
-        public PushAnonymousPeopleDescription(String distinctId, String token) {
-            super(token);
-            this.mDistinctId = distinctId;
-        }
-
-        @Override
-        public String toString() {
-            return this.mDistinctId;
-        }
-
-        public String getDistinctId() {
-            return this.mDistinctId;
-        }
-
-        private final String mDistinctId;
-    }
 
     static class QueueMessageDescription extends QueueDescription {
         public QueueMessageDescription(String token, JSONObject message) {
@@ -372,18 +266,6 @@ import org.json.JSONObject;
         private final JSONObject mMessage;
     }
 
-    static class UpdateEventsPropertiesDescription extends QueueDescription {
-        private final Map<String, String> mProps;
-
-        public UpdateEventsPropertiesDescription(String token, Map<String, String> props) {
-            super(token);
-            mProps = props;
-        }
-
-        public Map<String, String> getProperties() {
-            return mProps;
-        }
-    }
 
     static class QueueDescription {
         public QueueDescription(String token) {
@@ -397,34 +279,6 @@ import org.json.JSONObject;
         private final String mToken;
     }
 
-    static class FirstLaunchDescription extends QueueDescription {
-        public FirstLaunchDescription(
-                String token,
-                EventDescription firstOpenEvent,
-                PersistentIdentity persistentIdentity,
-                FirstTimeEventListener firstTimeEventListener) {
-            super(token);
-            mFirstOpenEvent = firstOpenEvent;
-            mPersistentIdentity = persistentIdentity;
-            mFirstTimeEventListener = firstTimeEventListener;
-        }
-
-        public EventDescription getFirstOpenEvent() {
-            return mFirstOpenEvent;
-        }
-
-        public PersistentIdentity getPersistentIdentity() {
-            return mPersistentIdentity;
-        }
-
-        public FirstTimeEventListener getFirstTimeEventListener() {
-            return mFirstTimeEventListener;
-        }
-
-        private final EventDescription mFirstOpenEvent;
-        private final PersistentIdentity mPersistentIdentity;
-        private final FirstTimeEventListener mFirstTimeEventListener;
-    }
 
     // Sends a message if and only if queue logging is enabled.
     // Will be called from the delivery worker thread.
@@ -475,7 +329,6 @@ import org.json.JSONObject;
             public AnalyticsMessageHandler(Looper looper) {
                 super(looper);
                 mDbAdapter = null;
-                mSystemInformation = SystemInformation.getInstance(mContext);
                 mFlushInterval = mConfig.getFlushInterval();
             }
 
@@ -493,51 +346,14 @@ import org.json.JSONObject;
                     int returnCode = EventDbAdapter.DB_UNDEFINED_CODE;
                     String token = null;
 
-                    if (msg.what == ENQUEUE_PEOPLE) {
-                        final PeopleDescription message = (PeopleDescription) msg.obj;
-                        final EventDbAdapter.Table peopleTable =
-                                message.isAnonymous()
-                                        ? EventDbAdapter.Table.ANONYMOUS_PEOPLE
-                                        : EventDbAdapter.Table.PEOPLE;
-
-                        logAboutMessage("Queuing people record for sending later");
-                        logAboutMessage("    " + message.toString());
-                        token = message.getToken();
-                        int numRowsTable = mDbAdapter.addJSON(message.getMessage(), token, peopleTable);
-                        returnCode = message.isAnonymous() ? 0 : numRowsTable;
-                    } else if (msg.what == ENQUEUE_GROUP) {
-                        final GroupDescription message = (GroupDescription) msg.obj;
-
-                        logAboutMessage("Queuing group record for sending later");
-                        logAboutMessage("    " + message.toString());
-                        token = message.getToken();
-                        returnCode = mDbAdapter.addJSON(message.getMessage(), token, EventDbAdapter.Table.GROUPS);
-                    } else if (msg.what == ENQUEUE_EVENTS) {
+                    if (msg.what == ENQUEUE_EVENTS) {
                         final EventDescription eventDescription = (EventDescription) msg.obj;
                         try {
                             token = eventDescription.getToken();
                             returnCode = insertEventToDb(eventDescription);
-                            notifyEventBridgeListeners(eventDescription);
                         } catch (final JSONException e) {
                             QueueLog.e(LOGTAG, "Exception tracking event " + eventDescription.getEventName(), e);
                         }
-                    } else if (msg.what == PUSH_ANONYMOUS_PEOPLE_RECORDS) {
-                        final PushAnonymousPeopleDescription pushAnonymousPeopleDescription =
-                                (PushAnonymousPeopleDescription) msg.obj;
-                        final String distinctId = pushAnonymousPeopleDescription.getDistinctId();
-                        token = pushAnonymousPeopleDescription.getToken();
-                        returnCode = mDbAdapter.pushAnonymousUpdatesToPeopleDb(token, distinctId);
-                    } else if (msg.what == CLEAR_ANONYMOUS_UPDATES) {
-                        final QueueDescription queueDescription = (QueueDescription) msg.obj;
-                        token = queueDescription.getToken();
-                        mDbAdapter.cleanupAllEvents(EventDbAdapter.Table.ANONYMOUS_PEOPLE, token);
-                    } else if (msg.what == REWRITE_EVENT_PROPERTIES) {
-                        final UpdateEventsPropertiesDescription description =
-                                (UpdateEventsPropertiesDescription) msg.obj;
-                        int updatedEvents =
-                                mDbAdapter.rewriteEventDataWithProperties(
-                                        description.getProperties(), description.getToken());
-                        QueueLog.d(LOGTAG, updatedEvents + " stored events were updated with new properties.");
                     } else if (msg.what == FLUSH_QUEUE) {
                         logAboutMessage("Flushing queue due to scheduled or forced flush");
                         updateFlushFrequency();
@@ -546,10 +362,7 @@ import org.json.JSONObject;
                     } else if (msg.what == EMPTY_QUEUES) {
                         final QueueDescription message = (QueueDescription) msg.obj;
                         token = message.getToken();
-                        mDbAdapter.cleanupAllEvents(EventDbAdapter.Table.EVENTS, token);
-                        mDbAdapter.cleanupAllEvents(EventDbAdapter.Table.PEOPLE, token);
-                        mDbAdapter.cleanupAllEvents(EventDbAdapter.Table.GROUPS, token);
-                        mDbAdapter.cleanupAllEvents(EventDbAdapter.Table.ANONYMOUS_PEOPLE, token);
+                        mDbAdapter.cleanupAllEvents(EventDbAdapter.Table.EVENTS);
                     } else if (msg.what == KILL_WORKER) {
                         QueueLog.w(
                                 LOGTAG,
@@ -559,32 +372,6 @@ import org.json.JSONObject;
                             mDbAdapter.deleteDB();
                             mHandler = null;
                             Looper.myLooper().quit();
-                        }
-                    } else if (msg.what == REMOVE_RESIDUAL_IMAGE_FILES) {
-                        final File file = (File) msg.obj;
-                        LegacyVersionUtils.removeLegacyResidualImageFiles(file);
-                    } else if (msg.what == CHECK_FIRST_LAUNCH) {
-                        final FirstLaunchDescription desc = (FirstLaunchDescription) msg.obj;
-                        final EventDescription openEvent = desc.getFirstOpenEvent();
-
-                        token = desc.getToken();
-                        final PersistentIdentity persistentIdentity = desc.getPersistentIdentity();
-                        boolean dbExistedBeforeInit = !mDbAdapter.isNewDatabase();
-                        if (persistentIdentity.isFirstLaunch(dbExistedBeforeInit, token)) {
-                            try {
-                                returnCode = insertEventToDb(openEvent);
-                                // Check first-time event targeting for the FIRST_OPEN event
-                                FirstTimeEventListener listener = desc.getFirstTimeEventListener();
-                                if (listener != null) {
-                                    listener.onEventTracked(
-                                            openEvent.getEventName(),
-                                            openEvent.getProperties());
-                                }
-                                notifyEventBridgeListeners(openEvent);
-                            } catch (final JSONException e) {
-                                QueueLog.e(LOGTAG, "Exception tracking event " + openEvent.getEventName(), e);
-                            }
-                            persistentIdentity.setHasLaunched(token);
                         }
                     } else {
                         QueueLog.e(LOGTAG, "Unexpected message received by delivery worker: " + msg);
@@ -646,14 +433,12 @@ import org.json.JSONObject;
                 }
 
                 sendData(dbAdapter, token, EventDbAdapter.Table.EVENTS, mConfig.getEventsEndpoint());
-                sendData(dbAdapter, token, EventDbAdapter.Table.PEOPLE, mConfig.getPeopleEndpoint());
-                sendData(dbAdapter, token, EventDbAdapter.Table.GROUPS, mConfig.getGroupsEndpoint());
             }
 
             private void sendData(
                     EventDbAdapter dbAdapter, String token, EventDbAdapter.Table table, String url) {
                 final RemoteService poster = getPoster();
-                String[] eventsData = dbAdapter.generateDataString(table, token);
+                String[] eventsData = dbAdapter.generateDataString(table);
                 Integer queueCount = 0;
                 if (eventsData != null) {
                     queueCount = Integer.valueOf(eventsData[2]);
@@ -663,12 +448,10 @@ import org.json.JSONObject;
                     final String lastId = eventsData[0];
                     final String rawMessage = eventsData[1];
 
-                    final String encodedData = Base64Coder.encodeString(rawMessage);
-                    final Map<String, Object> params = new HashMap<String, Object>();
-                    params.put("data", encodedData);
-                    if (QueueConfig.DEBUG) {
-                        params.put("verbose", "1");
-                    }
+                    // Intempt posts the batch as a raw JSON body. Mixpanel posted
+                    // data=base64(json) as application/x-www-form-urlencoded, which
+                    // our ingestion endpoint does not accept.
+                    final byte[] requestBody = rawMessage.getBytes(StandardCharsets.UTF_8);
 
                     boolean deleteEvents = true;
                     RemoteService.RequestResult result;
@@ -676,7 +459,7 @@ import org.json.JSONObject;
                         final SSLSocketFactory socketFactory = mConfig.getSSLSocketFactory();
                         result =
                                 poster.performRequest(
-                                        url, mConfig.getProxyServerInteractor(), params, null, null, socketFactory);
+                                        url, mConfig.getProxyServerInteractor(), null, null, requestBody, socketFactory);
                         byte[] response = result.getResponse();
                         String actualUrl = result.getRequestUrl(); // Get the actual URL that succeeded
 
@@ -717,7 +500,7 @@ import org.json.JSONObject;
 
                     if (deleteEvents) {
                         logAboutMessage("Not retrying this batch of events, deleting them from DB.");
-                        dbAdapter.cleanupEvents(lastId, table, token);
+                        dbAdapter.cleanupEvents(lastId, table);
                     } else {
                         removeMessages(FLUSH_QUEUE, token);
                         mTrackEngageRetryAfter =
@@ -734,99 +517,29 @@ import org.json.JSONObject;
                         break;
                     }
 
-                    eventsData = dbAdapter.generateDataString(table, token);
+                    eventsData = dbAdapter.generateDataString(table);
                     if (eventsData != null) {
                         queueCount = Integer.valueOf(eventsData[2]);
                     }
                 }
             }
 
-            private JSONObject getDefaultEventProperties() throws JSONException {
-                final JSONObject ret = new JSONObject();
 
-                ret.put("mp_lib", "android");
-                ret.put("$lib_version", QueueConfig.VERSION);
-
-                // For querying together with data from other libraries
-                ret.put("$os", "Android");
-                ret.put("$os_version", Build.VERSION.RELEASE == null ? "UNKNOWN" : Build.VERSION.RELEASE);
-
-                ret.put("$manufacturer", Build.MANUFACTURER == null ? "UNKNOWN" : Build.MANUFACTURER);
-                ret.put("$brand", Build.BRAND == null ? "UNKNOWN" : Build.BRAND);
-                ret.put("$model", Build.MODEL == null ? "UNKNOWN" : Build.MODEL);
-
-                final DisplayMetrics displayMetrics = mSystemInformation.getDisplayMetrics();
-                ret.put("$screen_dpi", displayMetrics.densityDpi);
-                ret.put("$screen_height", displayMetrics.heightPixels);
-                ret.put("$screen_width", displayMetrics.widthPixels);
-
-                final String applicationVersionName = mSystemInformation.getAppVersionName();
-                if (null != applicationVersionName) {
-                    ret.put("$app_version", applicationVersionName);
-                    ret.put("$app_version_string", applicationVersionName);
-                }
-
-                final Integer applicationVersionCode = mSystemInformation.getAppVersionCode();
-                if (null != applicationVersionCode) {
-                    final String applicationVersion = String.valueOf(applicationVersionCode);
-                    ret.put("$app_release", applicationVersion);
-                    ret.put("$app_build_number", applicationVersion);
-                }
-
-                final Boolean hasNFC = mSystemInformation.hasNFC();
-                if (null != hasNFC) ret.put("$has_nfc", hasNFC.booleanValue());
-
-                final Boolean hasTelephony = mSystemInformation.hasTelephony();
-                if (null != hasTelephony) ret.put("$has_telephone", hasTelephony.booleanValue());
-
-                final String carrier = mSystemInformation.getCurrentNetworkOperator();
-                if (null != carrier && !carrier.trim().isEmpty()) ret.put("$carrier", carrier);
-
-                final Boolean isWifi = mSystemInformation.isWifiConnected();
-                if (null != isWifi) ret.put("$wifi", isWifi.booleanValue());
-
-                final Boolean isBluetoothEnabled = mSystemInformation.isBluetoothEnabled();
-                if (isBluetoothEnabled != null) ret.put("$bluetooth_enabled", isBluetoothEnabled);
-
-                final String bluetoothVersion = mSystemInformation.getBluetoothVersion();
-                if (bluetoothVersion != null) ret.put("$bluetooth_version", bluetoothVersion);
-
-                return ret;
-            }
-
-            private JSONObject prepareEventObject(EventDescription eventDescription)
-                    throws JSONException {
-                final JSONObject eventObj = new JSONObject();
-                final JSONObject eventProperties = eventDescription.getProperties();
-                final JSONObject sendProperties = getDefaultEventProperties();
-                sendProperties.put("token", eventDescription.getToken());
-                if (eventProperties != null) {
-                    for (final Iterator<?> iter = eventProperties.keys(); iter.hasNext(); ) {
-                        final String key = (String) iter.next();
-                        sendProperties.put(key, eventProperties.get(key));
-                    }
-                }
-                applyExcludeProperties(sendProperties, eventDescription.getExcludeProperties());
-                eventObj.put("event", eventDescription.getEventName());
-                eventObj.put("properties", sendProperties);
-                eventObj.put("$mp_metadata", eventDescription.getSessionMetadata());
-                return eventObj;
-            }
-
+            /**
+             * Stores the event exactly as the SDK produced it.
+             *
+             * <p>Mixpanel wrapped every event in its own envelope here
+             * ({@code {event, properties, $mp_metadata}}) and decorated it with
+             * device properties. Intempt's wire format is different — the Kotlin
+             * layer has already built the correct per-event payload — so the queue
+             * is a verbatim durable pipe and {@code TrackPayloadBuilder} assembles
+             * the {@code {"track":[{name,payload:[]}]}} request body at flush time.
+             */
             private int insertEventToDb(EventDescription eventDescription) throws JSONException {
-                final JSONObject message = prepareEventObject(eventDescription);
+                final JSONObject message = eventDescription.getProperties();
                 logAboutMessage("Queuing event for sending later");
                 logAboutMessage("    " + message);
-                return mDbAdapter.addJSON(message, eventDescription.getToken(), EventDbAdapter.Table.EVENTS);
-            }
-
-            private void notifyEventBridgeListeners(EventDescription eventDescription) {
-                try {
-                    JSONObject properties = prepareEventObject(eventDescription).getJSONObject("properties");
-                    MixpanelEventBridge.notifyListeners(eventDescription.getEventName(), properties);
-                } catch (JSONException e) {
-                    QueueLog.e(LOGTAG, "Exception notifying event bridge listeners", e);
-                }
+                return mDbAdapter.addJSON(message, EventDbAdapter.Table.EVENTS);
             }
 
             private EventDbAdapter mDbAdapter;
@@ -857,7 +570,6 @@ import org.json.JSONObject;
         private long mFlushCount = 0;
         private long mAveFlushFrequency = 0;
         private long mLastFlushTime = -1;
-        private SystemInformation mSystemInformation;
     }
 
     public long getTrackEngageRetryAfter() {
@@ -874,24 +586,13 @@ import org.json.JSONObject;
     protected NetworkErrorListener mNetworkErrorListener;
 
     // Messages for our thread
-    private static final int ENQUEUE_PEOPLE = 0; // push given JSON message to people DB
     private static final int ENQUEUE_EVENTS = 1; // push given JSON message to events DB
     private static final int FLUSH_QUEUE = 2; // submit events, people, and groups data
-    private static final int ENQUEUE_GROUP = 3; // push given JSON message to groups DB
-    private static final int PUSH_ANONYMOUS_PEOPLE_RECORDS =
-            4; // push anonymous people DB updates to people DB
     private static final int KILL_WORKER =
             5; // Hard-kill the worker thread, discarding all events on the event queue. This is for
     // testing, or disasters.
     private static final int EMPTY_QUEUES =
             6; // Remove any local (and pending to be flushed) events or people/group updates from the db
-    private static final int CLEAR_ANONYMOUS_UPDATES = 7; // Remove anonymous people updates from DB
-    private static final int REWRITE_EVENT_PROPERTIES =
-            8; // Update or add properties to existing queued events
-    private static final int REMOVE_RESIDUAL_IMAGE_FILES =
-            9; // Remove residual image files left from the legacy SDK versions
-    private static final int CHECK_FIRST_LAUNCH =
-            10; // If first launch, track FIRST_OPEN event and set hasLaunched flag
 
     private static final String LOGTAG = "Intempt.Messages";
 

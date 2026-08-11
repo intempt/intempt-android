@@ -49,6 +49,11 @@ import javax.net.ssl.SSLSocketFactory;
 /** An HTTP utility class for internal use in the Mixpanel library. Not thread-safe. */
 public class HttpService implements RemoteService {
 
+    // Replaces Mixpanel's MPConstants.URL.DEFAULT_SERVER_HOST / MIXPANEL_API,
+    // which were not inherited.
+    private static final String DEFAULT_SERVER_HOST = "api.intempt.com";
+    private static final String INTEMPT_API = "api.intempt.com";
+
     private final boolean shouldGzipRequestPayload;
     private NetworkErrorListener networkErrorListener;
     private String mBackupHost;
@@ -686,7 +691,7 @@ public class HttpService implements RemoteService {
     }
 
     private static boolean isProxyRequest(String endpointUrl) {
-        return !endpointUrl.toLowerCase().contains(MIXPANEL_API.toLowerCase());
+        return !endpointUrl.toLowerCase().contains(INTEMPT_API.toLowerCase());
     }
 
     private static byte[] slurp(final InputStream inputStream) throws IOException {
