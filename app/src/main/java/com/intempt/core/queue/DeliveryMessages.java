@@ -481,8 +481,7 @@ import org.json.JSONObject;
                                 removeMessages(FLUSH_QUEUE, token);
                             }
 
-                            logAboutMessage("Successfully posted to " + actualUrl + ": 
-" + rawMessage);
+                            logAboutMessage("Successfully posted to " + actualUrl + ": \n" + rawMessage);
                             logAboutMessage("Response was " + parsedResponse);
                         }
                     } catch (final OutOfMemoryError e) {
