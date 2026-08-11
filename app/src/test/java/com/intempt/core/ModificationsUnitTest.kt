@@ -178,6 +178,11 @@ class ModificationsUnitTest {
 
     @Test
     fun `should call personalization modification by group`() = runTest {
+        // This test never stubbed post at all, so the spy called the real method and
+        // attempted a live HTTP request — the same leak as the other three, by omission
+        // rather than by using the wrong stubbing form.
+        doReturn(null).whenever(httpSrv).post(any(), any(), any())
+
         modComponent.personalizationHandler.getByGroup(listOf("test_experiment_name"))
 
         verify(httpSrv).post(eq(apiUrl), any<JSONObject>(), any())

@@ -121,11 +121,8 @@ internal open class ChangeTrackerService @Inject constructor(
             is SeekBar -> view.progress
             is RatingBar -> view.rating
             is DatePicker -> "${view.year}-${view.month}-${view.dayOfMonth}"
-            // getHour/getMinute are API 23; currentHour/currentMinute cover older levels
-            is TimePicker -> if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M)
-                "${view.hour}:${view.minute}"
-            else
-                @Suppress("DEPRECATION") "${view.currentHour}:${view.currentMinute}"
+            // getHour/getMinute are API 23, which is now minSdk, so no guard is needed.
+            is TimePicker -> "${view.hour}:${view.minute}"
             is ListView -> view.selectedItemId
             else -> null
         }

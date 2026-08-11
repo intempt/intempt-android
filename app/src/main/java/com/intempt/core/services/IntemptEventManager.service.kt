@@ -469,13 +469,8 @@ internal open class IntemptEventManagerService @Inject constructor(
                     is EditText -> view.text.toString()
                     is DatePicker -> "${view.month}-${view.dayOfMonth}-${view.year}"
                     is RatingBar -> view.rating.toString()
-                    // getHour/getMinute are API 23; currentHour/currentMinute cover older levels
-                    is TimePicker ->
-                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M)
-                            String.format(Locale.US, "%02d:%02d", view.hour, view.minute)
-                        else
-                            @Suppress("DEPRECATION")
-                            String.format(Locale.US, "%02d:%02d", view.currentHour, view.currentMinute)
+                    // getHour/getMinute are API 23, which is now minSdk, so no guard is needed.
+                    is TimePicker -> String.format(Locale.US, "%02d:%02d", view.hour, view.minute)
                     is ListView -> view.selectedItem?.toString() ?: ""
                     else -> ""
                 }

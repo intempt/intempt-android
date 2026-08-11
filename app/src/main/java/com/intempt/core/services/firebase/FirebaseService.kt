@@ -1,6 +1,7 @@
 package com.intempt.core.services.firebase
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -210,6 +211,12 @@ class FirebaseService : FirebaseMessagingService() {
         ) == PackageManager.PERMISSION_GRANTED
     }
 
+    // notificationsAllowed() performs exactly the check lint is asking for, but lint's
+    // dataflow does not follow a permission check through a helper function, so it reports
+    // MissingPermission on the notify() call below. Suppressed here rather than inlining
+    // the check, because the helper also handles the pre-33 case that a bare
+    // checkSelfPermission would get wrong.
+    @SuppressLint("MissingPermission")
     private fun notifySafely(
         context: Context,
         webhookService: WebhookService,
