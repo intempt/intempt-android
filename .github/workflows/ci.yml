@@ -40,6 +40,21 @@ jobs:
       - name: Compile Kotlin + assemble
         run: ./gradlew :app:assembleDebug --stacktrace
 
+      # The sample app consumes the library the way a customer does, so it catches what
+      # building the library alone cannot: manifest merger conflicts, a minSdk regression,
+      # and missing transitive dependencies.
+      - name: Assemble sample app (debug)
+        run: ./gradlew :sample:assembleDebug --stacktrace
+
+      # The release variant is the one that matters. It runs R8 over the consumer's code
+      # using only the rules the AAR ships, which is the only way to prove those rules are
+      # correct and complete. This caught a hard build failure for every consumer with
+      # minification enabled: ktor pulls in slf4j-api, whose LoggerFactory references
+      # org.slf4j.impl classes that do not exist on Android, and R8 fails on the missing
+      # class rather than warning. The library now ships -dontwarn for it.
+      - name: Assemble sample app (release, R8)
+        run: ./gradlew :sample:assembleRelease --stacktrace
+
   unit-tests:
     name: Unit tests
     runs-on: ubuntu-latest
@@ -54,6 +69,13 @@ jobs:
 
       - name: Run unit tests
         run: ./gradlew :app:testDebugUnitTest --stacktrace
+
+      # Boots the SDK inside a host application at API 24 and 34 and calls every public
+      # entry point. All three API-level crashes fixed on this branch are reachable from
+      # initialize() plus one tracking call, and none were caught by the library's own
+      # unit tests, because those never start the SDK.
+      - name: Run sample app tests (SDK in a host app, API 24 + 34)
+        run: ./gradlew :sample:testDebugUnitTest --stacktrace
 
       - name: Upload test report
         if: always()
@@ -81,7 +103,7 @@ jobs:
       # gates new Kotlin only. Reformatting the existing codebase would be a 200-file diff
       # with no behavioural change; it can happen incrementally.
       - name: ktlint
-        run: ./gradlew :app:ktlintCheck --stacktrace
+        run: ./gradlew :app:ktlintCheck :sample:ktlintCheck --stacktrace
 
       # Uploaded for visibility, not gated. Robolectric's classloader discards JaCoCo
       # instrumentation, so this under-reports badly until coverage moves to the

@@ -45,3 +45,18 @@
 # constructs, and its inner Description classes are passed as Message payloads.
 -keep class com.intempt.core.queue.DeliveryMessages { *; }
 -keep class com.intempt.core.queue.QueueConfig { *; }
+
+# This SDK depends on ktor, which depends on slf4j-api. slf4j's LoggerFactory
+# resolves its backend by referencing org.slf4j.impl.* classes that ship in a
+# binding jar, and no such binding is present on an Android classpath.
+#
+# Without this rule R8 treats those as missing classes and FAILS the build, so
+# any consumer with `minifyEnabled true` cannot compile at all:
+#
+#   ERROR: Missing class org.slf4j.impl.StaticLoggerBinder
+#          (referenced from: void org.slf4j.LoggerFactory.bind())
+#
+# The SDK never calls slf4j itself; the references are unreachable at runtime.
+# The rule belongs here rather than in the consumer's own file because this SDK
+# is what drags the dependency in.
+-dontwarn org.slf4j.impl.**

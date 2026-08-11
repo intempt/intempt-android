@@ -23,4 +23,8 @@ dependencyResolutionManagement {
 
 rootProject.name = "intempt-android"
 include(":app")
+
+// A host app that consumes the library the way a customer does. Not published — it exists so
+// that "the SDK works" is something the build can demonstrate rather than assert.
+include(":sample")
  
