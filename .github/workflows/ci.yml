@@ -1,0 +1,85 @@
+name: CI
+
+# Until now nothing ran on a pull request — publish.yml triggers only on a v* tag,
+# so a change that did not compile could be merged and published. This workflow is
+# the gate. It is also the only place this SDK can be compiled at all: it requires
+# the Android SDK, which is not present on every contributor's machine.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compile:
+    name: Compile
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      # Java first and on its own: the vendored delivery substrate in
+      # com.intempt.core.queue is Java, and isolating it gives an unambiguous
+      # signal about the vendoring rather than a mixed Java/Kotlin failure.
+      - name: Compile Java (vendored substrate)
+        run: ./gradlew :app:compileDebugJavaWithJavac --stacktrace
+
+      - name: Compile Kotlin + assemble
+        run: ./gradlew :app:assembleDebug --stacktrace
+
+  unit-tests:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Run unit tests
+        run: ./gradlew :app:testDebugUnitTest --stacktrace
+
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-report
+          path: app/build/reports/tests/
+
+  lint:
+    name: Android lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Lint
+        run: ./gradlew :app:lintDebug --stacktrace
+
+      - name: Upload lint report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lint-report
+          path: app/build/reports/lint-results-*.html
