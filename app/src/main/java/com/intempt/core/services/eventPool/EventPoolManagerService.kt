@@ -1,6 +1,7 @@
 package com.intempt.core.services.eventPool
 import com.intempt.core.autocapture.BaseComponent
 import com.intempt.core.eventModels.IntemptEvent
+import com.intempt.core.queue.DeliveryMessages
 import com.intempt.core.services.ConfigManagerService
 import com.intempt.core.services.HttpManagerService
 import com.intempt.core.services.IntemptEventManagerService
@@ -24,7 +25,6 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
-import org.json.JSONArray
 import org.json.JSONObject
 import java.util.concurrent.CompletableFuture
 import javax.inject.Inject
@@ -38,13 +38,14 @@ internal open class EventPoolManagerService @Inject constructor(
     private val logger: LoggerManagerService,
     private val http: HttpManagerService,
     private val intemptEvent: IntemptEventManagerService,
+    private val delivery: DeliveryMessages,
     private val dispatcher: CoroutineDispatcher = Dispatchers.IO
 ): BaseComponent(logger){
 
     private val coroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    private val eventQueue: MutableList<IntemptEvent> = mutableListOf();
-
+    // Retained: sendConsentEvent still stamps this. Consent posts immediately and has
+    // never been queued, so it does not move to the durable queue.
     private var lastDispatchTime: Long = System.currentTimeMillis();
 
     private val eventHandlers = EventHandlers(logger, intemptEvent);
@@ -53,21 +54,10 @@ internal open class EventPoolManagerService @Inject constructor(
 
     val eventReceiver: SharedFlow<IntemptEvent> = _eventReceiver;
 
-    val eventsList: List<IntemptEvent>
-        get() = eventQueue.toList()
-
 
 
     init {
         startEventCollection()
-    }
-
-
-
-
-    @Synchronized
-    fun addEvent(event: IntemptEvent) {
-        eventQueue.add(event)
     }
 
     fun dispatchEvent(props: DispatchEventProps, serviceName: String) {
@@ -148,19 +138,20 @@ internal open class EventPoolManagerService @Inject constructor(
         subscribe(Job()) { event ->
             logger.log("IntemptCoreService | Received event of type: ${event.getEventType()}");
 
-            val eventType = event.getEventType()
-
-            when(eventType){
+            when(event.getEventType()){
                 EventType.Consent.value -> sendConsentEvent(event)
-                else -> {
-                    addEvent(event)
-                    validateEventCall {
-                        sendTrackEvents()
-                    }
-                }
+                // Hands off and returns. delivery.enqueueEvent only posts a Message to
+                // the worker thread, so this collector never waits on disk or network.
+                //
+                // That matters more than it looks: _eventReceiver is a
+                // MutableSharedFlow(replay = 10) emitted via tryEmit, which returns false
+                // and drops the event when the buffer is full. There are two subscribers
+                // (here and SessionTracker), so a collector that blocked on I/O would
+                // cause silent drops upstream of the durable queue -- reintroducing the
+                // exact loss this work exists to eliminate. Keep this callback
+                // non-suspending and non-blocking.
+                else -> delivery.enqueueEvent(JSONObject(event.toFormated()))
             }
-
-            logger.log("EventPoolManagerService | eventQueue size: ${eventQueue.size}")
         }
     }
 
@@ -207,55 +198,6 @@ internal open class EventPoolManagerService @Inject constructor(
         }
     }
 
-    private fun sendTrackEvents() {
-        if(eventQueue.isEmpty()) return
-        logger.log("EventPoolManagerService | EventQueue size: ${eventQueue.size}")
-        val requestBodyJson = generateTrackRequestBody()
-        eventQueue.clear()
-        logger.log("EventPoolManagerService | Request body: $requestBodyJson")
-
-        coroutineScope.launch {
-                try {
-                    http.post(config.eventsUrl, requestBodyJson)
-                    logger.log("Successfully sent events to server")
-                    lastDispatchTime = System.currentTimeMillis()
-                }
-                catch (e: Exception) {
-                    logger.error("sendEvents | Exception occurred while sending events: ${e.message}")
-                }
-        }
-    }
-
-    private fun generateTrackRequestBody(): JSONObject {
-        val trackArray = JSONArray()
-
-        for (event in eventQueue) {
-            val payloadArray = JSONArray()
-
-            for (payloadItem in event.payload) {
-                val payloadJsonObject = JSONObject(payloadItem.toFormated())
-
-                payloadArray.put(payloadJsonObject)
-            }
-
-            val eventJsonObject = JSONObject(event.toFormated())
-            trackArray.put(eventJsonObject)
-        }
-        return JSONObject().apply {
-            put("track", trackArray)
-        }
-    }
-
-    private fun validateEventCall( callback: () -> Unit) {
-        if(config.isQueueEnabled){
-            if (eventQueue.size >= config.itemsInQueue || System.currentTimeMillis() - lastDispatchTime >= config.timeBuffer) {
-                callback()
-            }
-        }
-        else {
-            callback()
-        }
-    }
 
 
 

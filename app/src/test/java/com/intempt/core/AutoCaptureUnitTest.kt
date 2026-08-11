@@ -30,6 +30,7 @@ import com.intempt.core.services.eventPool.EventPoolManagerService
 import com.intempt.core.types.Constants
 import com.intempt.core.types.DispatchEventProps
 import com.intempt.core.types.StorageKeys
+import com.intempt.core.queue.DeliveryMessages
 import junit.framework.TestCase.assertNotNull
 import junit.framework.TestCase.assertTrue
 import junit.framework.TestCase.fail
@@ -191,6 +192,7 @@ class AutoCaptureUnitTest {
                 logger,
                 httpSrv,
                 intemptEvent,
+                mock(DeliveryMessages::class.java),
                 dispatcher = testDispatcher
             )
         )

@@ -40,7 +40,7 @@ import org.json.JSONObject;
  *
  * <p>This class straddles the thread boundary between user threads and a logical delivery thread.
  */
-/* package */ class DeliveryMessages {
+public class DeliveryMessages {
 
     // Replaces Mixpanel's MPConstants.URL.DEFAULT_SERVER_HOST, not inherited.
     private static final String DEFAULT_SERVER_HOST = "api.intempt.com";
@@ -63,6 +63,37 @@ import org.json.JSONObject;
         if (mHttpService != null) {
             mHttpService.setNetworkErrorListener(errorListener);
         }
+    }
+
+    /**
+     * Routing key for queued work.
+     *
+     * <p>Inherited from Mixpanel, where this was the project token and partitioned a
+     * shared queue across several SDK instances. Intempt has one instance per app, so the
+     * value is arbitrary — but it must not be null. {@code handleMessage} guards the
+     * bulk-upload flush with {@code && token != null}, so a null here would silently
+     * disable size-triggered flushing and leave only the periodic timer.
+     */
+    private static final String QUEUE_TOKEN = "intempt";
+
+    /**
+     * Enqueues one event for durable delivery. This is the entry point the Kotlin SDK
+     * uses; it returns as soon as the message is posted to the worker thread and never
+     * blocks the caller on disk or network.
+     *
+     * @param event the event payload as {@code IntemptEvent.toFormated()} produced it
+     */
+    public void enqueueEvent(final JSONObject event) {
+        eventsMessage(new EventDescription(null, event, QUEUE_TOKEN, false, null));
+    }
+
+    /** Requests a flush of whatever is currently queued. */
+    public void flush() {
+        final Message m = Message.obtain();
+        m.what = FLUSH_QUEUE;
+        m.obj = QUEUE_TOKEN;
+        m.arg1 = 0;
+        mWorker.runMessage(m);
     }
 
     public void eventsMessage(final EventDescription eventDescription) {

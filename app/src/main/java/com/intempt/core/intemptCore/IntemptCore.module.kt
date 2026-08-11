@@ -12,6 +12,8 @@ import com.intempt.core.services.ConfigManagerService
 import com.intempt.core.services.HttpManagerService
 import com.intempt.core.services.IntemptEventManagerService
 import com.intempt.core.services.LoggerManagerService
+import com.intempt.core.queue.DeliveryMessages
+import com.intempt.core.queue.QueueConfig
 import com.intempt.core.services.eventPool.EventPoolManagerService
 import com.intempt.core.services.StorageManagerService
 import com.intempt.core.services.UtilsService
@@ -79,13 +81,36 @@ internal class IntemptCoreModule(
         logger: LoggerManagerService,
         http: HttpManagerService,
         intemptEvent: IntemptEventManagerService,
+        delivery: DeliveryMessages,
     ): EventPoolManagerService{
         return EventPoolManagerService(
             config,
             logger,
             http,
-            intemptEvent
+            intemptEvent,
+            delivery
         )
+    }
+
+    @Provides
+    @Singleton
+    fun provideQueueConfig(
+        config: ConfigManagerService,
+    ): QueueConfig {
+        return QueueConfig(config.eventsUrl).also {
+            it.setLoggingEnabled(config.isLoggingEnabled)
+        }
+    }
+
+    @Provides
+    @Singleton
+    fun provideDeliveryMessages(
+        queueConfig: QueueConfig,
+    ): DeliveryMessages {
+        // One instance, owned here. The vendored class had a static registry keyed by
+        // project token to partition a shared queue across Mixpanel instances; Intempt
+        // has one SDK instance per app, so Dagger's @Singleton replaces it.
+        return DeliveryMessages(consumerContext.applicationContext, queueConfig)
     }
     @Provides
     @Singleton

@@ -15,6 +15,7 @@ import com.intempt.core.services.UtilsService
 import com.intempt.core.services.eventPool.EventPoolManagerService
 import com.intempt.core.types.Constants
 import com.intempt.core.types.StorageKeys
+import com.intempt.core.queue.DeliveryMessages
 import junit.framework.TestCase.assertFalse
 import junit.framework.TestCase.assertTrue
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -70,7 +71,7 @@ class SessionTrackerUnitTest {
         storage = spy(StorageManagerService(context,utils))
         httpSrv = spy(HttpManagerService(config, logger))
         intemptEvent = spy(IntemptEventManagerService(context, storage, utils, config))
-        eventPool = spy(EventPoolManagerService(config, logger, httpSrv, intemptEvent))
+        eventPool = spy(EventPoolManagerService(config, logger, httpSrv, intemptEvent, mock(DeliveryMessages::class.java)))
 
         eventFlow = MutableSharedFlow<IntemptEvent>()
 

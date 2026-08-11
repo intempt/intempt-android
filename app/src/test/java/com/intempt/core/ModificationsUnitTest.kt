@@ -31,6 +31,7 @@ import org.mockito.MockitoAnnotations
 import org.mockito.kotlin.any
 import org.mockito.kotlin.anyOrNull
 import org.mockito.kotlin.argumentCaptor
+import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.doThrow
 import org.mockito.kotlin.eq
 import org.mockito.kotlin.verify
@@ -130,12 +131,13 @@ class ModificationsUnitTest {
 
     @Test
     fun `should call experiment modification by name`() = runTest {
-        // Returns null rather than mock(HttpResponse): request() calls Ktor's
-        // bodyAsText() extension, which a bare mock cannot satisfy. The throw lands
-        // on a coroutine and surfaces as UncaughtExceptionsBeforeTest in whichever
-        // test runs next. `?.bodyAsText()` short-circuits on null, and these tests
-        // only verify that post() was called.
-        whenever(httpSrv.post(any(), any(), any())).thenReturn(null)
+        // httpSrv is a spy, so whenever(httpSrv.post(...)) would invoke the REAL post
+        // while setting the stub up — firing an actual HTTP call whose failure lands on
+        // a coroutine and is reported against the next test as
+        // UncaughtExceptionsBeforeTest. doReturn().whenever() never calls the real
+        // method. The four error-path tests below already used this form, which is why
+        // they were the only ones passing.
+        doReturn(null).whenever(httpSrv).post(any(), any(), any())
 
         modComponent.experimentHandler.getByName(listOf("test_experiment_name"))
 
@@ -144,12 +146,13 @@ class ModificationsUnitTest {
 
     @Test
     fun `should call experiment modification by group`() = runTest {
-        // Returns null rather than mock(HttpResponse): request() calls Ktor's
-        // bodyAsText() extension, which a bare mock cannot satisfy. The throw lands
-        // on a coroutine and surfaces as UncaughtExceptionsBeforeTest in whichever
-        // test runs next. `?.bodyAsText()` short-circuits on null, and these tests
-        // only verify that post() was called.
-        whenever(httpSrv.post(any(), any(), any())).thenReturn(null)
+        // httpSrv is a spy, so whenever(httpSrv.post(...)) would invoke the REAL post
+        // while setting the stub up — firing an actual HTTP call whose failure lands on
+        // a coroutine and is reported against the next test as
+        // UncaughtExceptionsBeforeTest. doReturn().whenever() never calls the real
+        // method. The four error-path tests below already used this form, which is why
+        // they were the only ones passing.
+        doReturn(null).whenever(httpSrv).post(any(), any(), any())
 
         modComponent.experimentHandler.getByGroup(listOf("test_experiment_name"))
 
@@ -159,12 +162,13 @@ class ModificationsUnitTest {
 
     @Test
     fun `should call personalization modification by name`() = runTest {
-        // Returns null rather than mock(HttpResponse): request() calls Ktor's
-        // bodyAsText() extension, which a bare mock cannot satisfy. The throw lands
-        // on a coroutine and surfaces as UncaughtExceptionsBeforeTest in whichever
-        // test runs next. `?.bodyAsText()` short-circuits on null, and these tests
-        // only verify that post() was called.
-        whenever(httpSrv.post(any(), any(), any())).thenReturn(null)
+        // httpSrv is a spy, so whenever(httpSrv.post(...)) would invoke the REAL post
+        // while setting the stub up — firing an actual HTTP call whose failure lands on
+        // a coroutine and is reported against the next test as
+        // UncaughtExceptionsBeforeTest. doReturn().whenever() never calls the real
+        // method. The four error-path tests below already used this form, which is why
+        // they were the only ones passing.
+        doReturn(null).whenever(httpSrv).post(any(), any(), any())
 
         modComponent.personalizationHandler.getByName(listOf("test_experiment_name"))
 

@@ -38,6 +38,7 @@ import com.intempt.core.services.StorageManagerService
 import com.intempt.core.services.UtilsService
 import com.intempt.core.services.eventPool.EventPoolManagerService
 import com.intempt.core.types.DispatchEventProps
+import com.intempt.core.queue.DeliveryMessages
 import junit.framework.TestCase.assertNotNull
 import junit.framework.TestCase.fail
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -222,6 +223,7 @@ class ChangeTrackerUnitTest {
             logger,
             httpSrv,
             intemptEvent,
+            mock(DeliveryMessages::class.java),
             dispatcher = testDispatcher
         ))
 

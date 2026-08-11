@@ -25,6 +25,7 @@ import com.intempt.core.services.StorageManagerService
 import com.intempt.core.services.UtilsService
 import com.intempt.core.services.eventPool.EventPoolManagerService
 import com.intempt.core.types.StorageKeys
+import com.intempt.core.queue.DeliveryMessages
 import junit.framework.TestCase.assertEquals
 import junit.framework.TestCase.assertNotNull
 import junit.framework.TestCase.assertNull
@@ -78,6 +79,7 @@ class CustomCaptureUnitTest {
     private lateinit var storage: StorageManagerService
     private lateinit var component: CustomCaptureComponent
     private lateinit var eventPoolSrv: EventPoolManagerService
+    private lateinit var delivery: DeliveryMessages
     private lateinit var intemptEvent: IntemptEventManagerService
     private lateinit var utils: UtilsService
 
@@ -157,12 +159,16 @@ class CustomCaptureUnitTest {
         testDispatcher = UnconfinedTestDispatcher(testScheduler)
 
 
+        delivery = mock(DeliveryMessages::class.java)
+
+
         eventPoolSrv = spy(
             EventPoolManagerService(
                 config,
                 logger,
                 httpSrv,
                 intemptEvent,
+                delivery,
                 dispatcher = testDispatcher
             )
         )
@@ -348,9 +354,10 @@ class CustomCaptureUnitTest {
 
         testScheduler.advanceUntilIdle()
 
-        val lastEvent = eventPoolSrv.eventsList.lastOrNull()
-
-        assertEquals(lastEvent , null)
+        // Was: eventPoolSrv.eventsList.lastOrNull() == null, reading an in-memory list
+        // that no longer exists. Asserting on the collaborator is a stronger statement of
+        // the same contract — an opted-out SDK must not hand anything to the queue at all.
+        verify(delivery, never()).enqueueEvent(any())
     }
 
     @Test

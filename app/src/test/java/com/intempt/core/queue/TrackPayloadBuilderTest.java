@@ -7,6 +7,9 @@ import static org.junit.Assert.assertTrue;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.robolectric.RobolectricTestRunner;
+import org.robolectric.annotation.Config;
 
 /**
  * Guards the ingestion wire format against drift.
@@ -16,6 +19,11 @@ import org.junit.Test;
  * not change the bytes on the wire — if it did, a delivery regression and a format
  * regression would be indistinguishable.
  */
+// Robolectric is required: android.org.json is a stub in plain JVM unit tests and
+// throws "not mocked" on construction. Every other test file in this module runs
+// under RobolectricTestRunner for the same reason.
+@RunWith(RobolectricTestRunner.class)
+@Config(sdk = {34}, manifest = Config.NONE)
 public class TrackPayloadBuilderTest {
 
     private static final String ONE_EVENT =

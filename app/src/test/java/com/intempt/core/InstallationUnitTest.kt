@@ -14,6 +14,7 @@ import com.intempt.core.services.StorageManagerService
 import com.intempt.core.services.UtilsService
 import com.intempt.core.services.eventPool.EventPoolManagerService
 import com.intempt.core.types.StorageKeys
+import com.intempt.core.queue.DeliveryMessages
 import junit.framework.TestCase.assertEquals
 import junit.framework.TestCase.assertNotNull
 import junit.framework.TestCase.assertTrue
@@ -143,6 +144,7 @@ class InstallationUnitTest {
                 logger,
                 httpSrv,
                 intemptEvent,
+                mock(DeliveryMessages::class.java),
                 dispatcher = testDispatcher
             )
         )
