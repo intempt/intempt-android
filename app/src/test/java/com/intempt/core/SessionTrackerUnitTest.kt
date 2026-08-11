@@ -20,6 +20,7 @@ import junit.framework.TestCase.assertFalse
 import junit.framework.TestCase.assertTrue
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestCoroutineScheduler
 import kotlinx.coroutines.test.runTest
 import org.junit.Before
 import org.junit.Test
@@ -71,7 +72,23 @@ class SessionTrackerUnitTest {
         storage = spy(StorageManagerService(context,utils))
         httpSrv = spy(HttpManagerService(config, logger))
         intemptEvent = spy(IntemptEventManagerService(context, storage, utils, config))
-        eventPool = spy(EventPoolManagerService(config, logger, httpSrv, intemptEvent, mock(DeliveryMessages::class.java)))
+        // The dispatcher must be injected. EventPoolManagerService's init block launches a
+        // flow collector on it, so leaving the default means a real Dispatchers.IO
+        // coroutine outlives the test; anything it throws reaches the global uncaught
+        // handler and is reported against whichever test runs next, in any class, since
+        // Gradle shares one JVM across the suite. This is the only one of five
+        // construction sites that was missing it — and the source of a failure that kept
+        // appearing to move between tests.
+        eventPool = spy(
+            EventPoolManagerService(
+                config,
+                logger,
+                httpSrv,
+                intemptEvent,
+                mock(DeliveryMessages::class.java),
+                dispatcher = StandardTestDispatcher(TestCoroutineScheduler())
+            )
+        )
 
         eventFlow = MutableSharedFlow<IntemptEvent>()
 
