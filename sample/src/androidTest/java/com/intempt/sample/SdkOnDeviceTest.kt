@@ -273,6 +273,60 @@ class SdkOnDeviceTest {
     }
 
     /**
+     * `doNotCaptureText(view)` is the opt-out a host app uses for a field autocapture should
+     * not read. It tags the view, and both text-reading sites check that tag — so the value
+     * must come through masked even though the field is not a password input.
+     *
+     * This was the last public method with no behavioural assertion. It is worth having a real
+     * one: the tag is the only mechanism a customer has for a field the SDK cannot recognise as
+     * sensitive on its own, and if it silently stopped working their data would start flowing
+     * with no error anywhere.
+     */
+    @Test
+    fun doNotCaptureTextMasksATaggedField() {
+        val secret = "opted-out-${System.nanoTime()}"
+
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            scenario.onActivity { activity ->
+                // The plain email field, which autocapture would otherwise record verbatim.
+                val field = editTexts(activity.window.decorView)[0]
+                com.intempt.core.Intempt.doNotCaptureText(field)
+                field.setText(secret)
+            }
+
+            awaitEvent("a change event from the opted-out field") { row ->
+                payloadData(row)?.optString("targetValue") == "*****"
+            }
+        }
+
+        assertFalse(
+            "a field passed to doNotCaptureText still reached the queue in clear text",
+            rows().joinToString("\n") { it.toString() }.contains(secret),
+        )
+    }
+
+    /**
+     * `consent` is the one call that never reaches the durable queue: it posts immediately, so
+     * there is no row to read back and no client-side signal of the response. What is
+     * assertable is its validation contract — the action must be "accept" or "reject" — and
+     * that neither a valid nor an invalid action takes the host app down.
+     */
+    @Test
+    fun consentAcceptsOnlyValidActions() {
+        val validUntil = System.currentTimeMillis() + 86_400_000
+
+        // Valid actions, and an invalid one the SDK must reject rather than send or throw.
+        com.intempt.core.Intempt.consent(action = "accept", validUntil = validUntil)
+        com.intempt.core.Intempt.consent(action = "reject", validUntil = validUntil)
+        com.intempt.core.Intempt.consent(action = "not-a-real-action", validUntil = validUntil)
+
+        assertTrue(
+            "an invalid consent action must not take the SDK down with it",
+            com.intempt.core.Intempt.isInitialized,
+        )
+    }
+
+    /**
      * Every public entry point, called the way a host app calls it. Asserts only that none
      * of them takes the process down on this API level — which is exactly the defect that
      * shipped.

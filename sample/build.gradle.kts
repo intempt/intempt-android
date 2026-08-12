@@ -131,6 +131,14 @@ android {
         e2eFixtures.forEach { (name, value) ->
             buildConfigField("String", name, "\"$value\"")
         }
+
+        // Assertions that depend on platform-side ingestion timing rather than on the SDK are
+        // opt-in, so they cannot block a merge. Enable with -Pintempt.prodTests=true.
+        buildConfigField(
+            "boolean",
+            "INTEMPT_PROD_TESTS",
+            (project.findProperty("intempt.prodTests") as String? ?: "false"),
+        )
     }
 
     buildTypes {
