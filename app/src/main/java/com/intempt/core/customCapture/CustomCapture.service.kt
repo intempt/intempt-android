@@ -50,10 +50,19 @@ internal class CustomCaptureService @Inject constructor(
             return false
         }
 
-        if(eventTitle == null && userAttributes != null){
-            logger.error("Identify parameters are invalid: set 'eventTitle' to use 'userAttributes'.")
-            return false
-        }
+        // The rule that used to live here rejected identify() whenever userAttributes was
+        // passed without an eventTitle, which is the most natural way to call it:
+        //
+        //     Intempt.identify(userId = "u1", userAttributes = mapOf("plan" to "free"))
+        //
+        // It guarded nothing. IdentifyEvent has no title field at all, and the caller in
+        // CustomCaptureComponent already writes `name = eventTitle ?: "Identify"` — the null
+        // case was handled two statements later. So the check only turned a supported call
+        // into a silent no-op: it logged an error, returned false, and identify() returned
+        // normally with nothing queued.
+        //
+        // Caught by calling it the obvious way in the sample app and finding no identify row
+        // in the on-device queue.
 
         if(eventTitle != null && forbiddenEventNames.contains(eventTitle)){
             logger.error("The '$eventTitle' event title is forbidden")
@@ -78,11 +87,9 @@ internal class CustomCaptureService @Inject constructor(
             return false
         }
 
-        if(eventTitle == null && accountAttributes != null){
-            logger.error("Group parameters are invalid: set 'eventTitle' to use 'accountAttributes'.")
-            return false
-        }
-
+        // Same dead rule as isIdentifyValid had, for the same reason: GroupEvent carries no
+        // title, and the caller already writes `name = eventTitle ?: "Group"`. Requiring a
+        // title here turned group(accountId, accountAttributes) into a silent no-op.
 
         return true
     }

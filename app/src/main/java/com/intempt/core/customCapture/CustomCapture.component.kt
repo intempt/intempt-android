@@ -142,7 +142,12 @@ internal class CustomCaptureComponent @Inject constructor(
             srv.logger.log("Invoke group")
 
             val newEvent = IntemptEvent(
-                name = eventTitle ?: "Identify",
+                // "Group", not "Identify". This was copy-pasted from identify() above, so
+                // every group() call made without an explicit eventTitle arrived at the
+                // ingestion endpoint named "Identify" while carrying type "group" — the
+                // name and the type disagreed, and any analysis grouping on the event name
+                // silently folded account events in with user identification.
+                name = eventTitle ?: "Group",
                 type = EventType.Group.value,
                 payload = intemptEvent.generateGroupEventPayload(
                     accountId,

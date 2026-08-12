@@ -58,14 +58,19 @@ class MainActivity : AppCompatActivity() {
             Intempt.track("Sample button tapped", mapOf("source" to "sample-app"))
         }
         button(root, "identify") {
-            // eventTitle is REQUIRED whenever userAttributes is passed. Without it the SDK
-            // logs "Identify parameters are invalid" and drops the event silently — the call
-            // returns normally and nothing reaches the queue. Writing it the obvious way,
-            // identify(userId, userAttributes), produced no event at all on first run here.
+            // Deliberately the obvious call, with no eventTitle. This used to be rejected
+            // and silently dropped; it now queues an event named "Identify". Leaving it in
+            // this shape means the sample fails visibly if that regresses.
             Intempt.identify(
                 userId = "sample-user-1",
-                eventTitle = "Sample identify",
                 userAttributes = mapOf("plan" to "free"),
+            )
+        }
+        button(root, "group") {
+            // Also titleless, to cover the sibling bug: this arrived named "Identify".
+            Intempt.group(
+                accountId = "sample-account-1",
+                accountAttributes = mapOf("tier" to "smb"),
             )
         }
         button(root, "record") {
