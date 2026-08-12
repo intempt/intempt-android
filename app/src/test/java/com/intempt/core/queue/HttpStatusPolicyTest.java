@@ -57,6 +57,20 @@ public class HttpStatusPolicyTest {
     }
 
     @Test
+    public void analyticsCapRejectionIsDroppedNotRetried() {
+        // push-source-service throws 402 analytics_limit_reached from DataItemService and
+        // HttpDataAdapter when a project is over its analytics cap. That service's own
+        // comment states it must not be treated as a transient failure and retried.
+        //
+        // This was the gap: 402 is the only 4xx the platform uses for a business condition
+        // rather than a client mistake, so it was absent from the drop list and fell into
+        // the retry branch. A capped customer had every batch retried every ten minutes and
+        // never deleted, which parks it at the queue head and stops all delivery behind it.
+        assertTrue(HttpStatusPolicy.shouldDrop(402));
+        assertFalse(HttpStatusPolicy.isRetryable(402));
+    }
+
+    @Test
     public void successIsNeitherRetriedNorDropped() {
         assertFalse(HttpStatusPolicy.isRetryable(200));
         assertFalse(HttpStatusPolicy.shouldDrop(200));
