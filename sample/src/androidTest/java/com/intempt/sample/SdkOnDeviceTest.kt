@@ -75,18 +75,47 @@ class SdkOnDeviceTest {
             return out
         }
 
+        /**
+         * Every row this suite has ever observed, keyed by eventId.
+         *
+         * The queue is a moving target once delivery works: a row is deleted as soon as the
+         * gateway confirms it. Before CI had credentials every POST 401'd, rows piled up, and
+         * sampling the table was reliable by accident. With real credentials
+         * aliasQueuesBothIdentifiers failed on API 23 with `Queued: [Change event]` — the row
+         * had been queued, delivered and deleted inside the poll window.
+         *
+         * Accumulating means a row only has to exist at some instant, which is the property
+         * actually being asserted. Cross-test collisions are not a risk because every
+         * predicate matches an identifier its own test generated.
+         */
+        private val observed = LinkedHashMap<String, JSONObject>()
+
+        private fun sample(): Collection<JSONObject> {
+            synchronized(observed) {
+                rows().forEach { row ->
+                    val id =
+                        row.optJSONArray("payload")?.optJSONObject(0)?.optString("eventId")
+                            ?: row.optString("name") + row.optString("type")
+                    observed.putIfAbsent(id, row)
+                }
+                return observed.values.toList()
+            }
+        }
+
         private fun awaitEvent(
             what: String,
             predicate: (JSONObject) -> Boolean,
         ): JSONObject {
             val deadline = System.currentTimeMillis() + TIMEOUT_MS
             while (System.currentTimeMillis() < deadline) {
-                rows().firstOrNull(predicate)?.let { return it }
-                Thread.sleep(250)
+                sample().firstOrNull(predicate)?.let { return it }
+                // 50ms, not 250ms: delivery can remove a row within a few hundred
+                // milliseconds, so the sampler has to run faster than the queue drains.
+                Thread.sleep(50)
             }
             throw AssertionError(
-                "timed out after ${TIMEOUT_MS}ms waiting for $what. Queued: " +
-                    rows().map { it.optString("name") },
+                "timed out after ${TIMEOUT_MS}ms waiting for $what. Observed: " +
+                    sample().map { it.optString("name") },
             )
         }
 
@@ -269,7 +298,7 @@ class SdkOnDeviceTest {
             }
         }
 
-        val serialized = rows().joinToString("\n") { it.toString() }
+        val serialized = sample().joinToString("\n") { it.toString() }
         assertFalse(
             "the password reached the durable queue in clear text. Queue: $serialized",
             serialized.contains(secret),
@@ -309,7 +338,7 @@ class SdkOnDeviceTest {
 
         assertFalse(
             "a field passed to doNotCaptureText still reached the queue in clear text",
-            rows().joinToString("\n") { it.toString() }.contains(secret),
+            sample().joinToString("\n") { it.toString() }.contains(secret),
         )
     }
 

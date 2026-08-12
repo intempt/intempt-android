@@ -70,16 +70,33 @@ class SdkProdObjectsTest {
         return out
     }
 
+    /**
+     * Accumulates rather than samples, for the same reason as SdkOnDeviceTest: with working
+     * credentials a row is deleted as soon as the gateway confirms it, so a poll can miss an
+     * event that was queued and delivered correctly.
+     */
+    private val observed = LinkedHashMap<String, JSONObject>()
+
+    private fun sample(): Collection<JSONObject> {
+        rows().forEach { row ->
+            val id =
+                row.optJSONArray("payload")?.optJSONObject(0)?.optString("eventId")
+                    ?: row.optString("name") + row.optString("type")
+            observed.putIfAbsent(id, row)
+        }
+        return observed.values.toList()
+    }
+
     private fun awaitEvent(
         what: String,
         predicate: (JSONObject) -> Boolean,
     ): JSONObject {
         val deadline = System.currentTimeMillis() + 15_000L
         while (System.currentTimeMillis() < deadline) {
-            rows().firstOrNull(predicate)?.let { return it }
-            Thread.sleep(250)
+            sample().firstOrNull(predicate)?.let { return it }
+            Thread.sleep(50)
         }
-        throw AssertionError("timed out waiting for $what. Queued: ${rows().map { it.optString("name") }}")
+        throw AssertionError("timed out waiting for $what. Observed: ${sample().map { it.optString("name") }}")
     }
 
     /**
