@@ -5,7 +5,6 @@ import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.intempt.core.Intempt
 import org.json.JSONObject
-import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -41,16 +40,36 @@ class SdkRunsLocallyTest {
     }
 
     /**
-     * `initialize` swallows every exception and prints "Intempt initialization failed", so a
-     * failed init is indistinguishable from a successful one at the call site. `experiment`
-     * and `personalization` are only assigned on the success path, and reading an unassigned
-     * `lateinit` throws — so this is the only way from outside the SDK to tell whether
-     * initialization actually completed.
+     * `initialize` catches everything, so a failed init used to be indistinguishable from a
+     * successful one: it returned Unit and printed a line. `isInitialized` is now the signal,
+     * and this asserts the SDK actually started inside a real host application.
+     *
+     * This deliberately does not assert on `experiment`/`personalization` any more. Those
+     * are now always non-null — they hold a no-op provider until initialization succeeds, so
+     * that reading them early returns nothing instead of throwing — which means a null check
+     * on them can no longer distinguish a started SDK from a dead one.
      */
     @Test
     fun initializationCompletesRatherThanSilentlyFailing() {
-        assertNotNull("initialize() did not complete; experiment was never assigned", Intempt.experiment)
-        assertNotNull("initialize() did not complete; personalization was never assigned", Intempt.personalization)
+        assertTrue("the SDK did not initialize inside the host app", Intempt.isInitialized)
+        assertNotNull(Intempt.experiment)
+        assertNotNull(Intempt.personalization)
+    }
+
+    /**
+     * The property that stops an analytics failure becoming a host-app crash. Every entry
+     * point used to dereference a `lateinit`, so if initialization had failed the first call
+     * threw `UninitializedPropertyAccessException` into the host app — the SDK survived its
+     * own failure and then killed its host on the next line.
+     *
+     * Initialization has already succeeded here, so this cannot exercise the disabled path
+     * directly; what it pins is that a repeat `initialize()` is idempotent and reports true
+     * rather than rebuilding the graph.
+     */
+    @Test
+    fun initializeIsIdempotent() {
+        assertTrue(Intempt.initialize(context()))
+        assertTrue(Intempt.isInitialized)
     }
 
     /**
@@ -92,9 +111,21 @@ class SdkRunsLocallyTest {
         val json = context().assets.open("intempt-config.json").bufferedReader().use { it.readText() }
         val auth = JSONObject(json).getJSONObject("auth")
 
-        assertEquals("sample-source", auth.getString("INTEMPT_SOURCE_ID"))
-        assertEquals("sample-org", auth.getString("INTEMPT_ORGANIZATION_ID"))
-        assertEquals("sample-project", auth.getString("INTEMPT_PROJECT_ID"))
+        // Shape, not values. This config is generated at build time from local.properties or
+        // CI secrets, so on a machine with real credentials the values are real and asserting
+        // on the placeholders would fail. What must hold either way is that every key the
+        // reader looks for is present and non-blank — a missing key makes ConfigManagerService
+        // swallow its own exception and fall back to empty credentials, which produces
+        // requests that 401 forever with no obvious cause.
+        for (key in listOf(
+            "INTEMPT_API_KEY",
+            "INTEMPT_SOURCE_ID",
+            "INTEMPT_ORGANIZATION_ID",
+            "INTEMPT_PROJECT_ID",
+        )) {
+            assertTrue("$key is missing from the generated config", auth.has(key))
+            assertTrue("$key is blank", auth.getString(key).isNotBlank())
+        }
         // token() splits the key on "." and Base64s it, so a key without a separator throws.
         assertTrue("api key must contain a '.' separator", auth.getString("INTEMPT_API_KEY").contains("."))
     }

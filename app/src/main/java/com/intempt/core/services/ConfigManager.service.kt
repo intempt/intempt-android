@@ -44,20 +44,28 @@ class ConfigManagerService  @Inject constructor(
 
 
 
+    /**
+     * The ingestion host. Defaults to production; overridable with `apiUrl` in
+     * assets/intempt-config.json so the SDK can be aimed at staging or at a local stub.
+     * Previously this was Constants.API_URL, a compile-time constant, which meant the
+     * delivery leg could not be exercised without a real project and a real key.
+     */
+    val apiUrl: String
+
     val consentUrl:String
-        get() = "${Constants.API_URL}/v1/${_organizationId}/projects/${_projectId}/consents/data"
+        get() = "$apiUrl/v1/${_organizationId}/projects/${_projectId}/consents/data"
 
     val eventsUrl:String
-        get() = "${Constants.API_URL}/v1/${_organizationId}/projects/${_projectId}/sources/${_sourceId}/track"
+        get() = "$apiUrl/v1/${_organizationId}/projects/${_projectId}/sources/${_sourceId}/track"
 
     val optimizationUrl:String
-        get() = "${Constants.API_URL}/v1/${_organizationId}/projects/${_projectId}/optimization/choose-api"
+        get() = "$apiUrl/v1/${_organizationId}/projects/${_projectId}/optimization/choose-api"
 
     val pushNotificationWebhookUrl:String
-        get() = "${Constants.API_URL}/webhooks/events/push-notification"
+        get() = "$apiUrl/webhooks/events/push-notification"
 
     fun recommendationUrl(id:String):String{
-        return "${Constants.API_URL}/v1/${_organizationId}/projects/${_projectId}/feeds/${id}/data"
+        return "$apiUrl/v1/${_organizationId}/projects/${_projectId}/feeds/${id}/data"
     }
 
 
@@ -79,6 +87,7 @@ class ConfigManagerService  @Inject constructor(
         isUserOptIn = DefaultConfigs.IsUserOptIn.value
         isLoggingEnabled = options?.isLoggingEnabled ?: DefaultConfigs.IsLoggingEnabled.value
         isQueueEnabled = options?.isQueueEnabled ?: DefaultConfigs.IsQueueEnabled.value
+        apiUrl = options?.apiUrl?.takeIf { it.isNotBlank() } ?: Constants.API_URL
     }
 
     fun token(): String {
@@ -118,7 +127,8 @@ class ConfigManagerService  @Inject constructor(
                 isQueueEnabled = optionsObject.optBoolean(ConfigKeys.IsQueueEnabled.key, true),
                 isAutoCaptureEnabled = optionsObject.optBoolean(ConfigKeys.IsAutoCaptureEnabled.key, true),
                 itemsInQueue = optionsObject.optInt(ConfigKeys.ItemsInQueue.key, 5),
-                timeBuffer = optionsObject.optLong(ConfigKeys.TimeBuffer.key, 5000)
+                timeBuffer = optionsObject.optLong(ConfigKeys.TimeBuffer.key, 5000),
+                apiUrl = optionsObject.optString(ConfigKeys.ApiUrl.key).takeIf { it.isNotBlank() }
             )
 
             ConfigResult(configs, options)

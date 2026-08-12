@@ -29,6 +29,15 @@ internal class CustomCaptureService @Inject constructor(
     )
 
 
+    /**
+     * Case-insensitive on purpose. The list above is lowercase and the check used
+     * `Array.contains`, which is exact — so "identify", "Consent" and "Click On" were
+     * reserved in name only: any capitalisation walked straight past the guard and shipped
+     * an event under a name the platform reserves for its own.
+     */
+    private fun isForbidden(eventTitle: String): Boolean =
+        forbiddenEventNames.any { it.equals(eventTitle, ignoreCase = true) }
+
     fun setDoNotCaptureTag(view: View){
         view.setTag(R.id.intemptDoNotCapture, true)
     }
@@ -64,7 +73,7 @@ internal class CustomCaptureService @Inject constructor(
         // Caught by calling it the obvious way in the sample app and finding no identify row
         // in the on-device queue.
 
-        if(eventTitle != null && forbiddenEventNames.contains(eventTitle)){
+        if(eventTitle != null && isForbidden(eventTitle)){
             logger.error("The '$eventTitle' event title is forbidden")
             return false
         }
@@ -82,7 +91,7 @@ internal class CustomCaptureService @Inject constructor(
             return false
         }
 
-        if(eventTitle != null && forbiddenEventNames.contains(eventTitle)){
+        if(eventTitle != null && isForbidden(eventTitle)){
             logger.error("The '$eventTitle' event title is forbidden")
             return false
         }
@@ -101,7 +110,7 @@ internal class CustomCaptureService @Inject constructor(
         }
 
 
-        if(forbiddenEventNames.contains(eventTitle)){
+        if(isForbidden(eventTitle)){
             logger.error("The '$eventTitle' event title is forbidden")
             return false
         }

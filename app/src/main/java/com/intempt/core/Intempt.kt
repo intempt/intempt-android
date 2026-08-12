@@ -8,35 +8,76 @@ import com.intempt.core.intemptCore.DaggerIntemptCoreComponent
 import com.intempt.core.intemptCore.IntemptCoreComponent
 import com.intempt.core.intemptCore.IntemptCoreModule
 import com.intempt.core.intemptCore.IntemptCoreService
+import com.intempt.core.types.DisabledModificationProvider
 import com.intempt.core.types.ModificationProvider
 import kotlinx.serialization.json.JsonObject
 
+/**
+ * The SDK's whole public surface.
+ *
+ * Every entry point below is safe to call when the SDK is not running. Previously each one
+ * dereferenced a `lateinit` field, so if `initialize()` had failed — or had simply not been
+ * called — the first `track()` threw `UninitializedPropertyAccessException` into the host
+ * app. Initialization catches everything and disables itself, which meant the SDK survived
+ * its own failure and then crashed its host on the next call. Analytics is not worth a
+ * crash, so a call made while disabled logs once and does nothing.
+ */
+object Intempt {
+    private const val TAG = "Intempt"
 
-object Intempt  {
     private lateinit var component: IntemptCoreComponent
-    private lateinit var intemptCore: IntemptCoreService
 
-    lateinit var experiment: ModificationProvider
-    lateinit var personalization: ModificationProvider
+    // Nullable rather than lateinit: `null` is a state the facade can check, whereas an
+    // unassigned lateinit can only be discovered by throwing.
+    @Volatile
+    private var intemptCore: IntemptCoreService? = null
 
-    fun initialize(context: Context) {
-        try{
-            component = DaggerIntemptCoreComponent.factory()
-                .create(IntemptCoreModule(context));
+    /**
+     * Null results until a successful [initialize]. Held as a no-op provider rather than a
+     * `lateinit`, so reading either of these before initialization returns nothing instead
+     * of throwing. See [DisabledModificationProvider].
+     */
+    var experiment: ModificationProvider = DisabledModificationProvider
+        private set
 
-            component.inject(this);
+    var personalization: ModificationProvider = DisabledModificationProvider
+        private set
 
-            intemptCore = component.initService()
+    /** True once [initialize] has completed successfully. */
+    val isInitialized: Boolean
+        get() = intemptCore != null
 
-            experiment = intemptCore.modification.experimentHandler
-            personalization = intemptCore.modification.personalizationHandler
+    /**
+     * Starts the SDK. Safe to call more than once; later calls are ignored.
+     *
+     * @return true when the SDK is running. Previously this returned Unit and swallowed
+     *   every failure, so a host app had no way at all to tell a working SDK from a dead
+     *   one — the only signal was a printed line on stdout.
+     */
+    fun initialize(context: Context): Boolean {
+        if (isInitialized) {
+            Log.i(TAG, "Already initialized; ignoring this call")
+            return true
+        }
+
+        try {
+            component =
+                DaggerIntemptCoreComponent.factory()
+                    .create(IntemptCoreModule(context))
+
+            component.inject(this)
+
+            val core = component.initService()
+            experiment = core.modification.experimentHandler
+            personalization = core.modification.personalizationHandler
+            intemptCore = core
         } catch (e: Throwable) {
-            // Throwable, not Exception. An analytics SDK must never be able to take the
-            // host app down, and the failures that actually do are Errors rather than
-            // Exceptions: a NoClassDefFoundError from a dependency that is invalid on this
-            // API level sailed straight through `catch (e: Exception)` and killed the app
-            // on launch. Logged rather than printed, so it shows up in logcat on a device.
-            Log.e("Intempt", "Intempt initialization failed; the SDK is disabled", e)
+            // Throwable, not Exception. An analytics SDK must never take the host app down,
+            // and the failures that actually do are Errors rather than Exceptions: a
+            // NoClassDefFoundError from a dependency that is invalid on this API level went
+            // straight through `catch (e: Exception)` and killed the app on launch.
+            Log.e(TAG, "Initialization failed; the SDK is disabled and all calls are no-ops", e)
+            return false
         }
 
         // Push notifications are OPTIONAL. They only work when the host app has configured
@@ -49,29 +90,44 @@ object Intempt  {
         } catch (e: Exception) {
             Log.i("FCM", "Firebase not configured; push notifications are disabled.")
         }
+
+        return true
     }
 
-
+    /**
+     * The single guard every entry point goes through. Returns null and logs when the SDK
+     * is not running, so callers become no-ops instead of throwing.
+     */
+    private fun core(caller: String): IntemptCoreService? {
+        val core = intemptCore
+        if (core == null) {
+            Log.w(TAG, "$caller ignored: the SDK is not initialized. Call Intempt.initialize(context) first.")
+        }
+        return core
+    }
 
     fun identify(
         userId: String,
         eventTitle: String? = null,
         userAttributes: Map<String, String>? = null,
-        data: Map<String, String>?= null,
+        data: Map<String, String>? = null,
     ) {
-        intemptCore.capture.identify(userId, eventTitle, userAttributes, data)
+        core("identify")?.capture?.identify(userId, eventTitle, userAttributes, data)
     }
 
     fun group(
         accountId: String,
         eventTitle: String? = null,
-        accountAttributes: Map<String, String>? = null
+        accountAttributes: Map<String, String>? = null,
     ) {
-        intemptCore.capture.group(accountId, eventTitle, accountAttributes)
+        core("group")?.capture?.group(accountId, eventTitle, accountAttributes)
     }
 
-    fun track( eventTitle: String, data: Map<String, String>) {
-        intemptCore.capture.track( eventTitle, data)
+    fun track(
+        eventTitle: String,
+        data: Map<String, String>,
+    ) {
+        core("track")?.capture?.track(eventTitle, data)
     }
 
     fun record(
@@ -80,20 +136,23 @@ object Intempt  {
         userId: String? = null,
         accountAttributes: Map<String, String>? = null,
         userAttributes: Map<String, String>? = null,
-        data: Map<String, String>? = null
+        data: Map<String, String>? = null,
     ) {
-        intemptCore.capture.record(
+        core("record")?.capture?.record(
             eventTitle,
             accountId,
             userId,
             accountAttributes,
             userAttributes,
-            data
+            data,
         )
     }
 
-    fun alias(userId: String, anotherUserId: String) {
-        intemptCore.capture.alias(userId, anotherUserId)
+    fun alias(
+        userId: String,
+        anotherUserId: String,
+    ) {
+        core("alias")?.capture?.alias(userId, anotherUserId)
     }
 
     fun consent(
@@ -101,66 +160,64 @@ object Intempt  {
         validUntil: Long,
         email: String? = null,
         message: String? = null,
-        category: String? = null
+        category: String? = null,
     ) {
-        intemptCore.capture.consent(
-            action,
-            validUntil,
-            email,
-            message,
-            category
-        )
+        core("consent")?.capture?.consent(action, validUntil, email, message, category)
     }
 
-    fun productAdd(productId:String, quantity:Int){
-        intemptCore.capture.productAdd(productId,quantity)
+    fun productAdd(
+        productId: String,
+        quantity: Int,
+    ) {
+        core("productAdd")?.capture?.productAdd(productId, quantity)
     }
 
-    fun productOrdered(products: List<Map<String, Any>>){
-        intemptCore.capture.productOrdered(products)
+    fun productOrdered(products: List<Map<String, Any>>) {
+        core("productOrdered")?.capture?.productOrdered(products)
     }
 
-    fun productView(productId:String){
-        intemptCore.capture.productView(productId)
+    fun productView(productId: String) {
+        core("productView")?.capture?.productView(productId)
     }
 
-    suspend fun recommendation(id:String, quantity:Int, fields:List<String>, productId:String?): JsonObject? {
-        return intemptCore.capture.recommendation(id, quantity, fields, productId)
-    }
+    suspend fun recommendation(
+        id: String,
+        quantity: Int,
+        fields: List<String>,
+        productId: String?,
+    ): JsonObject? = core("recommendation")?.capture?.recommendation(id, quantity, fields, productId)
 
     fun logOut() {
-        intemptCore.capture.logOut()
+        core("logOut")?.capture?.logOut()
     }
 
-    fun doNotCaptureText(view: View){
-        intemptCore.capture.doNotCaptureText(view)
+    fun doNotCaptureText(view: View) {
+        core("doNotCaptureText")?.capture?.doNotCaptureText(view)
     }
 
     object Logging {
-        fun start(){
-            intemptCore.capture.enableLogging()
-        }
-        fun stop(){
-            intemptCore.capture.disableLogging()
-
-        }
-        fun isLoggingEnabled(): Boolean{
-            return intemptCore.capture.isLoggingEnabled()
+        fun start() {
+            core("Logging.start")?.capture?.enableLogging()
         }
 
+        fun stop() {
+            core("Logging.stop")?.capture?.disableLogging()
+        }
+
+        /** False when the SDK is not initialized. */
+        fun isLoggingEnabled(): Boolean = core("Logging.isLoggingEnabled")?.capture?.isLoggingEnabled() ?: false
     }
 
     object Tracking {
-        fun start(){
-            intemptCore.capture.optIn()
+        fun start() {
+            core("Tracking.start")?.capture?.optIn()
         }
+
         fun stop() {
-            intemptCore.capture.optOut()
-        }
-        fun isTrackingEnabled(): Boolean{
-            return intemptCore.capture.isTrackingEnabled()
+            core("Tracking.stop")?.capture?.optOut()
         }
 
+        /** False when the SDK is not initialized. */
+        fun isTrackingEnabled(): Boolean = core("Tracking.isTrackingEnabled")?.capture?.isTrackingEnabled() ?: false
     }
-
 }

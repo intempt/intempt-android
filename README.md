@@ -8,7 +8,7 @@ Add the dependency to your module-level `build.gradle.kts`:
 
 ```kotlin
 dependencies {
-    implementation("com.intempt.sdk:intempt-android:2.0.1")
+    implementation("com.intempt.sdk:intempt-android:3.0.0")
 }
 ```
 
@@ -361,13 +361,48 @@ Both `experiment` and `personalization` implement `ModificationProvider` with th
 | `getByGroupAsync(data: List<String>): CompletableFuture<JsonElement?>` | Java-friendly async variant |
 | `getByNameAsync(data: List<String>): CompletableFuture<JsonElement?>` | Java-friendly async variant |
 
+## Checking the SDK started
+
+`initialize` never throws and never takes your app down. It returns whether the SDK is
+running, and every other call is a no-op while it is not:
+
+```kotlin
+if (!Intempt.initialize(context)) {
+    // Analytics is off. Your app is unaffected; nothing else needs guarding.
+}
+
+Intempt.isInitialized   // same answer, readable later
+```
+
+Calls made before or without a successful `initialize` log a warning and do nothing. They do
+not throw, so you do not need to guard your tracking calls.
+
+## Sample app
+
+`sample/` is a host application that consumes this SDK the way your app does — a config file
+in `assets/`, `Intempt.initialize()` from `Application.onCreate`, and a button per public
+call.
+
+```bash
+./gradlew :sample:installDebug
+adb shell am start -n com.intempt.sample/.MainActivity
+adb logcat -s Intempt
+```
+
+It is also a test target. `:sample:testDebugUnitTest` boots the SDK on the JVM at API 24 and
+34, and `:sample:connectedDebugAndroidTest` runs it on a real emulator and reads assertions
+back out of the on-device queue — including that a password typed into a real `EditText`
+never reaches it. Both run in CI on every pull request.
+
 ## Documentation
 
 Full documentation: [docs.intempt.com](https://docs.intempt.com/docs/android-sdk)
 
 ## Requirements
 
-- Android API 31+
+- **Android API 24+** (Android 7.0). Verified by an instrumented suite that runs on an
+  API 24 emulator in CI, not only on the current target — three crashes that were invisible
+  above API 24 shipped before that gate existed.
 - Kotlin
 
 ## For devs
@@ -377,12 +412,19 @@ Releases publish to Maven Central automatically, **only from `main`**, when you 
 ```bash
 git checkout main
 git pull origin main
-git tag v2.0.1
-git push origin v2.0.1
+git tag v3.0.0
+git push origin v3.0.0
 ```
 
 Full release guide: [RELEASING.md](RELEASING.md).
 
 ## License
 
-MIT -- see [LICENSE](LICENSE) for details.
+Apache 2.0 -- see [LICENSE](LICENSE) and [NOTICE](NOTICE) for details.
+
+Version 3.0.0 onwards is Apache 2.0. It incorporates the event delivery queue from
+[mixpanel-android](https://github.com/mixpanel/mixpanel-android), which is Apache 2.0, so this
+SDK is distributed under the same terms. `NOTICE` lists every derived file against its
+upstream path and records which behaviours are inherited unchanged.
+
+Versions up to and including 2.0.1 were published under MIT and remain MIT on Maven Central.

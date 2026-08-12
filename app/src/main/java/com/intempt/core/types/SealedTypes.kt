@@ -61,6 +61,7 @@ internal sealed class ConfigKeys(val key: String){
     data object IsAutoCaptureEnabled : ConfigKeys("isAutoCaptureEnabled")
     data object ItemsInQueue : ConfigKeys("itemsInQueue")
     data object TimeBuffer : ConfigKeys("timeBuffer")
+    data object ApiUrl : ConfigKeys("apiUrl")
 }
 
 internal sealed class DefaultConfigs<T>(val value: T){

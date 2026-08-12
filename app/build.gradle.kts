@@ -96,6 +96,19 @@ dependencies {
     implementation(libs.ktor.serialization.kotlinx.json)
     implementation(libs.ktor.client.content.negotiation)
     implementation(libs.ktor.client.serialization)
+    // api, not implementation. JsonElement and JsonObject appear in the SDK's PUBLIC API —
+    // ModificationProvider.getByGroup/getByName return JsonElement?, and
+    // Intempt.recommendation returns JsonObject?. Declared as implementation, the type was
+    // absent from a consumer's compile classpath, so calling recommendation(), experiment or
+    // personalization failed to compile in the host app with
+    // "Cannot access class 'kotlinx.serialization.json.JsonElement'" and nothing documented
+    // that the consumer had to add kotlinx-serialization themselves.
+    //
+    // Found by writing the e2e suite in :sample, which consumes this library the way a
+    // customer does. Version matches what ktor already resolves (1.5.1), so this exposes the
+    // artifact that was on the runtime classpath all along rather than adding a new one.
+    api(libs.kotlinx.serialization.json)
+
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.androidx.core.ktx)

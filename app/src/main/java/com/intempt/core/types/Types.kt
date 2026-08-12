@@ -58,7 +58,10 @@ internal data class IntemptOptions(
     val isAutoCaptureEnabled: Boolean,
     val itemsInQueue: Int,
     val timeBuffer: Long,
-
+    // Null means "use the production endpoint". Present so the SDK can be pointed at
+    // staging or at a local stub; without it the endpoint was a compile-time constant and
+    // the delivery leg could not be tested at all without a real project and key.
+    val apiUrl: String?,
 )
 
 internal data class ConfigResult(
