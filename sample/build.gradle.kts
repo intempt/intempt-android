@@ -200,4 +200,3 @@ dependencies {
     // coroutines with `implementation`, which does not reach a consumer's compile classpath.
     androidTestImplementation(libs.kotlinx.coroutines.android)
 }
-
