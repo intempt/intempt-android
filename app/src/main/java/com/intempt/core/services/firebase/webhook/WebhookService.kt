@@ -16,7 +16,7 @@ import org.json.JSONObject
 import javax.inject.Singleton
 
 @Singleton
-class WebhookService(
+internal class WebhookService(
     private val config: ConfigManagerService,
     private val logger: LoggerManagerService,
     private val http: HttpManagerService,

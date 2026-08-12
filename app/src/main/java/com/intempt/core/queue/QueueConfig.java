@@ -1,3 +1,16 @@
+/*
+ * Copyright (c) 2026 Intempt Technologies
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Written for Intempt rather than derived from mixpanel-android, but it lives in the vendored
+ * package and its constants and behaviour are taken from Mixpanel's MPConfig and MPDbAdapter,
+ * so it is licensed under the same terms and recorded in NOTICE.
+ */
 package com.intempt.core.queue;
 
 import javax.net.ssl.SSLSocketFactory;
@@ -53,6 +66,8 @@ public class QueueConfig {
     private final String mBackupHost;
     private final boolean mGzipRequestPayload;
     private final String mAuthorization;
+    private final int mBulkUploadLimitOverride;
+    private final int mFlushIntervalOverride;
 
     public QueueConfig(String eventsEndpoint) {
         this(eventsEndpoint, null, null, false);
@@ -64,10 +79,32 @@ public class QueueConfig {
 
     public QueueConfig(
             String eventsEndpoint, String authorization, String backupHost, boolean gzipRequestPayload) {
+        this(eventsEndpoint, authorization, backupHost, gzipRequestPayload, 0, 0);
+    }
+
+    /**
+     * Honours the two knobs {@code assets/intempt-config.json} documents.
+     *
+     * <p>{@code itemsInQueue} and {@code timeBuffer} were read from the config file and stored
+     * on ConfigManagerService, and then nothing ever read them — delivery ran on the hardcoded
+     * constants regardless. Two documented options that silently did nothing.
+     *
+     * <p>Zero or negative means "use the inherited Mixpanel value", which is what everyone got
+     * before and remains the behaviour for anyone who does not set them.
+     */
+    public QueueConfig(
+            String eventsEndpoint,
+            String authorization,
+            String backupHost,
+            boolean gzipRequestPayload,
+            int itemsInQueue,
+            long timeBufferMs) {
         mEventsEndpoint = eventsEndpoint;
         mAuthorization = authorization;
         mBackupHost = backupHost;
         mGzipRequestPayload = gzipRequestPayload;
+        mBulkUploadLimitOverride = itemsInQueue > 0 ? itemsInQueue : 0;
+        mFlushIntervalOverride = timeBufferMs > 0 ? (int) timeBufferMs : 0;
     }
 
     /**
@@ -91,11 +128,11 @@ public class QueueConfig {
     }
 
     public int getBulkUploadLimit() {
-        return BULK_UPLOAD_LIMIT;
+        return mBulkUploadLimitOverride > 0 ? mBulkUploadLimitOverride : BULK_UPLOAD_LIMIT;
     }
 
     public int getFlushInterval() {
-        return FLUSH_INTERVAL_MS;
+        return mFlushIntervalOverride > 0 ? mFlushIntervalOverride : FLUSH_INTERVAL_MS;
     }
 
     public int getFlushBatchSize() {

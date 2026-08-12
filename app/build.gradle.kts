@@ -64,23 +64,15 @@ android {
         jvmTarget = "1.8"
     }
 
-    packaging {
-        resources {
-            // AGP 8 excludes /META-INF/LICENSE and /META-INF/NOTICE by default, to stop the
-            // dozens of copies that arrive from transitive jars colliding. That default also
-            // silently dropped OURS: both files were generated into
-            // intermediates/java_res/, and neither reached app-release.aar.
-            //
-            // That matters legally rather than cosmetically. This SDK incorporates eight
-            // files from mixpanel-android under Apache 2.0, and §4(a)/(d) require the licence
-            // and the NOTICE to travel with the artifact a customer receives. Repo-root
-            // presence is not distribution. I claimed this was done in the PR body and in
-            // several commit messages; it was not, and `unzip -l` on the AAR showed zero
-            // matches.
-            excludes.remove("/META-INF/LICENSE")
-            excludes.remove("/META-INF/NOTICE")
-        }
-    }
+    // No packaging{} block. Removing AGP's default /META-INF/LICENSE and /META-INF/NOTICE
+    // excludes made ours ship, and also made every transitive dependency's copy ship — which
+    // collided and broke :app:mergeDebugAndroidTestJavaResource in CI. Those excludes exist
+    // precisely to stop that.
+    //
+    // So the files are named intempt_LICENSE.txt / intempt_NOTICE.txt instead. They are not
+    // matched by the default excludes, cannot collide with anyone else's, and still travel
+    // inside the artifact, which is what Apache 2.0 §4(a) and §4(d) require. NOTICE names all
+    // eight derived files against their upstream paths.
 
     lint {
         // Test sources too, for the same reason as :sample — an API-24 call inside a test is

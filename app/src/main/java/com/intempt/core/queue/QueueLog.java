@@ -1,3 +1,16 @@
+/*
+ * Copyright (c) 2026 Intempt Technologies
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Written for Intempt rather than derived from mixpanel-android, but it lives in the vendored
+ * package and its constants and behaviour are taken from Mixpanel's MPConfig and MPDbAdapter,
+ * so it is licensed under the same terms and recorded in NOTICE.
+ */
 package com.intempt.core.queue;
 
 import android.util.Log;

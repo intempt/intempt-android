@@ -370,7 +370,7 @@ class AutoCaptureUnitTest {
             assertTrue(true)
         }
 
-    private fun configLifeCycleComponent(block: () -> Unit): LifecycleCallBacksComponent  {
+    private fun configLifeCycleComponent(block: () -> Unit): LifecycleCallBacksComponent {
         lifecycleService =
             spy(
                 LifecycleCallbackService(
@@ -382,14 +382,14 @@ class AutoCaptureUnitTest {
 
         block()
 
-        lifecycleComponent = spy(LifecycleCallBacksComponent(lifecycleService))
+        lifecycleComponent = spy(LifecycleCallBacksComponent(lifecycleService, mock(DeliveryMessages::class.java)))
 
         testScheduler.advanceUntilIdle()
 
         return lifecycleComponent
     }
 
-    private fun configureRootView(view: View): ViewGroup  {
+    private fun configureRootView(view: View): ViewGroup {
         val rootView =
             LinearLayout(activity).apply {
                 id = R.id.content

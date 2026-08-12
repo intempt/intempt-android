@@ -6,10 +6,8 @@ import android.os.Bundle
 import android.view.View
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentManager
-import kotlinx.serialization.json.JsonArray
-import java.util.Optional
 
-interface IntemptEventProvider {
+internal interface IntemptEventProvider {
     val eventId: String
     val sessionId: String
     val pageId: String
@@ -22,22 +20,34 @@ interface IntemptEventProvider {
 }
 
 // For activity lifecycle events
-interface ActivityLifecycleListener {
+internal interface ActivityLifecycleListener {
     fun onActivityResumed(activity: Activity)
-    fun onActivityPaused(activity: Activity)
 
+    fun onActivityPaused(activity: Activity)
 }
 
 // For fragment lifecycle events
-interface FragmentLifecycleListener {
+internal interface FragmentLifecycleListener {
     fun onFragmentViewCreated(
         fm: FragmentManager,
         fragment: Fragment,
         view: View,
-        savedInstanceState: Bundle?
+        savedInstanceState: Bundle?,
     )
 
-    fun onFragmentResumed(fm: FragmentManager, fragment: Fragment)
-    fun onFragmentAttached(fm: FragmentManager, fragment: Fragment, context: Context)
-    fun onFragmentDetached(fm: FragmentManager, fragment: Fragment)
+    fun onFragmentResumed(
+        fm: FragmentManager,
+        fragment: Fragment,
+    )
+
+    fun onFragmentAttached(
+        fm: FragmentManager,
+        fragment: Fragment,
+        context: Context,
+    )
+
+    fun onFragmentDetached(
+        fm: FragmentManager,
+        fragment: Fragment,
+    )
 }

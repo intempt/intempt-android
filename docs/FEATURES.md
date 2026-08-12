@@ -13,7 +13,7 @@
 
 ## 1. Public API
 
-19 callable members plus 2 properties. **No signatures change.**
+19 callable members plus `isInitialized`. **Signatures DID change in 3.0.0:** `initialize` returns `Boolean` rather than `Unit` (a binary break for Java callers), and the `experiment` / `personalization` properties were removed — experiments and personalizations are an intemptjs capability, not an Android one.
 
 | Member | Signature | Status |
 |---|---|---|
@@ -117,7 +117,7 @@ unaffected and remain part of the SDK.
 
 | Behavior | Before | After |
 |---|---|---|
-Queue durability | in-memory only | ✨ disk-backed (Room), survives process death |
+Queue durability | in-memory only | ✨ disk-backed (SQLiteOpenHelper), survives process death |
 Delete timing | cleared **before** POST | 🔧 only after confirmed 2xx |
 Retry | none | ✨ 429 + 5xx + timeout + offline; exponential backoff capped at 10 min |
 `Retry-After` honored | no | ✨ yes |
@@ -129,7 +129,7 @@ Crash-stranded items | lost | ✨ orphan recovery via `flushAfter` |
 Delete verification | none | ✨ remove-then-verify |
 Runaway failures | none | ✨ circuit breaker (>5 removal failures → stop) |
 HTTP timeouts | **none configured** | ✨ explicit connect / read / request |
-Batch tuning | 5 events / 5 s | ✨ 50 / 5 s (intemptjs parity) |
+Batch tuning | 5 events / 5 s | ✨ 40 events / 60 s (Mixpanel's inherited defaults; overridable via itemsInQueue / timeBuffer) |
 Backpressure | unbounded | ✨ disk ceiling |
 Concurrency model | unsynchronized shared list | ✨ single-writer dispatcher |
 
@@ -146,7 +146,7 @@ Dedicated `consent()` event → `consents/data` | ✅ |
 `doNotCaptureText(view)` — per-view opt-out, 12 supported types | ✅ |
 HTTPS enforced (hardcoded base URL) | ✅ |
 No hardcoded secrets; apiKey loaded from assets at runtime | ✅ |
-Automatic PII masking — `EditText` currently ships raw text incl. password fields | 🔧 |
+Automatic PII masking — password inputs masked at all three read sites; **every other `EditText` still ships its text verbatim** while `isTextCaptureEnabled` defaults true. Use `doNotCaptureText(view)` per field, or disable text capture. | ✅ |
 `profileId` rotates on `logOut()` — currently restores the same ID (cross-user leak on shared devices) | 🔧 |
 `SCHEDULE_EXACT_ALARM` permission removed (declared, zero usages) | 🔧 |
 `consumerProguardFiles` shipped so host-app R8 can't strip reflection dispatch | ✨ |
@@ -184,11 +184,11 @@ Automatic PII masking — `EditText` currently ships raw text incl. password fie
 | | |
 |---|---|
 Coordinates | `com.intempt.sdk:intempt-android` |
-License | **Apache 2.0** (new repo, from commit 1) |
+License | **Apache 2.0** from 3.0.0 (2.0.1 and earlier were MIT and stay MIT on Maven Central). LICENSE + NOTICE are packaged into the AAR under META-INF. |
 Distribution | Maven Central |
-Stack | Kotlin 1.9.22, Dagger 2.52, Ktor 2.3.11, coroutines 1.9.0, Room |
+Stack | Kotlin 1.9.22, Dagger 2.52, Ktor 2.3.11, coroutines 1.9.0, SQLiteOpenHelper |
 compileSdk | 35 |
-minSdk | 31 — **open decision, see §11** |
+minSdk | 23 — **open decision, see §11** |
 
 ---
 
@@ -237,7 +237,7 @@ Page-vs-screen is defensible — mobile has screens. **But `Session Start` vs `S
 
 | # | Decision | Owner |
 |---|---|---|
-1 | **minSdk 31 → 21?** Mixpanel's floor is 21; dropping ours roughly doubles reachable devices. New repo makes this the moment to choose | Product |
+1 | ~~minSdk~~ **Done: 23.** A customer was blocked at 23; `CompletableFuture` was the only blocker and is gone. 21 would need core-library desugaring for a residual jackson `Stream` path. | Closed |
 2 | **§11.3 casing** — unify `Session start` / `Session Start` across SDKs? | Product |
 3 | **§11.1** — is a `group()` event named "Identify" intentional? | Product |
 4 | **CI gate** (test + lint on every PR) in the same push? Process, not a feature | Eng |

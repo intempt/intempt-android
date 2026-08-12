@@ -41,6 +41,7 @@ import org.json.JSONObject
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.mockito.ArgumentCaptor
 import org.mockito.ArgumentMatchers.anyBoolean
 import org.mockito.ArgumentMatchers.anyInt
 import org.mockito.ArgumentMatchers.anyString
@@ -184,52 +185,57 @@ class CustomCaptureUnitTest {
     @Test
     fun `should receive event of type identify`() =
         runTest {
-            interceptTrackHttpRequest("identify")
             component.identify(
                 "test_userID",
                 "test_eventTitle",
                 mapOf("test" to "test"),
                 mapOf("test" to "test"),
             )
+
+            assertEnqueued("identify")
         }
 
     @Test
     fun `should receive event of type group`() =
         runTest {
-            interceptTrackHttpRequest("group")
             component.group(
                 "test_accountID",
                 "test_eventTitle",
                 mapOf("test" to "test"),
             )
+
+            assertEnqueued("group")
         }
 
     @Test
     fun `should receive event of type track`() =
         runTest {
-            interceptTrackHttpRequest("track")
             component.track(
                 "test_TrackTitle",
                 mapOf("test" to "test"),
             )
+
+            assertEnqueued("track")
         }
 
     @Test
     fun `should receive event of type record`() {
-        interceptTrackHttpRequest("record")
         component.record(
             "test_RecordTitle",
             data = mapOf("test" to "test"),
         )
+
+        assertEnqueued("record")
     }
 
     @Test
     fun `should receive event of type alias`() {
-        interceptTrackHttpRequest("alias")
         component.alias(
             "test_userId",
             "test_anotherUserId",
         )
+
+        assertEnqueued("alias")
     }
 
     @Test
@@ -255,6 +261,8 @@ class CustomCaptureUnitTest {
                 "prt1231231231_23",
                 1,
             )
+
+            assertEnqueued("product")
         }
 
     @Test
@@ -263,6 +271,8 @@ class CustomCaptureUnitTest {
             interceptConsentHttpRequest()
 
             component.productView("productView_id")
+
+            assertEnqueued("product")
         }
 
     @Test
@@ -276,6 +286,8 @@ class CustomCaptureUnitTest {
                     mapOf("productId" to "sdfgdfgdfg1234234", "quantity" to 45),
                 ),
             )
+
+            assertEnqueued("product")
         }
 
     @Test
@@ -303,7 +315,7 @@ class CustomCaptureUnitTest {
     }
 
     @Test
-    fun `should add intemptDoNotCapture tag`()  {
+    fun `should add intemptDoNotCapture tag`() {
         val viewsToTest =
             listOf(
                 EditText(context),
@@ -399,31 +411,27 @@ class CustomCaptureUnitTest {
             assertNotNull(res)
         }
 
-    private fun interceptTrackHttpRequest(expectedEventType: String) =
-        runBlocking {
-            doAnswer { invocation ->
-                try {
-                    val url = invocation.getArgument<String>(0)
-                    val jsonPayload = invocation.getArgument<JSONObject>(1)
-
-                    println("URL: $url")
-                    println("Captured HTTP request payload: $jsonPayload")
-                    assertNotNull("Captured HTTP request payload:", jsonPayload)
-                    val type =
-                        jsonPayload
-                            .getJSONArray("track")
-                            .getJSONObject(0)
-                            .getString("type")
-
-                    assertEquals("Expected event type to be '$expectedEventType'", expectedEventType, type)
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                    fail("An exception was thrown during the post request: ${e.message}")
-                } finally {
-                    testScheduler.advanceUntilIdle()
-                }
-            }.whenever(httpSrv).post(any(), any<JSONObject>(), any())
-        }
+    /**
+     * Asserts that the event actually reached the delivery queue.
+     *
+     * The previous version of this helper stubbed `httpSrv.post` and asserted INSIDE the
+     * `doAnswer`. Production stopped posting on the tracking path when the durable queue
+     * landed — `EventPoolManagerService.startEventCollection` routes everything except consent
+     * to `delivery.enqueueEvent` — so `post` was never called, the answer body never ran, and
+     * nine tests were green regardless of the code. Deleting `emitEvent` from all nine
+     * production methods left every one of them passing.
+     *
+     * `verify` outside the action is the difference: a call that never happens now fails.
+     */
+    private fun assertEnqueued(expectedEventType: String) {
+        val captor = ArgumentCaptor.forClass(JSONObject::class.java)
+        verify(delivery, atLeastOnce()).enqueueEvent(captor.capture())
+        val types = captor.allValues.map { it.getString("type") }
+        assertTrue(
+            "expected an enqueued event of type '$expectedEventType', got $types",
+            types.contains(expectedEventType),
+        )
+    }
 
     private fun interceptConsentHttpRequest() =
         runBlocking {

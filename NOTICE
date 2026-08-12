@@ -51,3 +51,16 @@ A copy of the Apache License, Version 2.0 is distributed with this product in
 the file LICENSE, and is also available at:
 
   http://www.apache.org/licenses/LICENSE-2.0
+
+Written for Intempt, not derived from mixpanel-android, but licensed under the same
+Apache License 2.0 because they live in the vendored package and encode behaviour and
+tuning constants taken from Mixpanel's source:
+
+  app/src/main/java/com/intempt/core/queue/QueueConfig.java
+      constants from MPConfig.java and MPDbAdapter.java
+  app/src/main/java/com/intempt/core/queue/QueueLog.java
+      stands in for MPLog, which was not vendored
+  app/src/main/java/com/intempt/core/queue/HttpStatusPolicy.java
+      the one deliberate departure from Mixpanel's retry taxonomy
+  app/src/main/java/com/intempt/core/queue/TrackPayloadBuilder.java
+      assembles Intempt's ingestion envelope around the vendored batch format

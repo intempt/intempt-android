@@ -3,7 +3,7 @@ package com.intempt.core.autocapture
 import com.intempt.core.services.LoggerManagerService
 
 
-open class BaseComponent(logger: LoggerManagerService? = null) {
+internal open class BaseComponent(logger: LoggerManagerService? = null) {
     private var _isInitialized: Boolean = false;
     init {
         _isInitialized = true;

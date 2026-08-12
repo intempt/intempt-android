@@ -301,16 +301,29 @@ public class DeliveryMessages {
         public void runMessage(Message msg) {
             synchronized (mHandlerLock) {
                 if (mHandler == null) {
-                    // We died under suspicious circumstances. Don't try to send any more events.
-                    logAboutMessage("Dead delivery worker dropping a message: " + msg.what);
-                } else {
-                    mHandler.sendMessage(msg);
+                    // Modification: revive the worker instead of dropping forever.
+                    //
+                    // Upstream logs and discards. Any RuntimeException in handleMessage nulls
+                    // mHandler and quits the looper, and restartWorkerThread() was only ever
+                    // called from the constructor — so one transient fault (SQLiteException is
+                    // a RuntimeException, and an unopenable or corrupt database throws it
+                    // outside the guarded block) killed delivery for the whole process
+                    // lifetime. Every later event was silently dropped at this line, with
+                    // nothing restarting it and nothing reporting it.
+                    QueueLog.e(LOGTAG, "Delivery worker had died; restarting it");
+                    mHandler = restartWorkerThread();
+                    if (mHandler == null) {
+                        logAboutMessage("Could not restart the delivery worker, dropping: " + msg.what);
+                        return;
+                    }
                 }
+                mHandler.sendMessage(msg);
             }
         }
 
-        // NOTE that the returned worker will run FOREVER, unless you send a hard kill
-        // (which you really shouldn't)
+        // Runs until a hard kill or an unhandled RuntimeException in handleMessage. The
+        // latter nulls mHandler and quits the looper; runMessage restarts it on the next
+        // event. Upstream's "will run FOREVER" was not accurate even upstream.
         protected Handler restartWorkerThread() {
             final HandlerThread thread =
                     new HandlerThread(
@@ -507,6 +520,12 @@ public class DeliveryMessages {
                             }
                             if (mFailedRetries > 0) {
                                 mFailedRetries = 0;
+                                // Also clear the floor, not just the counter. Upstream leaves
+                                // mTrackEngageRetryAfter at whatever the last failure raised
+                                // it to, and the next delay is max(2^0 * 60s, thatValue) — so
+                                // after one bad streak every later retry waits the full ten
+                                // minutes for the rest of the process.
+                                mTrackEngageRetryAfter = 0;
                                 removeMessages(FLUSH_QUEUE, token);
                             }
 

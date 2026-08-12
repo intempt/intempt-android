@@ -2,34 +2,31 @@ package com.intempt.core.intemptCore
 
 import android.content.Context
 import com.intempt.core.Intempt
-import com.intempt.core.autocapture.AutoCaptureComponent
 import com.intempt.core.autocapture.AutoCaptureModule
-import com.intempt.core.customCapture.CustomCaptureComponent
 import com.intempt.core.customCapture.CustomCaptureModule
+import com.intempt.core.queue.DeliveryMessages
+import com.intempt.core.queue.QueueConfig
 import com.intempt.core.services.ConfigManagerService
 import com.intempt.core.services.HttpManagerService
 import com.intempt.core.services.IntemptEventManagerService
 import com.intempt.core.services.LoggerManagerService
-import com.intempt.core.queue.DeliveryMessages
-import com.intempt.core.queue.QueueConfig
-import com.intempt.core.services.eventPool.EventPoolManagerService
 import com.intempt.core.services.StorageManagerService
 import com.intempt.core.services.UtilsService
+import com.intempt.core.services.eventPool.EventPoolManagerService
 import dagger.Component
 import dagger.Module
 import dagger.Provides
 import javax.inject.Singleton
 
-
-
-@Module(includes = [
-    AutoCaptureModule::class,
-    CustomCaptureModule::class
-])
+@Module(
+    includes = [
+        AutoCaptureModule::class,
+        CustomCaptureModule::class,
+    ],
+)
 internal class IntemptCoreModule(
-    private val consumerContext: Context
+    private val consumerContext: Context,
 ) {
-
     @Provides
     fun provideContext(): Context {
         return consumerContext.applicationContext
@@ -37,9 +34,7 @@ internal class IntemptCoreModule(
 
     @Provides
     @Singleton
-    fun provideUtilsService(
-        logger: LoggerManagerService
-    ): UtilsService{
+    fun provideUtilsService(logger: LoggerManagerService): UtilsService  {
         return UtilsService(logger)
     }
 
@@ -47,27 +42,23 @@ internal class IntemptCoreModule(
     @Singleton
     fun provideHttpService(
         config: ConfigManagerService,
-        logger: LoggerManagerService
-    ): HttpManagerService{
+        logger: LoggerManagerService,
+    ): HttpManagerService  {
         return HttpManagerService(config, logger)
     }
 
     @Provides
     @Singleton
-    fun provideLoggerService(
-        config: ConfigManagerService,
-    ): LoggerManagerService{
+    fun provideLoggerService(config: ConfigManagerService): LoggerManagerService  {
         return LoggerManagerService(config)
     }
 
     @Provides
     @Singleton
-    fun provideStorageManagerService(
-        utils: UtilsService
-    ): StorageManagerService{
+    fun provideStorageManagerService(utils: UtilsService): StorageManagerService  {
         return StorageManagerService(
             consumerContext.applicationContext,
-            utils
+            utils,
         )
     }
 
@@ -79,57 +70,59 @@ internal class IntemptCoreModule(
         http: HttpManagerService,
         intemptEvent: IntemptEventManagerService,
         delivery: DeliveryMessages,
-    ): EventPoolManagerService{
+    ): EventPoolManagerService  {
         return EventPoolManagerService(
             config,
             logger,
             http,
             intemptEvent,
-            delivery
+            delivery,
         )
     }
 
     @Provides
     @Singleton
-    fun provideQueueConfig(
-        config: ConfigManagerService,
-    ): QueueConfig {
+    fun provideQueueConfig(config: ConfigManagerService): QueueConfig {
         // The Basic token, built exactly as HttpManagerService builds it for every other
         // request. Without it the vendored transport posts unauthenticated and the gateway's
         // 401 is treated as an unrecoverable status, so the batch is deleted rather than
         // retried — a silent 100% loss.
-        return QueueConfig(config.eventsUrl, "Basic ${config.token()}").also {
+        return QueueConfig(
+            config.eventsUrl,
+            "Basic ${config.token()}",
+            null,
+            false,
+            config.itemsInQueue,
+            config.timeBuffer,
+        ).also {
             it.setLoggingEnabled(config.isLoggingEnabled)
         }
     }
 
     @Provides
     @Singleton
-    fun provideDeliveryMessages(
-        queueConfig: QueueConfig,
-    ): DeliveryMessages {
+    fun provideDeliveryMessages(queueConfig: QueueConfig): DeliveryMessages {
         // One instance, owned here. The vendored class had a static registry keyed by
         // project token to partition a shared queue across Mixpanel instances; Intempt
         // has one SDK instance per app, so Dagger's @Singleton replaces it.
         return DeliveryMessages(consumerContext.applicationContext, queueConfig)
     }
+
     @Provides
     @Singleton
     fun provideIntemptEventManagerService(
         storage: StorageManagerService,
         utils: UtilsService,
         config: ConfigManagerService,
-    ):IntemptEventManagerService{
+    ): IntemptEventManagerService  {
         return IntemptEventManagerService(
             consumerContext.applicationContext,
             storage,
             utils,
-            config
+            config,
         )
     }
-
 }
-
 
 @Singleton
 @Component(modules = [IntemptCoreModule::class])
@@ -138,10 +131,8 @@ internal interface IntemptCoreComponent {
 
     fun initService(): IntemptCoreService
 
-
     @Component.Factory
     interface Factory {
         fun create(intemptModule: IntemptCoreModule): IntemptCoreComponent
     }
 }
-

@@ -12,7 +12,7 @@ import com.intempt.core.types.ActivityLifecycleListener
 import com.intempt.core.types.FragmentLifecycleListener
 
 
-open class BaseAutoCaptureComponent(
+internal open class BaseAutoCaptureComponent(
     logger: LoggerManagerService? = null
 ):BaseComponent(logger), ActivityLifecycleListener, FragmentLifecycleListener {
     override fun onActivityResumed(activity: Activity) {}

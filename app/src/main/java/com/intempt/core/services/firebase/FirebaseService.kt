@@ -22,8 +22,6 @@ import com.fasterxml.jackson.module.kotlin.readValue
 import com.google.firebase.messaging.FirebaseMessaging
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
-import com.intempt.core.queue.DeliveryMessages
-import com.intempt.core.queue.QueueConfig
 import com.intempt.core.services.ConfigManagerService
 import com.intempt.core.services.HttpManagerService
 import com.intempt.core.services.LoggerManagerService
@@ -31,8 +29,6 @@ import com.intempt.core.services.firebase.model.PushNotificationContent
 import com.intempt.core.services.firebase.model.PushNotificationMetadata
 import com.intempt.core.services.firebase.webhook.WebhookService
 import kotlinx.coroutines.tasks.await
-import org.json.JSONArray
-import org.json.JSONObject
 
 class FirebaseService : FirebaseMessagingService() {
     var token: String = ""
@@ -124,19 +120,21 @@ class FirebaseService : FirebaseMessagingService() {
         Log.d(TAG, "FCM token rotated, reporting it")
         this.token = token
 
-        val config = ConfigManagerService(this)
-        val logger = LoggerManagerService(config)
-        val http = HttpManagerService(config, logger)
-        val queueConfig =
-            QueueConfig(config.eventsUrl, "Basic ${config.token()}")
-                .also { it.setLoggingEnabled(config.isLoggingEnabled) }
-
         try {
-            DeliveryMessages(applicationContext, queueConfig).enqueueEvent(
-                JSONObject()
-                    .put("name", "App install/upgrade")
-                    .put("type", "installOrUpgrade")
-                    .put("payload", JSONArray().put(JSONObject().put("deviceToken", token))),
+            // The SDK's own instance, via the public facade. This used to construct a SECOND
+            // DeliveryMessages here, which meant a second HandlerThread and a second
+            // EventDbAdapter opening, writing to and closing the SAME intempt_events file.
+            // Two writers on one SQLite file raises SQLiteDatabaseLockedException, which is a
+            // SQLiteException, which EventDbAdapter answers by calling deleteDatabase() — so a
+            // routine FCM token rotation could delete the entire undelivered queue. It also
+            // leaked a thread per rotation.
+            //
+            // Routing through Intempt.track keeps one owner, which is what the Dagger
+            // @Singleton was for. If the SDK is not initialized the call is a logged no-op,
+            // and the token still reaches the backend on the next install/upgrade event.
+            com.intempt.core.Intempt.track(
+                "App install/upgrade",
+                mapOf("deviceToken" to token),
             )
         } catch (e: Throwable) {
             // Never let a token report crash the messaging service.

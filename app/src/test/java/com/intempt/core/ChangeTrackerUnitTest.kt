@@ -247,7 +247,7 @@ class ChangeTrackerUnitTest {
         doNothing().`when`(lifecycleService).handleFragmentAdd(any<Fragment>())
         doNothing().`when`(lifecycleService).handleFragmentRemove(any<Fragment>())
 
-        lifecycleComponent = spy(LifecycleCallBacksComponent(lifecycleService))
+        lifecycleComponent = spy(LifecycleCallBacksComponent(lifecycleService, mock(DeliveryMessages::class.java)))
 
         testScheduler.advanceUntilIdle()
 
