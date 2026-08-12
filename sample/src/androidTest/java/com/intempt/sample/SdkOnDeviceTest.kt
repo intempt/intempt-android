@@ -170,7 +170,16 @@ class SdkOnDeviceTest {
 
         com.intempt.core.Intempt.alias(from, to)
 
-        val event = awaitEvent("an alias event") { it.optString("type") == "alias" }
+        // Matched on the generated ids, not merely on type == "alias".
+        // everyPublicCallSurvivesOnThisApiLevel also calls alias(), and with no ordering
+        // guarantee between test methods this found that one instead and compared against
+        // "u-survive". Sharing one app process across tests means every predicate has to be
+        // specific enough to identify its own event.
+        val event =
+            awaitEvent("the alias event this test emitted") { row ->
+                row.optString("type") == "alias" &&
+                    row.optJSONArray("payload")?.optJSONObject(0)?.optString("userId") == from
+            }
         val payload = event.getJSONArray("payload").getJSONObject(0)
         assertEquals(from, payload.optString("userId"))
         assertEquals(to, payload.optString("anotherUserId"))
@@ -344,21 +353,20 @@ class SdkOnDeviceTest {
             configured,
         )
 
-        val before = rows().size
+        val tag = "e2e delivery ${System.nanoTime()}"
         repeat(45) { i ->
-            com.intempt.core.Intempt.track(
-                "e2e delivery ${System.nanoTime()}-$i",
-                mapOf("source" to "android-sdk-e2e"),
-            )
+            com.intempt.core.Intempt.track("$tag-$i", mapOf("source" to "android-sdk-e2e"))
         }
 
-        // Past the bulk limit, so a flush is scheduled immediately rather than in 60s.
-        val queuedPeak = awaitCondition { rows().size > before }
-        assertTrue("expected events to be queued before delivery", queuedPeak)
-
+        // No assertion that the queue grows first. 45 events exceed
+        // QueueConfig.BULK_UPLOAD_LIMIT (40), so a flush is scheduled immediately and the
+        // burst can be delivered and deleted before a poll ever observes a larger queue —
+        // which failed here as "expected events to be queued before delivery" while delivery
+        // was in fact working. Draining is the property worth asserting; how briefly the rows
+        // existed is not.
         val drained =
             awaitCondition(timeoutMs = 90_000) {
-                rows().none { it.optString("name").startsWith("e2e delivery ") }
+                rows().none { it.optString("name").startsWith(tag) }
             }
 
         assertTrue(

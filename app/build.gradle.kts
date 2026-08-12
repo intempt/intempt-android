@@ -76,6 +76,15 @@ android {
                 env: String,
             ): String = (creds.getProperty(prop) ?: System.getenv(env))?.takeIf { v -> v.isNotBlank() } ?: ""
 
+            // Opt-in, not on by default. These tests call the live ingestion endpoint, so
+            // leaving them in the ordinary unit-test run couples every pull request to an
+            // external service: a transient blip failed a PR here with
+            // "SocketException: Unexpected end of file from server" on code that was fine.
+            // Enable with -Pintempt.prodTests=true, which CI does in its own non-gating job.
+            it.systemProperty(
+                "intempt.prodTests",
+                (project.findProperty("intempt.prodTests") as String? ?: "false"),
+            )
             it.systemProperty("intempt.apiKey", cred("intempt.apiKey", "INTEMPT_API_KEY"))
             it.systemProperty("intempt.organization", cred("intempt.organization", "INTEMPT_ORGANIZATION_ID"))
             it.systemProperty("intempt.project", cred("intempt.project", "INTEMPT_PROJECT_ID"))

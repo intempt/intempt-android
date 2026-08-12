@@ -43,6 +43,16 @@ public class ProdDeliveryTest {
         return v == null ? "" : v.trim();
     }
 
+    /**
+     * Opt-in. These tests reach the live ingestion endpoint, so they are not part of the
+     * ordinary unit-test run: an outage or a dropped connection would fail pull requests that
+     * have nothing to do with delivery. CI runs them in a separate job that is allowed to
+     * fail, and a developer runs them with -Pintempt.prodTests=true.
+     */
+    private static boolean enabled() {
+        return Boolean.parseBoolean(prop("intempt.prodTests"));
+    }
+
     private static boolean credentialsPresent() {
         return !prop("intempt.apiKey").isEmpty()
                 && !prop("intempt.organization").isEmpty()
@@ -107,6 +117,7 @@ public class ProdDeliveryTest {
      */
     @Test
     public void theLiveEndpointAcceptsWhatTheSdkSends() throws Exception {
+        assumeFalse("prod tests are opt-in; run with -Pintempt.prodTests=true", !enabled());
         assumeFalse(
                 "no prod credentials; set intempt.apiKey and friends in local.properties",
                 !credentialsPresent());
@@ -132,6 +143,7 @@ public class ProdDeliveryTest {
      */
     @Test
     public void aRejectedKeyIsReportedAsAClientError() throws Exception {
+        assumeFalse("prod tests are opt-in; run with -Pintempt.prodTests=true", !enabled());
         assumeFalse("no prod credentials", !credentialsPresent());
 
         Map<String, String> bad = new HashMap<>();
