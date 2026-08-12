@@ -58,8 +58,13 @@ class MainActivity : AppCompatActivity() {
             Intempt.track("Sample button tapped", mapOf("source" to "sample-app"))
         }
         button(root, "identify") {
+            // eventTitle is REQUIRED whenever userAttributes is passed. Without it the SDK
+            // logs "Identify parameters are invalid" and drops the event silently — the call
+            // returns normally and nothing reaches the queue. Writing it the obvious way,
+            // identify(userId, userAttributes), produced no event at all on first run here.
             Intempt.identify(
                 userId = "sample-user-1",
+                eventTitle = "Sample identify",
                 userAttributes = mapOf("plan" to "free"),
             )
         }

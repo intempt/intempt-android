@@ -41,13 +41,20 @@ internal open class EventPoolManagerService
         private val dispatcher: CoroutineDispatcher = Dispatchers.IO,
     ) : BaseComponent(logger) {
 
-        private val coroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        // `dispatcher`, not Dispatchers.IO. This class accepted an injected dispatcher and
+        // then ignored it here, so a test that supplied one still had the collector running
+        // on the real IO pool — the injection was decorative. That is why work kept
+        // outliving tests and kotlinx.coroutines.test kept blaming whichever test ran next.
+        private val coroutineScope = CoroutineScope(SupervisorJob() + dispatcher)
 
         // Retained: sendConsentEvent still stamps this. Consent posts immediately and has
         // never been queued, so it does not move to the durable queue.
         private var lastDispatchTime: Long = System.currentTimeMillis()
 
-        private val eventHandlers = EventHandlers(logger, intemptEvent)
+        // The dispatcher has to be handed down. EventHandlers defaults to Dispatchers.IO,
+        // so omitting it here meant every coroutine EventHandlers launched ran on the real
+        // IO pool no matter what a test injected into this class.
+        private val eventHandlers = EventHandlers(logger, intemptEvent, dispatcher)
         private var eventReceiverJob: Job? = null
         private val _eventReceiver = MutableSharedFlow<IntemptEvent>(replay = 10)
 
