@@ -24,7 +24,6 @@ import com.intempt.core.types.Product
 import io.ktor.client.statement.HttpResponse
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
-import java.util.concurrent.CompletableFuture
 
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -215,7 +214,11 @@ internal class CustomCaptureComponent @Inject constructor(
             srv.logger.log("Invoke alias")
 
             val newEvent = IntemptEvent(
-                name = "Identify",
+                // "Alias", not "Identify". Third instance of the same copy-paste in this
+                // file: group() had it too. An alias event arriving named "Identify" while
+                // carrying type "alias" makes name and type disagree, so anything grouping
+                // by event name folds identity merges in with user identification.
+                name = "Alias",
                 type = EventType.Alias.value,
                 payload = intemptEvent.generateAliasEventPayload(userId, anotherUserId)
             )

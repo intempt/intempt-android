@@ -32,8 +32,6 @@
 `doNotCaptureText` | `(view: View)` | ✅ |
 `Logging.start` / `.stop` / `.isLoggingEnabled` | 3 members | ✅ |
 `Tracking.start` / `.stop` / `.isTrackingEnabled` | 3 members (opt-in / opt-out) | ✅ |
-`experiment` | `ModificationProvider` property | ✅ |
-`personalization` | `ModificationProvider` property | ✅ |
 
 `ModificationProvider` exposes `getByGroup(List<String>)`, `getByName(List<String>)` and `@JvmSynthetic` async variants returning `CompletableFuture`.
 
@@ -65,7 +63,6 @@ Auth: `Authorization: Basic base64(identifier:secret)` — the canonical form; p
 |---|---|---|
 Event ingestion | `sources/{sourceId}/track` | ✅ yes |
 Consent | `consents/data` | no — fires immediately |
-Experiments / personalization | `optimization/choose-api` | n/a |
 Recommendations | `feeds/{id}/data` | n/a |
 Push lifecycle | `webhooks/events/push-notification` | no |
 
@@ -107,9 +104,12 @@ Journey IDs are `journeys-pipeline`'s own vocabulary (`PipelineOutboxService`, `
 
 ---
 
-## 5. Experiments & personalization
+## 5. Experiments & personalization — NOT in this SDK
 
-`experiment` / `personalization` → `optimization/choose-api`, body `{identification:{profileId, sourceId}, groups|names, optimizationType, device}`, returns a `choices` array. Matches `nodejs-sdk/OptimizationClient` field-for-field.
+Removed deliberately. Experiments and personalizations are an intemptjs capability and are
+not part of the Android or iOS SDKs, so `optimization/choose-api` is not called from here and
+`ModificationProvider` no longer exists. Recommendation feeds (`/feeds/{id}/data`) are
+unaffected and remain part of the SDK.
 
 ---
 

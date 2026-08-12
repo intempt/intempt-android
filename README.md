@@ -1,6 +1,6 @@
 # Intempt Android SDK
 
-Android SDK for the [Intempt](https://intempt.com) analytics platform. Automatic event tracking with experiments and personalizations.
+Android SDK for the [Intempt](https://intempt.com) analytics platform. Automatic event tracking, product analytics and recommendation feeds.
 
 ## Installation
 
@@ -12,13 +12,13 @@ dependencies {
 }
 ```
 
-This gives you analytics, auto-tracking, experiments, and personalizations out of the box.
+This gives you analytics, auto-tracking and recommendation feeds out of the box.
 Push notifications are an **optional** add-on that requires Firebase — see below.
 
 ### Without push notifications
 
 Nothing else to do. Add the dependency, call `Intempt.initialize(context)`, and the SDK
-runs fully for analytics, experiments, and personalizations. You do **not** need Firebase.
+runs fully for analytics and recommendations. You do **not** need Firebase.
 
 ### With push notifications (Firebase / FCM)
 
@@ -98,8 +98,6 @@ Intempt.identify("john@example.com", "login", mapOf("plan" to "pro"))
 - **Consent management** — respect user privacy preferences before collecting data
 - **Ecommerce** — track product views, cart additions, and purchases
 - **Recommendations** — fetch server-side product recommendations
-- **Experiments** — serve server-side experiment variants to your users
-- **Personalizations** — deliver targeted content and campaigns in real time
 
 ## API Reference
 
@@ -333,34 +331,6 @@ Intempt.Tracking.start()             // Opt back in — resume tracking
 Intempt.Tracking.isTrackingEnabled() // Check current state
 ```
 
-## Experiments and Personalizations
-
-After initialization, use `Intempt.experiment` and `Intempt.personalization` to fetch server-side variants.
-
-```kotlin
-import kotlinx.coroutines.launch
-
-// Fetch experiments by group name
-lifecycleScope.launch {
-    val variant = Intempt.experiment.getByGroup(listOf("onboarding-flow"))
-    // variant is a JsonElement? with the experiment configuration
-}
-
-// Fetch personalizations by name
-lifecycleScope.launch {
-    val content = Intempt.personalization.getByName(listOf("hero-banner"))
-}
-```
-
-Both `experiment` and `personalization` implement `ModificationProvider` with these methods:
-
-| Method | Description |
-|--------|-------------|
-| `suspend getByGroup(data: List<String>): JsonElement?` | Fetch modifications by group name |
-| `suspend getByName(data: List<String>): JsonElement?` | Fetch modifications by name |
-| `getByGroupAsync(data: List<String>): CompletableFuture<JsonElement?>` | Java-friendly async variant |
-| `getByNameAsync(data: List<String>): CompletableFuture<JsonElement?>` | Java-friendly async variant |
-
 ## Checking the SDK started
 
 `initialize` never throws and never takes your app down. It returns whether the SDK is
@@ -400,9 +370,9 @@ Full documentation: [docs.intempt.com](https://docs.intempt.com/docs/android-sdk
 
 ## Requirements
 
-- **Android API 24+** (Android 7.0). Verified by an instrumented suite that runs on an
-  API 24 emulator in CI, not only on the current target — three crashes that were invisible
-  above API 24 shipped before that gate existed.
+- **Android API 23+** (Android 6.0). Verified by an instrumented suite that runs on an
+  API 23 emulator in CI, not only on the current target — three crashes that were invisible
+  above the floor shipped before that gate existed.
 - Kotlin
 
 ## For devs

@@ -5,7 +5,6 @@ import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.intempt.core.Intempt
 import org.json.JSONObject
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -44,16 +43,10 @@ class SdkRunsLocallyTest {
      * successful one: it returned Unit and printed a line. `isInitialized` is now the signal,
      * and this asserts the SDK actually started inside a real host application.
      *
-     * This deliberately does not assert on `experiment`/`personalization` any more. Those
-     * are now always non-null — they hold a no-op provider until initialization succeeds, so
-     * that reading them early returns nothing instead of throwing — which means a null check
-     * on them can no longer distinguish a started SDK from a dead one.
      */
     @Test
     fun initializationCompletesRatherThanSilentlyFailing() {
         assertTrue("the SDK did not initialize inside the host app", Intempt.isInitialized)
-        assertNotNull(Intempt.experiment)
-        assertNotNull(Intempt.personalization)
     }
 
     /**

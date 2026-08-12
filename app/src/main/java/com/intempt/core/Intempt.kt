@@ -8,8 +8,6 @@ import com.intempt.core.intemptCore.DaggerIntemptCoreComponent
 import com.intempt.core.intemptCore.IntemptCoreComponent
 import com.intempt.core.intemptCore.IntemptCoreModule
 import com.intempt.core.intemptCore.IntemptCoreService
-import com.intempt.core.types.DisabledModificationProvider
-import com.intempt.core.types.ModificationProvider
 import kotlinx.serialization.json.JsonObject
 
 /**
@@ -31,17 +29,6 @@ object Intempt {
     // unassigned lateinit can only be discovered by throwing.
     @Volatile
     private var intemptCore: IntemptCoreService? = null
-
-    /**
-     * Null results until a successful [initialize]. Held as a no-op provider rather than a
-     * `lateinit`, so reading either of these before initialization returns nothing instead
-     * of throwing. See [DisabledModificationProvider].
-     */
-    var experiment: ModificationProvider = DisabledModificationProvider
-        private set
-
-    var personalization: ModificationProvider = DisabledModificationProvider
-        private set
 
     /** True once [initialize] has completed successfully. */
     val isInitialized: Boolean
@@ -67,10 +54,7 @@ object Intempt {
 
             component.inject(this)
 
-            val core = component.initService()
-            experiment = core.modification.experimentHandler
-            personalization = core.modification.personalizationHandler
-            intemptCore = core
+            intemptCore = component.initService()
         } catch (e: Throwable) {
             // Throwable, not Exception. An analytics SDK must never take the host app down,
             // and the failures that actually do are Errors rather than Exceptions: a

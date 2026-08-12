@@ -44,14 +44,9 @@ val intemptApiUrl = cred("intempt.apiUrl", "INTEMPT_API_URL", "")
 val e2eFixtures =
     listOf(
         "INTEMPT_E2E_USER_ID",
-        "INTEMPT_E2E_ACCOUNT_ID",
         "INTEMPT_E2E_PRODUCT_ID",
         "INTEMPT_E2E_FEED_ID",
         "INTEMPT_E2E_FEED_FIELDS",
-        "INTEMPT_E2E_EXPERIMENT_NAME",
-        "INTEMPT_E2E_EXPERIMENT_GROUP",
-        "INTEMPT_E2E_PERSONALIZATION_NAME",
-        "INTEMPT_E2E_PERSONALIZATION_GROUP",
     ).associateWith { name ->
         // FEED_FIELDS is the one fixture with a usable default: "id" is present on every
         // feed, so a recommendation call can be made without knowing the feed's shape.
@@ -125,7 +120,7 @@ android {
         applicationId = "com.intempt.sample"
         // Deliberately the library's minSdk, not higher. If the SDK ever regresses its
         // reach, this module stops assembling and the manifest merger says so by name.
-        minSdk = 24
+        minSdk = 23
         targetSdk = 35
         versionCode = 1
         versionName = "1.0"

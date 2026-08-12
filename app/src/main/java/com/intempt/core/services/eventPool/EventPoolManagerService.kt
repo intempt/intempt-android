@@ -23,9 +23,9 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
 import org.json.JSONObject
-import java.util.concurrent.CompletableFuture
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.reflect.full.callSuspend
 import kotlin.reflect.full.declaredFunctions
 import kotlin.reflect.jvm.isAccessible
 
@@ -83,14 +83,18 @@ internal open class EventPoolManagerService
                 return
             }
 
-            handleEventType(
-                HandleEventTypeProps(
-                    type = type,
-                    entityName = entityName,
-                    context = context,
-                    view = view,
-                ),
-            ).thenAccept { payload ->
+            // launch + suspend rather than CompletableFuture.thenAccept. thenAccept is API 24,
+            // and it was the last thing pinning the SDK's minSdk above 23.
+            coroutineScope.launch {
+                val payload =
+                    handleEventType(
+                        HandleEventTypeProps(
+                            type = type,
+                            entityName = entityName,
+                            context = context,
+                            view = view,
+                        ),
+                    )
                 if (payload.isNotEmpty()) {
                     logger.log("AutoCapture | Successfully called function '${props.type}' on EventTypeHandler.")
                     emitEvent(
@@ -164,30 +168,40 @@ internal open class EventPoolManagerService
             }
         }
 
-        private fun handleEventType(props: HandleEventTypeProps): CompletableFuture<Array<IntemptEventProvider>> {
+        /**
+         * Dispatches to EventHandlers by name, reflectively. Returns the payload directly
+         * instead of a CompletableFuture, which is what allowed minSdk to reach 23.
+         *
+         * The handlers are a mix: most are plain functions, installOrUpgrade suspends. The
+         * previous version normalised that by wrapping everything in a CompletableFuture; this
+         * one branches on isSuspend and uses callSuspend, which needs no API 24 type.
+         */
+        private suspend fun handleEventType(props: HandleEventTypeProps): Array<IntemptEventProvider> {
             logger.log("handleEventType | $props")
 
             return try {
                 val handler = eventHandlers::class.declaredFunctions.find { it.name == props.type }
 
-                if (handler != null) {
-                    handler.isAccessible = true
-
-                    val result = handler.call(eventHandlers, props)
-                    if (result is CompletableFuture<*>) {
-                        @Suppress("UNCHECKED_CAST")
-                        result as CompletableFuture<Array<IntemptEventProvider>>
-                    } else {
-                        CompletableFuture.completedFuture(result as Array<IntemptEventProvider>)
-                    }
-                } else {
+                if (handler == null) {
                     logger.log("AutoCapture | Function '${props.type}' not found on EventTypeHandler.")
-                    CompletableFuture.completedFuture(emptyArray())
+                    emptyArray()
+                } else {
+                    handler.isAccessible = true
+                    val result =
+                        if (handler.isSuspend) {
+                            handler.callSuspend(eventHandlers, props)
+                        } else {
+                            handler.call(eventHandlers, props)
+                        }
+
+                    @Suppress("UNCHECKED_CAST")
+                    result as? Array<IntemptEventProvider> ?: emptyArray()
                 }
             } catch (e: Exception) {
-                e.printStackTrace()
-                logger.error("AutoCapture | Error invoking function '${props.type}' on EventTypeHandler: ${e.message}")
-                CompletableFuture.completedFuture(emptyArray())
+                logger.error(
+                    "AutoCapture | Error invoking function '${props.type}' on EventTypeHandler: ${e.message}",
+                )
+                emptyArray()
             }
         }
 

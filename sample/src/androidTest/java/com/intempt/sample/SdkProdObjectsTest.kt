@@ -15,27 +15,26 @@ import org.junit.Assume
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
-import java.util.concurrent.TimeUnit
 
 /**
- * The methods that need real objects to mean anything: an existing profile, an existing
- * account, a catalog product, a product feed, and a published experiment and personalization.
- *
- * Every test here skips when its fixture is missing rather than failing. A red suite because
- * a contributor has no credentials teaches people to ignore the suite; a fabricated id gives
- * a green run that proves nothing. Skipped and reported is the only honest third option.
+ * The methods that need real objects from a live project to mean anything.
  *
  * Fixtures arrive as BuildConfig constants, sourced from gitignored local.properties locally
  * or repository secrets in CI, under one name in both places:
  *
- *   INTEMPT_E2E_USER_ID, INTEMPT_E2E_ACCOUNT_ID, INTEMPT_E2E_PRODUCT_ID,
- *   INTEMPT_E2E_FEED_ID, INTEMPT_E2E_FEED_FIELDS,
- *   INTEMPT_E2E_EXPERIMENT_NAME, INTEMPT_E2E_EXPERIMENT_GROUP,
- *   INTEMPT_E2E_PERSONALIZATION_NAME, INTEMPT_E2E_PERSONALIZATION_GROUP
+ *   INTEMPT_E2E_USER_ID, INTEMPT_E2E_PRODUCT_ID, INTEMPT_E2E_FEED_ID,
+ *   INTEMPT_E2E_FEED_FIELDS (defaults to "id")
  *
- * The identity fixtures are deliberately only userId and accountId. Those are the only
- * identifiers the SDK's public API accepts, so a test that reached for an internal profile id
- * would be asserting against something the SDK is not allowed to know about.
+ * Each test skips when its fixture is missing rather than failing. A red suite because a
+ * contributor has no credentials teaches people to ignore the suite; a fabricated id gives a
+ * green run that proves nothing.
+ *
+ * Experiments and personalizations are deliberately absent: they are an intemptjs capability
+ * and are not part of the Android or iOS SDKs, so there is nothing here to test.
+ *
+ * The only identity fixture is userId. group() creates its own account, and the SDK's public
+ * API accepts no internal profile identifier, so a test reaching for one would be asserting
+ * against something the SDK is not allowed to know.
  */
 @RunWith(AndroidJUnit4::class)
 class SdkProdObjectsTest {
@@ -101,16 +100,19 @@ class SdkProdObjectsTest {
         assertTrue("profileId missing", payload.optString("profileId").startsWith("prof_"))
     }
 
+    /**
+     * group() needs no pre-existing account: creating a group creates the account and puts the
+     * user in it, so any id works and this needs no fixture.
+     */
     @Test
-    fun groupAttachesToTheExistingAccount() {
-        val accountId = requireFixture("INTEMPT_E2E_ACCOUNT_ID", BuildConfig.INTEMPT_E2E_ACCOUNT_ID)
+    fun groupCreatesTheAccountAndQueuesTheEvent() {
+        val accountId = "androidtest-account-${System.nanoTime()}"
 
         Intempt.group(accountId = accountId, accountAttributes = mapOf("source" to "android-sdk-e2e"))
 
         val event = awaitEvent("a group for $accountId") { it.optString("type") == "group" }
         assertEquals("Group", event.optString("name"))
-        val payload = event.getJSONArray("payload").getJSONObject(0)
-        assertEquals(accountId, payload.optString("accountId"))
+        assertEquals(accountId, event.getJSONArray("payload").getJSONObject(0).optString("accountId"))
     }
 
     /**
@@ -130,7 +132,11 @@ class SdkProdObjectsTest {
         awaitEvent("an add to cart") { it.optString("name") == "Added to cart" }
 
         Intempt.productOrdered(listOf(mapOf("productId" to productId, "quantity" to 1)))
-        awaitEvent("a product order") { it.optString("type") == "product" && it.optString("name") != "Product viewed" }
+        awaitEvent("a product order") {
+            it.optString("type") == "product" &&
+                it.optString("name") != "Product viewed" &&
+                it.optString("name") != "Added to cart"
+        }
     }
 
     /**
@@ -138,76 +144,63 @@ class SdkProdObjectsTest {
      * `/v1/{org}/projects/{project}/feeds/{feedId}/data`. Unlike the tracking calls this is a
      * synchronous read, so a null result means the request genuinely failed rather than being
      * queued for later.
+     *
+     * The profile has to exist server-side first, which is the part worth knowing. The SDK
+     * sends `id = storage.getProfileId()` with `type = "profile"` — a device-generated
+     * `prof_<uuid>` the platform has never heard of on a fresh install. Until events for that
+     * profile have been ingested the feed answers:
+     *
+     *     400 {"errors":[{"message":"USER with id prof_… is not found"}]}
+     *
+     * So this identifies first and waits for the queue to drain, which is what a real app does
+     * before it asks for recommendations. Verified by hand against linea_shop: after an
+     * identify was ingested for the profile, the same feed returned 200 {"products":[]}.
+     *
+     * Note the error text names USER even when the id is a profile and even when the *feed id*
+     * is the wrong part — a nonexistent feed returns the identical message. That makes a wrong
+     * feed id and a wrong profile indistinguishable from the client, so a failure here means
+     * "one of the two", not "the feed is broken".
      */
     @Test
     fun recommendationReturnsFromTheFeed() {
         val feedId = requireFixture("INTEMPT_E2E_FEED_ID", BuildConfig.INTEMPT_E2E_FEED_ID)
+        val userId = requireFixture("INTEMPT_E2E_USER_ID", BuildConfig.INTEMPT_E2E_USER_ID)
         val fields =
-            requireFixture("INTEMPT_E2E_FEED_FIELDS", BuildConfig.INTEMPT_E2E_FEED_FIELDS)
+            BuildConfig.INTEMPT_E2E_FEED_FIELDS
                 .split(",")
                 .map { it.trim() }
                 .filter { it.isNotEmpty() }
 
+        // Give the platform a profile to answer about, then let it reach the gateway.
+        Intempt.identify(userId = userId, userAttributes = mapOf("source" to "android-sdk-e2e"))
+        awaitEvent("the identify to be queued") { it.optString("type") == "identify" }
+        val delivered =
+            awaitDrained(timeoutMs = 120_000) {
+                rows().none { row -> row.optString("type") == "identify" }
+            }
+        assertTrue(
+            "the identify never left the queue, so the platform cannot know this profile yet",
+            delivered,
+        )
+
         val result = runBlocking { Intempt.recommendation(feedId, 3, fields, null) }
 
         assertNotNull(
-            "the feed returned nothing. Either the feed id is wrong, the feed is empty, or the " +
-                "request was rejected — check logcat for the response from /feeds/$feedId/data",
+            "feed $feedId returned nothing. Either the feed id is wrong or this device's " +
+                "profile is still unknown to the platform — the API cannot tell those apart",
             result,
         )
     }
 
-    /**
-     * Experiments and personalizations both go to `/optimization/choose-api`; the only
-     * difference is `optimizationType`, which the SDK hardcodes to "experiment" and
-     * "personalization". A *draft* returns nothing, which is indistinguishable from a broken
-     * SDK call, so these fixtures must name published objects.
-     */
-    @Test
-    fun experimentReturnsAPublishedModification() {
-        val name = requireFixture("INTEMPT_E2E_EXPERIMENT_NAME", BuildConfig.INTEMPT_E2E_EXPERIMENT_NAME)
-
-        val byName = Intempt.experiment.getByNameAsync(listOf(name)).get(20, TimeUnit.SECONDS)
-
-        assertNotNull(
-            "experiment '$name' returned nothing. If it is a draft rather than published, this " +
-                "is expected and the fixture needs changing rather than the SDK",
-            byName,
-        )
-    }
-
-    @Test
-    fun experimentReturnsByGroup() {
-        val group = requireFixture("INTEMPT_E2E_EXPERIMENT_GROUP", BuildConfig.INTEMPT_E2E_EXPERIMENT_GROUP)
-
-        val byGroup = Intempt.experiment.getByGroupAsync(listOf(group)).get(20, TimeUnit.SECONDS)
-
-        assertNotNull("experiment group '$group' returned nothing", byGroup)
-    }
-
-    @Test
-    fun personalizationReturnsAPublishedModification() {
-        val name =
-            requireFixture(
-                "INTEMPT_E2E_PERSONALIZATION_NAME",
-                BuildConfig.INTEMPT_E2E_PERSONALIZATION_NAME,
-            )
-
-        val byName = Intempt.personalization.getByNameAsync(listOf(name)).get(20, TimeUnit.SECONDS)
-
-        assertNotNull("personalization '$name' returned nothing", byName)
-    }
-
-    @Test
-    fun personalizationReturnsByGroup() {
-        val group =
-            requireFixture(
-                "INTEMPT_E2E_PERSONALIZATION_GROUP",
-                BuildConfig.INTEMPT_E2E_PERSONALIZATION_GROUP,
-            )
-
-        val byGroup = Intempt.personalization.getByGroupAsync(listOf(group)).get(20, TimeUnit.SECONDS)
-
-        assertNotNull("personalization group '$group' returned nothing", byGroup)
+    private fun awaitDrained(
+        timeoutMs: Long,
+        predicate: () -> Boolean,
+    ): Boolean {
+        val deadline = System.currentTimeMillis() + timeoutMs
+        while (System.currentTimeMillis() < deadline) {
+            if (predicate()) return true
+            Thread.sleep(1_000)
+        }
+        return false
     }
 }
