@@ -142,6 +142,41 @@ class SdkOnDeviceTest {
     }
 
     /**
+     * record() needs no project objects — any userId string queues — so there was no reason
+     * for it to sit in the smoke-test bucket where the only assertion was "did not crash".
+     * That bucket would not have caught identify() silently dropping every titleless call,
+     * and record() takes the same shape of optional arguments.
+     */
+    @Test
+    fun recordQueuesTheEventWithItsIdentifiers() {
+        val name = "on-device record ${System.nanoTime()}"
+        com.intempt.core.Intempt.record(
+            eventTitle = name,
+            userId = "androidtest-record-user",
+            data = mapOf("step" to "checkout"),
+        )
+
+        val event = awaitEventNamed(name)
+        assertEquals("record", event.optString("type"))
+        val payload = event.getJSONArray("payload").getJSONObject(0)
+        assertEquals("androidtest-record-user", payload.optString("userId"))
+    }
+
+    /** alias() likewise needs nothing from the project to prove it reaches the queue. */
+    @Test
+    fun aliasQueuesBothIdentifiers() {
+        val from = "androidtest-alias-a-${System.nanoTime()}"
+        val to = "androidtest-alias-b-${System.nanoTime()}"
+
+        com.intempt.core.Intempt.alias(from, to)
+
+        val event = awaitEvent("an alias event") { it.optString("type") == "alias" }
+        val payload = event.getJSONArray("payload").getJSONObject(0)
+        assertEquals(from, payload.optString("userId"))
+        assertEquals(to, payload.optString("anotherUserId"))
+    }
+
+    /**
      * identify() used to reject this exact call — userAttributes with no eventTitle — log an
      * error, and return normally having queued nothing. The event is named "Identify" by
      * default, which is what makes the titleless form work at all.
@@ -318,11 +353,11 @@ class SdkOnDeviceTest {
         }
 
         // Past the bulk limit, so a flush is scheduled immediately rather than in 60s.
-        val queuedPeak = awaitCondition("the queue to accept the burst") { rows().size > before }
+        val queuedPeak = awaitCondition { rows().size > before }
         assertTrue("expected events to be queued before delivery", queuedPeak)
 
         val drained =
-            awaitCondition("the queue to drain after a successful POST", timeoutMs = 90_000) {
+            awaitCondition(timeoutMs = 90_000) {
                 rows().none { it.optString("name").startsWith("e2e delivery ") }
             }
 
@@ -342,7 +377,6 @@ class SdkOnDeviceTest {
     }
 
     private fun awaitCondition(
-        what: String,
         timeoutMs: Long = TIMEOUT_MS,
         predicate: () -> Boolean,
     ): Boolean {
