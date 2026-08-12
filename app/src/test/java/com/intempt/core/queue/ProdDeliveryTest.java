@@ -110,6 +110,57 @@ public class ProdDeliveryTest {
     }
 
     /**
+     * The header the PRODUCTION path sends, taken from QueueConfig rather than built here.
+     *
+     * The earlier version of this test built its own headers map, which is exactly why it
+     * could not see that DeliveryMessages posted with headers = null. It validated the
+     * gateway and reported success while the SDK was sending nothing at all. A test that
+     * constructs the thing under test cannot test it.
+     */
+    @Test
+    public void theProductionConfigActuallyCarriesAnAuthHeader() {
+        assumeFalse("prod tests are opt-in; run with -Pintempt.prodTests=true", !enabled());
+        assumeFalse("no prod credentials", !credentialsPresent());
+
+        QueueConfig config = new QueueConfig(trackUrl(), authHeader());
+
+        assertNotNull(
+                "QueueConfig must carry an Authorization value, or every batch 401s and is dropped",
+                config.getAuthorization());
+        assertTrue(
+                "the Authorization value must be a Basic credential",
+                config.getAuthorization().startsWith("Basic "));
+    }
+
+    /**
+     * Unauthenticated delivery must be REJECTED by the gateway. This is the regression guard
+     * for the defect that shipped: the vendored transport passed headers = null, the gateway
+     * answered 401, and HttpStatusPolicy.shouldDrop(401) deleted the batch — a silent 100%
+     * loss that both delivery tests reported as success.
+     */
+    @Test
+    public void postingWithNoAuthHeaderIsRejectedRatherThanAccepted() throws Exception {
+        assumeFalse("prod tests are opt-in; run with -Pintempt.prodTests=true", !enabled());
+        assumeFalse("no prod credentials", !credentialsPresent());
+
+        HttpService service = new HttpService();
+        boolean rejected = false;
+        try {
+            RemoteService.RequestResult result =
+                    service.performRequest(trackUrl(), null, null, null, body("jvm e2e no auth"), null);
+            rejected = result == null || result.isClientError() || !result.isSuccess();
+        } catch (RemoteService.ClientErrorException e) {
+            rejected = true;
+        }
+
+        assertTrue(
+                "an unauthenticated POST appeared to succeed. Either the endpoint stopped requiring "
+                        + "auth, or this test is not reaching it — both make the auth regression "
+                        + "guard useless",
+                rejected);
+    }
+
+    /**
      * The whole point: the gateway accepts what this SDK sends, and answers with a status the
      * queue reads as success. If it answered 201 and HttpService only accepted 200, every
      * batch would be retried forever and the queue head would wedge — so the two assertions

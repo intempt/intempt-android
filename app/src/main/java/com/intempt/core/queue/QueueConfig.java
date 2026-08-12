@@ -52,15 +52,42 @@ public class QueueConfig {
     private final String mEventsEndpoint;
     private final String mBackupHost;
     private final boolean mGzipRequestPayload;
+    private final String mAuthorization;
 
     public QueueConfig(String eventsEndpoint) {
-        this(eventsEndpoint, null, false);
+        this(eventsEndpoint, null, null, false);
     }
 
-    public QueueConfig(String eventsEndpoint, String backupHost, boolean gzipRequestPayload) {
+    public QueueConfig(String eventsEndpoint, String authorization) {
+        this(eventsEndpoint, authorization, null, false);
+    }
+
+    public QueueConfig(
+            String eventsEndpoint, String authorization, String backupHost, boolean gzipRequestPayload) {
         mEventsEndpoint = eventsEndpoint;
+        mAuthorization = authorization;
         mBackupHost = backupHost;
         mGzipRequestPayload = gzipRequestPayload;
+    }
+
+    /**
+     * The value for the {@code Authorization} header on every delivery POST, or null when the
+     * SDK has no credentials.
+     *
+     * <p>This existing at all is a P0 fix. Mixpanel authenticates by putting a project token
+     * inside the event body, so the vendored substrate posts with {@code headers = null} and
+     * has no notion of an auth header. Intempt authenticates with HTTP Basic. Vendoring the
+     * transport therefore dropped authentication silently: every batch went out
+     * unauthenticated, the gateway answered 401, {@code HttpStatusPolicy.shouldDrop(401)}
+     * returned true, and {@code cleanupEvents} deleted it. 100% of events discarded, with the
+     * durable queue working exactly as designed.
+     *
+     * <p>It survived review because both tests that claimed to cover delivery could not see
+     * it: the JVM test built its own headers map, and the device test's definition of
+     * "delivered" was "the row left the queue", which is equally the signature of a drop.
+     */
+    public String getAuthorization() {
+        return mAuthorization;
     }
 
     public int getBulkUploadLimit() {

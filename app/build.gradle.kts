@@ -49,7 +49,11 @@ android {
                 "proguard-rules.pro",
             )
 
-            testProguardFiles("proguard-test.pro")
+            // testProguardFiles("proguard-test.pro") — the file does not exist. Referenced
+            // but never created, so it is latent: harmless today because no test task runs
+            // against the release variant, and an immediate build failure the moment anyone
+            // sets testBuildType = "release". Commented out rather than an empty file added,
+            // so the intent is visible if someone wants it back.
         }
     }
     compileOptions {
@@ -58,6 +62,24 @@ android {
     }
     kotlinOptions {
         jvmTarget = "1.8"
+    }
+
+    packaging {
+        resources {
+            // AGP 8 excludes /META-INF/LICENSE and /META-INF/NOTICE by default, to stop the
+            // dozens of copies that arrive from transitive jars colliding. That default also
+            // silently dropped OURS: both files were generated into
+            // intermediates/java_res/, and neither reached app-release.aar.
+            //
+            // That matters legally rather than cosmetically. This SDK incorporates eight
+            // files from mixpanel-android under Apache 2.0, and §4(a)/(d) require the licence
+            // and the NOTICE to travel with the artifact a customer receives. Repo-root
+            // presence is not distribution. I claimed this was done in the PR body and in
+            // several commit messages; it was not, and `unzip -l` on the AAR showed zero
+            // matches.
+            excludes.remove("/META-INF/LICENSE")
+            excludes.remove("/META-INF/NOTICE")
+        }
     }
 
     lint {

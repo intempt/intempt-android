@@ -94,7 +94,11 @@ internal class IntemptCoreModule(
     fun provideQueueConfig(
         config: ConfigManagerService,
     ): QueueConfig {
-        return QueueConfig(config.eventsUrl).also {
+        // The Basic token, built exactly as HttpManagerService builds it for every other
+        // request. Without it the vendored transport posts unauthenticated and the gateway's
+        // 401 is treated as an unrecoverable status, so the batch is deleted rather than
+        // retried — a silent 100% loss.
+        return QueueConfig(config.eventsUrl, "Basic ${config.token()}").also {
             it.setLoggingEnabled(config.isLoggingEnabled)
         }
     }

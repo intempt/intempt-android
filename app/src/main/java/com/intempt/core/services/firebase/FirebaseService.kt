@@ -127,7 +127,9 @@ class FirebaseService : FirebaseMessagingService() {
         val config = ConfigManagerService(this)
         val logger = LoggerManagerService(config)
         val http = HttpManagerService(config, logger)
-        val queueConfig = QueueConfig(config.eventsUrl).also { it.setLoggingEnabled(config.isLoggingEnabled) }
+        val queueConfig =
+            QueueConfig(config.eventsUrl, "Basic ${config.token()}")
+                .also { it.setLoggingEnabled(config.isLoggingEnabled) }
 
         try {
             DeliveryMessages(applicationContext, queueConfig).enqueueEvent(

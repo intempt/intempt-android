@@ -92,7 +92,7 @@ jobs:
       # entry point. All three API-level crashes fixed on this branch are reachable from
       # initialize() plus one tracking call, and none were caught by the library's own
       # unit tests, because those never start the SDK.
-      - name: Run sample app tests (SDK in a host app, API 23 + 34)
+      - name: Run sample app tests (SDK in a host app, API 24 + 34)
         run: ./gradlew :sample:testDebugUnitTest --stacktrace
 
       - name: Upload test report
@@ -117,7 +117,7 @@ jobs:
       - name: Lint
         run: ./gradlew :app:lintDebug :sample:lintDebug --stacktrace
 
-      # 1,267 pre-existing violations are frozen in app/config/ktlint/baseline.xml, so this
+      # 1,119 pre-existing violations are frozen in app/config/ktlint/baseline.xml, so this
       # gates new Kotlin only. Reformatting the existing codebase would be a 200-file diff
       # with no behavioural change; it can happen incrementally.
       - name: ktlint

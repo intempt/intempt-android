@@ -24,6 +24,8 @@ import android.os.Message;
 import android.os.Process;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Map;
+import java.util.HashMap;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.net.MalformedURLException;
@@ -458,9 +460,35 @@ public class DeliveryMessages {
                     RemoteService.RequestResult result;
                     try {
                         final SSLSocketFactory socketFactory = mConfig.getSSLSocketFactory();
+                        // Modification: send an Authorization header.
+                        //
+                        // Upstream passes null here because Mixpanel authenticates with a
+                        // project token inside the event body. Intempt uses HTTP Basic, so
+                        // vendoring this method as-is removed authentication entirely: every
+                        // batch was posted unauthenticated, answered 401, and then DELETED by
+                        // the shouldDrop(401) branch below. The queue behaved perfectly and
+                        // discarded 100% of events.
+                        final Map<String, String> headers = new HashMap<>();
+                        final String authorization = mConfig.getAuthorization();
+                        if (authorization != null && !authorization.isEmpty()) {
+                            headers.put("Authorization", authorization);
+                        } else {
+                            // Loud, because the alternative is a silent total loss.
+                            QueueLog.e(
+                                    LOGTAG,
+                                    "No Authorization header configured; every batch will 401 and be"
+                                            + " dropped. Check INTEMPT_API_KEY in intempt-config.json.");
+                        }
+                        headers.put("Content-Type", "application/json");
+
                         result =
                                 poster.performRequest(
-                                        url, mConfig.getProxyServerInteractor(), null, null, requestBody, socketFactory);
+                                        url,
+                                        mConfig.getProxyServerInteractor(),
+                                        null,
+                                        headers,
+                                        requestBody,
+                                        socketFactory);
                         byte[] response = result.getResponse();
                         String actualUrl = result.getRequestUrl(); // Get the actual URL that succeeded
 
