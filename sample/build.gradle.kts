@@ -155,7 +155,18 @@ android {
         buildConfig = true
     }
 
-    sourceSets["main"].assets.srcDir(generatedAssetsDir)
+    // The task provider, not the bare directory. Handing srcDir a plain path told Gradle
+    // where the assets are but not who produces them, so any task that reads the directory
+    // without an explicit dependency failed validation. That surfaced in CI rather than
+    // locally, on :sample:generateReleaseLintVitalReportModel, because the lint model task
+    // was cached locally from before the generated assets existed:
+    //
+    //   Reason: Task ':sample:generateReleaseLintVitalReportModel' uses this output of task
+    //   ':sample:writeIntemptConfig' without declaring an explicit or implicit dependency.
+    //
+    // Passing the provider makes the producer part of the file collection, so asset merging,
+    // lint and every other consumer pick up the dependency without being listed by name.
+    sourceSets["main"].assets.srcDir(writeIntemptConfig)
 
     testOptions {
         unitTests {
@@ -190,7 +201,3 @@ dependencies {
     androidTestImplementation(libs.kotlinx.coroutines.android)
 }
 
-// Every variant's asset merge depends on the generated config.
-tasks.matching { it.name.startsWith("merge") && it.name.endsWith("Assets") }.configureEach {
-    dependsOn(writeIntemptConfig)
-}
