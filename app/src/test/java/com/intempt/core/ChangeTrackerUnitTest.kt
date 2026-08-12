@@ -71,6 +71,13 @@ import org.robolectric.annotation.Config
 import org.robolectric.shadows.ShadowLog
 import java.io.ByteArrayInputStream
 
+// Deliberately the platform EditText, not AppCompatEditText: this is a test double for the
+// class autocapture branches on, and it only exists to return a mock ViewTreeObserver. The
+// lint check is about theming in real UI, which does not apply to a headless test view.
+// Suppressed here rather than disabled module-wide, so NewApi and the rest stay enforced on
+// test sources — enabling that check is what surfaced this, and it also caught a real
+// API-24 call in the instrumented suite.
+@android.annotation.SuppressLint("AppCompatCustomView")
 class CustomEditText(context: Activity, private val mockObserver: ViewTreeObserver) : EditText(context) {
     override fun getViewTreeObserver(): ViewTreeObserver {
         return mockObserver

@@ -82,7 +82,8 @@ class SdkProdObjectsTest {
             val id =
                 row.optJSONArray("payload")?.optJSONObject(0)?.optString("eventId")
                     ?: row.optString("name") + row.optString("type")
-            observed.putIfAbsent(id, row)
+            // containsKey + put: Map.putIfAbsent is API 24 and this runs at minSdk 23.
+            if (!observed.containsKey(id)) observed[id] = row
         }
         return observed.values.toList()
     }

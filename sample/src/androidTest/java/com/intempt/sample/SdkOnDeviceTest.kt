@@ -96,7 +96,12 @@ class SdkOnDeviceTest {
                     val id =
                         row.optJSONArray("payload")?.optJSONObject(0)?.optString("eventId")
                             ?: row.optString("name") + row.optString("type")
-                    observed.putIfAbsent(id, row)
+                    // containsKey + put, not putIfAbsent: Map.putIfAbsent is API 24 and this
+                    // suite runs at minSdk 23, where it throws NoSuchMethodError. Written
+                    // minutes after documenting that exact failure mode elsewhere in this
+                    // branch, and caught by the API 23 emulator rather than by lint, which
+                    // does not analyse androidTest sources.
+                    if (!observed.containsKey(id)) observed[id] = row
                 }
                 return observed.values.toList()
             }

@@ -115,7 +115,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@48b5f213c81028ace310571dc5ec0fbbca0b2947  # v4
 
       - name: Lint
-        run: ./gradlew :app:lintDebug --stacktrace
+        run: ./gradlew :app:lintDebug :sample:lintDebug --stacktrace
 
       # 1,267 pre-existing violations are frozen in app/config/ktlint/baseline.xml, so this
       # gates new Kotlin only. Reformatting the existing codebase would be a 200-file diff

@@ -169,6 +169,16 @@ android {
         buildConfig = true
     }
 
+    lint {
+        // Check test sources too. The default excludes them, which is how a Map.putIfAbsent
+        // call — API 24 — reached an API 23 emulator inside androidTest and failed there with
+        // NoSuchMethodError instead of at build time. A test that cannot run at minSdk is as
+        // broken as production code that cannot.
+        checkTestSources = true
+        // NewApi in particular must fail the build rather than warn.
+        error += "NewApi"
+    }
+
     testOptions {
         unitTests {
             // Robolectric needs the merged manifest and the assets, which is how

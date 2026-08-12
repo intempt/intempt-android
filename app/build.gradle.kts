@@ -60,6 +60,13 @@ android {
         jvmTarget = "1.8"
     }
 
+    lint {
+        // Test sources too, for the same reason as :sample — an API-24 call inside a test is
+        // still a call that cannot run at minSdk.
+        checkTestSources = true
+        error += "NewApi"
+    }
+
     testOptions {
         unitTests.all {
             // Prod credentials for ProdDeliveryTest, from gitignored local.properties or the
