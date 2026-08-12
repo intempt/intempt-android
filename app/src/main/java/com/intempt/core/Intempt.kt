@@ -30,9 +30,13 @@ object Intempt  {
 
             experiment = intemptCore.modification.experimentHandler
             personalization = intemptCore.modification.personalizationHandler
-        }
-        catch (e:Exception){
-            println("Intempt initialization failed")
+        } catch (e: Throwable) {
+            // Throwable, not Exception. An analytics SDK must never be able to take the
+            // host app down, and the failures that actually do are Errors rather than
+            // Exceptions: a NoClassDefFoundError from a dependency that is invalid on this
+            // API level sailed straight through `catch (e: Exception)` and killed the app
+            // on launch. Logged rather than printed, so it shows up in logcat on a device.
+            Log.e("Intempt", "Intempt initialization failed; the SDK is disabled", e)
         }
 
         // Push notifications are OPTIONAL. They only work when the host app has configured

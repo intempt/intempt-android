@@ -36,7 +36,14 @@ import org.json.JSONObject
 
 class FirebaseService : FirebaseMessagingService() {
     var token: String = ""
-    val mapper = jacksonObjectMapper()
+
+    // Lazy, not a field initializer. Dagger constructs FirebaseService eagerly as part of
+    // the core graph, so building the ObjectMapper here ran on every app start even when
+    // the host app has no Firebase configured and never receives a push. That put a large
+    // third-party static initializer on the startup path for no reason, and when it failed
+    // it took the whole app down. Deferring it means a Jackson problem can only ever affect
+    // push handling, which is the only thing that needs Jackson.
+    val mapper by lazy { jacksonObjectMapper() }
 
     companion object {
         private const val TAG = "FCM"

@@ -104,8 +104,17 @@ dependencies {
     implementation(kotlin("script-runtime"))
     implementation("com.google.firebase:firebase-messaging:24.1.0")
     implementation(platform("com.google.firebase:firebase-bom:33.10.0"))
-// https://mvnrepository.com/artifact/com.fasterxml.jackson.module/jackson-module-kotlin
-    implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.18.3")
+// Pinned to 2.13.x, NOT the latest. Jackson 2.16+ ships
+// databind/util/ExceptionUtil, whose isFatal() references java.lang.BootstrapMethodError
+// — a class that does not exist below API 26. Loading ObjectMapper therefore throws
+// NoClassDefFoundError on Android 7 and 7.1, and because that is an Error rather than an
+// Exception it escapes Intempt.initialize's catch and kills the host app at launch.
+//
+// Verified on an API 24 emulator: with 2.18.3 the sample app dies before its first frame.
+// Do not bump this without running :sample on an API 24 image; neither Robolectric nor
+// lint can see it. Robolectric runs on the JVM, where BootstrapMethodError exists, so a
+// @Config(sdk=[24]) test passes while a real device crashes.
+    implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.13.5")
 // https://mvnrepository.com/artifact/com.github.bumptech.glide/glide
     implementation("com.github.bumptech.glide:glide:4.15.1")
 // https://mvnrepository.com/artifact/org.projectlombok/lombok

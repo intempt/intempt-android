@@ -459,7 +459,17 @@ internal open class IntemptEventManagerService
             if (view == null) return ""
             val disabledText = "*****"
             val isTextCaptureDisabled = view.getTag(R.id.intemptDoNotCapture) as? Boolean == true
-            return if (isTextCaptureDisabled || !config.isTextCaptureEnabled) {
+
+            // isSensitiveInput belongs here too, and its absence was a live credential leak.
+            // getViewText (above) feeds `targetText` and getViewValue feeds `targetValue`;
+            // both land in the same UiElementEvent. Masking only the first produced an event
+            // reading targetText "*****" next to targetValue "hunter2SECRET" — the masking
+            // looked correct in the payload while the password sat beside it in clear text.
+            //
+            // Caught on an API 24 emulator by typing into the sample app's password field
+            // and reading the row back out of the on-device queue. No unit test saw it,
+            // because none of them render a real EditText.
+            return if (isTextCaptureDisabled || !config.isTextCaptureEnabled || isSensitiveInput(view)) {
                 disabledText
             } else {
                 utils.withTryCatch("Error getting value from view") {
