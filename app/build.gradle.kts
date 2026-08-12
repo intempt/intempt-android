@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.android)
@@ -60,6 +62,25 @@ android {
 
     testOptions {
         unitTests.all {
+            // Prod credentials for ProdDeliveryTest, from gitignored local.properties or the
+            // environment. Passed as system properties rather than BuildConfig fields so they
+            // never reach the published artifact. Absent means that test skips.
+            val creds =
+                Properties().apply {
+                    val f = rootProject.file("local.properties")
+                    if (f.exists()) f.inputStream().use { load(it) }
+                }
+
+            fun cred(
+                prop: String,
+                env: String,
+            ): String = (creds.getProperty(prop) ?: System.getenv(env))?.takeIf { v -> v.isNotBlank() } ?: ""
+
+            it.systemProperty("intempt.apiKey", cred("intempt.apiKey", "INTEMPT_API_KEY"))
+            it.systemProperty("intempt.organization", cred("intempt.organization", "INTEMPT_ORGANIZATION_ID"))
+            it.systemProperty("intempt.project", cred("intempt.project", "INTEMPT_PROJECT_ID"))
+            it.systemProperty("intempt.sourceId", cred("intempt.sourceId", "INTEMPT_SOURCE_ID"))
+
             // A JVM per test class. This is containment, not a fix.
             //
             // Production code still starts coroutines on hardcoded dispatchers in scopes
