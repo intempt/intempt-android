@@ -92,7 +92,15 @@ class SdkProdObjectsTest {
 
         Intempt.identify(userId = userId, userAttributes = mapOf("source" to "android-sdk-e2e"))
 
-        val event = awaitEvent("an identify for $userId") { it.optString("type") == "identify" }
+        // Matched on this test's own userId. Both test classes run in one app process and the
+        // queue persists across them, so `type == "identify"` alone found SdkOnDeviceTest's
+        // identify for "androidtest-user" and compared it against this fixture. Every
+        // predicate has to identify its own event; matching on type is never enough.
+        val event =
+            awaitEvent("an identify for $userId") { row ->
+                row.optString("type") == "identify" &&
+                    row.optJSONArray("payload")?.optJSONObject(0)?.optString("userId") == userId
+            }
         val payload = event.getJSONArray("payload").getJSONObject(0)
         assertEquals("the identify must carry the userId it was given", userId, payload.optString("userId"))
         // profileId is generated and persisted on the device, so it must be present and
@@ -110,7 +118,12 @@ class SdkProdObjectsTest {
 
         Intempt.group(accountId = accountId, accountAttributes = mapOf("source" to "android-sdk-e2e"))
 
-        val event = awaitEvent("a group for $accountId") { it.optString("type") == "group" }
+        // Same reasoning: SdkOnDeviceTest also emits a group event.
+        val event =
+            awaitEvent("a group for $accountId") { row ->
+                row.optString("type") == "group" &&
+                    row.optJSONArray("payload")?.optJSONObject(0)?.optString("accountId") == accountId
+            }
         assertEquals("Group", event.optString("name"))
         assertEquals(accountId, event.getJSONArray("payload").getJSONObject(0).optString("accountId"))
     }

@@ -196,7 +196,11 @@ class SdkOnDeviceTest {
             userId = "androidtest-user",
             userAttributes = mapOf("plan" to "free"),
         )
-        val event = awaitEvent("a titleless identify") { it.optString("type") == "identify" }
+        val event =
+            awaitEvent("this test's titleless identify") { row ->
+                row.optString("type") == "identify" &&
+                    row.optJSONArray("payload")?.optJSONObject(0)?.optString("userId") == "androidtest-user"
+            }
         assertEquals("Identify", event.optString("name"))
     }
 
@@ -212,7 +216,11 @@ class SdkOnDeviceTest {
             accountId = "androidtest-account",
             accountAttributes = mapOf("tier" to "smb"),
         )
-        val event = awaitEvent("a titleless group") { it.optString("type") == "group" }
+        val event =
+            awaitEvent("this test's titleless group") { row ->
+                row.optString("type") == "group" &&
+                    row.optJSONArray("payload")?.optJSONObject(0)?.optString("accountId") == "androidtest-account"
+            }
         assertEquals(
             "a group event must not be named 'Identify'",
             "Group",
