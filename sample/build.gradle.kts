@@ -59,52 +59,63 @@ val e2eFixtures =
         cred(name, name, default)
     }
 
-val generatedAssetsDir = layout.buildDirectory.dir("generated/intemptConfig/assets")
+/**
+ * Writes the generated config. A typed task with a DirectoryProperty output, because AGP
+ * needs a real output property to wire a generated asset directory into a variant.
+ *
+ * Two earlier attempts failed in ways worth recording. Passing the directory path to
+ * `srcDir` told Gradle where the file was but not who produced it, so lint's model task
+ * failed dependency validation. Passing the task provider to `srcDir` fixed the dependency
+ * and silently produced an APK with no config in it at all — the build went green and the
+ * app would have thrown FileNotFoundException at runtime.
+ */
+abstract class WriteIntemptConfigTask : DefaultTask() {
+    @get:Input
+    abstract val apiKey: Property<String>
 
-val writeIntemptConfig =
-    tasks.register("writeIntemptConfig") {
-        description = "Generates sample/assets/intempt-config.json from local.properties or the environment."
-        val outDir = generatedAssetsDir
-        val apiKey = intemptApiKey
-        val org = intemptOrg
-        val project = intemptProject
-        val sourceId = intemptSourceId
-        val apiUrl = intemptApiUrl
-        // Declared as inputs so a credential change regenerates the asset rather than
-        // silently reusing a stale one from a previous build.
-        inputs.property("apiKey", apiKey)
-        inputs.property("org", org)
-        inputs.property("project", project)
-        inputs.property("sourceId", sourceId)
-        inputs.property("apiUrl", apiUrl)
-        outputs.dir(outDir)
-        doLast {
-            val apiUrlLine = if (apiUrl.isBlank()) "" else "\n    \"apiUrl\": \"$apiUrl\","
-            val dir = outDir.get().asFile
-            dir.mkdirs()
-            dir.resolve("intempt-config.json").writeText(
-                """
-                {
-                  "auth": {
-                    "INTEMPT_API_KEY": "$apiKey",
-                    "INTEMPT_SOURCE_ID": "$sourceId",
-                    "INTEMPT_ORGANIZATION_ID": "$org",
-                    "INTEMPT_PROJECT_ID": "$project"
-                  },
-                  "options": {$apiUrlLine
-                    "isLoggingEnabled": true,
-                    "isAutoCaptureEnabled": true,
-                    "isTouchEnabled": true,
-                    "isTextCaptureEnabled": true,
-                    "isQueueEnabled": true,
-                    "itemsInQueue": 5,
-                    "timeBuffer": 5000
-                  }
-                }
-                """.trimIndent() + "\n",
-            )
-        }
+    @get:Input
+    abstract val organization: Property<String>
+
+    @get:Input
+    abstract val projectSlug: Property<String>
+
+    @get:Input
+    abstract val sourceId: Property<String>
+
+    @get:Input
+    abstract val apiUrl: Property<String>
+
+    @get:OutputDirectory
+    abstract val outputDir: DirectoryProperty
+
+    @TaskAction
+    fun write() {
+        val apiUrlLine = if (apiUrl.get().isBlank()) "" else "\n    \"apiUrl\": \"${apiUrl.get()}\","
+        val dir = outputDir.get().asFile
+        dir.mkdirs()
+        dir.resolve("intempt-config.json").writeText(
+            """
+            {
+              "auth": {
+                "INTEMPT_API_KEY": "${apiKey.get()}",
+                "INTEMPT_SOURCE_ID": "${sourceId.get()}",
+                "INTEMPT_ORGANIZATION_ID": "${organization.get()}",
+                "INTEMPT_PROJECT_ID": "${projectSlug.get()}"
+              },
+              "options": {$apiUrlLine
+                "isLoggingEnabled": true,
+                "isAutoCaptureEnabled": true,
+                "isTouchEnabled": true,
+                "isTextCaptureEnabled": true,
+                "isQueueEnabled": true,
+                "itemsInQueue": 5,
+                "timeBuffer": 5000
+              }
+            }
+            """.trimIndent() + "\n",
+        )
     }
+}
 
 android {
     namespace = "com.intempt.sample"
@@ -155,19 +166,6 @@ android {
         buildConfig = true
     }
 
-    // The task provider, not the bare directory. Handing srcDir a plain path told Gradle
-    // where the assets are but not who produces them, so any task that reads the directory
-    // without an explicit dependency failed validation. That surfaced in CI rather than
-    // locally, on :sample:generateReleaseLintVitalReportModel, because the lint model task
-    // was cached locally from before the generated assets existed:
-    //
-    //   Reason: Task ':sample:generateReleaseLintVitalReportModel' uses this output of task
-    //   ':sample:writeIntemptConfig' without declaring an explicit or implicit dependency.
-    //
-    // Passing the provider makes the producer part of the file collection, so asset merging,
-    // lint and every other consumer pick up the dependency without being listed by name.
-    sourceSets["main"].assets.srcDir(writeIntemptConfig)
-
     testOptions {
         unitTests {
             // Robolectric needs the merged manifest and the assets, which is how
@@ -199,4 +197,24 @@ dependencies {
     // recommendation() is a suspend function, so the suite needs runBlocking. :app depends on
     // coroutines with `implementation`, which does not reach a consumer's compile classpath.
     androidTestImplementation(libs.kotlinx.coroutines.android)
+}
+
+// addGeneratedSourceDirectory is the API that actually works: it registers the directory as a
+// variant asset source AND carries the task dependency, so asset merging, lint and the test
+// builds all see the file and all wait for it.
+androidComponents {
+    onVariants { variant ->
+        val task =
+            tasks.register(
+                "write${variant.name.replaceFirstChar { it.uppercase() }}IntemptConfig",
+                WriteIntemptConfigTask::class.java,
+            ) {
+                apiKey.set(intemptApiKey)
+                organization.set(intemptOrg)
+                projectSlug.set(intemptProject)
+                sourceId.set(intemptSourceId)
+                apiUrl.set(intemptApiUrl)
+            }
+        variant.sources.assets?.addGeneratedSourceDirectory(task, WriteIntemptConfigTask::outputDir)
+    }
 }
