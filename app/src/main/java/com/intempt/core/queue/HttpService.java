@@ -596,7 +596,21 @@ public class HttpService implements RemoteService {
                         e);
                 QueueLog.d(LOGTAG, "EOFException, likely network issue for request to " + fullUrl);
                 throw new IOException("EOFException during network request", e);
-            } catch (final IOException e) { // Includes ServiceUnavailableException if thrown above
+            } catch (final ServiceUnavailableException e) {
+                // ServiceUnavailableException extends Exception, not IOException, so without this
+                // branch a 5xx fell through to the generic Exception handler below and was wrapped
+                // in an IOException. Three things broke silently as a result:
+                //
+                //   - performRequest's `lastException instanceof ServiceUnavailableException` check
+                //     never matched, so the caller never saw a 5xx as distinct from a socket error.
+                //   - The Retry-After header the exception carries was discarded, so the server's
+                //     backpressure instruction was ignored and the SDK kept flushing on its own
+                //     schedule — the behaviour that gets an SDK rate-limited.
+                //   - DeliveryMessages' own catch for ServiceUnavailableException was dead code.
+                //
+                // onNetworkError has already been reported at the throw site, so this only rethrows.
+                throw e;
+            } catch (final IOException e) {
                 // Report error via listener
                 onNetworkError(
                         connection,
