@@ -28,3 +28,7 @@ include(":app")
 // that "the SDK works" is something the build can demonstrate rather than assert.
 include(":sample")
  
+// Mutation testing for the SDK's pure-JVM decision logic. PIT cannot run against an Android
+// library module, so this module applies `java-library` and compiles the same source files out of
+// `:app`. Not published, not part of the SDK artifact. See mutation/build.gradle.kts.
+include(":mutation")
