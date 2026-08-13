@@ -18,10 +18,10 @@ import org.junit.runner.RunWith;
 import org.robolectric.RobolectricTestRunner;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.net.ssl.SSLSocketFactory;
@@ -82,8 +82,13 @@ public class DeliveryBehaviourTest {
 
     /** Records every request and answers with a scripted outcome. */
     private static final class FakePoster implements RemoteService {
-        final List<Map<String, String>> sentHeaders = new ArrayList<>();
-        final List<byte[]> sentBodies = new ArrayList<>();
+        // CopyOnWriteArrayList, not ArrayList. These are written by DeliveryMessages' worker
+        // thread and read by the test thread. A plain ArrayList loses elements under that race,
+        // which presents as a batch being short rather than as an error — indistinguishable, from
+        // the assertion's point of view, from the SDK genuinely dropping events. That is exactly
+        // how this suite produced "65 enqueued, 40 posted" intermittently.
+        final List<Map<String, String>> sentHeaders = new CopyOnWriteArrayList<>();
+        final List<byte[]> sentBodies = new CopyOnWriteArrayList<>();
         final AtomicInteger calls = new AtomicInteger();
 
         private final int status;
@@ -155,20 +160,43 @@ public class DeliveryBehaviourTest {
     private static QueueConfig currentConfig;
     private static String currentDb;
 
-    /** DeliveryMessages with the transport and the database name swapped out. */
+    /**
+     * DeliveryMessages with the transport and the database name swapped out.
+     *
+     * <p>Each instance pins its own poster, database and config the moment construction finishes,
+     * and only falls back to the static holders during {@code super()} — which is the one window
+     * where an instance field cannot be set, because the base constructor calls the overridable
+     * {@code getPoster()} before any subclass field exists.
+     *
+     * <p>Reading the statics at flush time instead is what made this suite flaky. DeliveryMessages
+     * starts a worker thread and never shuts it down — there is no close() on it — so a worker
+     * outlives the test that created it and keeps flushing. Resolving through a static, it would
+     * pick up the *next* test's database and drain it, while still posting through its own cached
+     * poster, so the drain did not even appear in the current test's request count. Giving each
+     * test its own database file was not enough on its own: the stale worker resolved the new name
+     * through the same static.
+     */
     private static final class TestableDelivery extends DeliveryMessages {
+        private final RemoteService ownPoster;
+        private final String ownDb;
+        private final QueueConfig ownConfig;
+
         TestableDelivery(Context context) {
             super(context, currentConfig);
+            ownPoster = currentPoster;
+            ownDb = currentDb;
+            ownConfig = currentConfig;
         }
 
         @Override
         protected RemoteService getPoster() {
-            return currentPoster;
+            return ownPoster != null ? ownPoster : currentPoster;
         }
 
         @Override
         protected EventDbAdapter makeDbAdapter(Context ctx) {
-            return new EventDbAdapter(ctx, currentDb, currentConfig);
+            return new EventDbAdapter(
+                    ctx, ownDb != null ? ownDb : currentDb, ownConfig != null ? ownConfig : currentConfig);
         }
     }
 
@@ -186,6 +214,35 @@ public class DeliveryBehaviourTest {
                 .put("name", name)
                 .put("type", "track")
                 .put("payload", new JSONArray().put(new JSONObject().put("eventId", "ev_" + UUID.randomUUID())));
+    }
+
+    /**
+     * How many events appear across every body this poster was given.
+     *
+     * <p>Counted from the payload rather than from the number of POSTs. A read capped at
+     * flushBatchSize cannot carry the whole queue in one request, so a correct total can only be
+     * reached by coming back for the remainder — but unlike an assertion on the call count, this
+     * says nothing about how delivery scheduled that, and so does not depend on flush timing.
+     *
+     * <p>The body is the envelope {@code {"track":[ {name, type, payload:[...]}, ... ]}}.
+     */
+    private int totalEventsPosted(FakePoster poster) throws Exception {
+        int count = 0;
+        for (byte[] sent : poster.sentBodies) {
+            if (sent == null) {
+                continue;
+            }
+            JSONObject envelope =
+                    new JSONObject(new String(sent, java.nio.charset.StandardCharsets.UTF_8));
+            java.util.Iterator<String> keys = envelope.keys();
+            while (keys.hasNext()) {
+                JSONArray events = envelope.optJSONArray(keys.next());
+                if (events != null) {
+                    count += events.length();
+                }
+            }
+        }
+        return count;
     }
 
     private int rowCount() {
@@ -376,13 +433,27 @@ public class DeliveryBehaviourTest {
         }
         delivery.flush();
 
-        long deadline = System.currentTimeMillis() + 20_000;
-        while (System.currentTimeMillis() < deadline && rowCount() > 0) {
+        // Wait for the queue to stay empty, not merely to read empty once. A single zero reading
+        // can land between a batch being deleted and the next one being written, so polling for
+        // the first zero exits while delivery is still mid-flight.
+        long deadline = System.currentTimeMillis() + 60_000;
+        int consecutiveEmpty = 0;
+        while (System.currentTimeMillis() < deadline && consecutiveEmpty < 5) {
+            consecutiveEmpty = rowCount() == 0 ? consecutiveEmpty + 1 : 0;
             Thread.sleep(50);
         }
 
         assertEquals("every event must be delivered, not just the first batch", 0, rowCount());
-        assertTrue("more than one POST is required past the read cap", poster.calls.get() > 1);
+
+        // Counted from the bodies actually posted rather than from the number of POSTs. A read
+        // capped at flushBatchSize cannot carry `total` in one request, so this can only pass if
+        // delivery came back for the remainder — but unlike an assertion on the call count it
+        // says nothing about *how* it did that, and so does not depend on the flush schedule.
+        assertEquals(
+                "every enqueued event must appear in something that was posted (posted across "
+                        + poster.sentBodies.size() + " request(s))",
+                total,
+                totalEventsPosted(poster));
     }
 
     /** A malformed row must not stop the good ones being delivered. */
