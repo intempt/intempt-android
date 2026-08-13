@@ -1,3 +1,4 @@
+import org.gradle.testing.jacoco.plugins.JacocoTaskExtension
 import java.util.Properties
 
 plugins {
@@ -126,6 +127,16 @@ android {
             // source. Slower hardware changes the timing enough to surface leaks that a
             // fast local machine hides, so this stays until every scope is injectable.
             it.forkEvery = 1
+
+            // The fix for "coverage reports 0.1%". Robolectric loads classes through its own
+            // sandbox classloader, and JaCoCo skips classes it cannot attribute to a source
+            // location, so nearly everything Robolectric touched was dropped from the report.
+            // The number looked catastrophic while the tests were fine, which is worse than no
+            // report: it reads as a measurement.
+            it.extensions.configure(JacocoTaskExtension::class.java) {
+                isIncludeNoLocationClasses = true
+                excludes = listOf("jdk.internal.*")
+            }
         }
     }
 }
@@ -295,3 +306,5 @@ ktlint {
         exclude { it.file.path.contains("/generated/") }
     }
 }
+
+
