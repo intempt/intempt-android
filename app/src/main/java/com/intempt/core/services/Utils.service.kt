@@ -12,7 +12,6 @@ internal class UtilsService
     constructor(
         private val logger: LoggerManagerService,
     ) {
-
         suspend fun <T> withTryCatchSuspend(
             errorMessage: String,
             block: suspend () -> T,
@@ -74,7 +73,7 @@ internal class UtilsService
             return newRunnable
         }
 
-        fun generateId(type: String? = null): String  {
+        fun generateId(type: String? = null): String {
             val uuid = UUID.randomUUID().toString()
 
             return type?.let { it + "_" + uuid } ?: uuid

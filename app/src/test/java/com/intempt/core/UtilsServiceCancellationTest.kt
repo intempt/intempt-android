@@ -118,9 +118,10 @@ class UtilsServiceCancellationTest {
 
         val deferred =
             scope.async {
-                returned = utils.withTryCatchSuspend("should not be logged") {
-                    throw CancellationException("cancelled inside the block")
-                }
+                returned =
+                    utils.withTryCatchSuspend("should not be logged") {
+                        throw CancellationException("cancelled inside the block")
+                    }
             }
         scope.advanceUntilIdle()
 

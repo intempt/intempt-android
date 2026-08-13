@@ -22,7 +22,6 @@ import org.junit.Test
  * per model rather than once over a loop, so a break names the model it broke.
  */
 class WireFormatTest {
-
     private companion object {
         const val EVENT_ID = "evt-1"
         const val SESSION_ID = "sess-1"
@@ -35,8 +34,7 @@ class WireFormatTest {
     private fun Map<String, Any>.data(): Map<String, Any?> = this["data"] as Map<String, Any?>
 
     @Suppress("UNCHECKED_CAST")
-    private fun Map<String, Any>.userAttributes(): Map<String, Any?> =
-        this["userAttributes"] as Map<String, Any?>
+    private fun Map<String, Any>.userAttributes(): Map<String, Any?> = this["userAttributes"] as Map<String, Any?>
 
     /** The five envelope fields the platform routes on. Wrong here means the event is unattributable. */
     private fun assertEnvelope(formatted: Map<String, Any>) {

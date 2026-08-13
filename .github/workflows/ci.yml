@@ -123,12 +123,32 @@ jobs:
       - name: ktlint
         run: ./gradlew :app:ktlintCheck :sample:ktlintCheck --stacktrace
 
-      # Uploaded for visibility, not gated. Robolectric's classloader discards JaCoCo
-      # instrumentation, so this under-reports badly until coverage moves to the
-      # instrumented suite. See the note in app/build.gradle.kts.
-      - name: Coverage report
-        run: ./gradlew :app:jacocoTestReport --stacktrace
-        continue-on-error: true
+      # Gated. This was continue-on-error while the measurement was broken — Robolectric's
+      # classloader discarded JaCoCo's instrumentation, so the report read near-zero regardless
+      # of what the tests exercised. That is fixed, the number is real, and it now blocks.
+      #
+      # The floor is a ratchet pinned just under the measured value, not the 85% target: a gate
+      # set above the current number fails every PR including the ones that improve it. See the
+      # note in app/build.gradle.kts for the ramp.
+      - name: Coverage report and floor
+        run: ./gradlew :app:jacocoCoverageVerification --stacktrace
+
+      # Mutation testing on the SDK's pure-JVM decision logic, gated at 85% mutants killed and
+      # 85% line coverage. PIT cannot run against an Android library module, so :mutation applies
+      # java-library and compiles the same source files out of :app. See mutation/build.gradle.kts.
+      #
+      # Coverage says a line ran. This says the tests would notice if it changed — which is the
+      # property that matters for the delete-versus-retry branch, where a silent category change
+      # either drops events permanently or wedges the queue.
+      - name: Mutation testing
+        run: ./gradlew :mutation:pitest --stacktrace
+
+      - name: Upload mutation report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
+        with:
+          name: mutation-report
+          path: mutation/build/reports/pitest/
 
       - name: Upload coverage
         if: always()

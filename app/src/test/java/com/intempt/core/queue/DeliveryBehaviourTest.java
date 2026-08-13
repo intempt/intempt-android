@@ -45,7 +45,20 @@ import javax.net.ssl.SSLSocketFactory;
 @RunWith(RobolectricTestRunner.class)
 public class DeliveryBehaviourTest {
 
-    private static final String DB = "delivery_behaviour_test.db";
+    /**
+     * A distinct database file per test. It has to be per-test rather than shared, because
+     * {@code DeliveryMessages} starts a worker thread and never shuts it down — there is no
+     * close() on it — so a worker from an earlier test outlives its test and keeps flushing.
+     *
+     * With one shared file that worker drains the next test's rows. It also caches its poster at
+     * construction, so the drain does not even show up in the current test's request count: the
+     * queue empties, one POST is recorded, and an assertion about how many POSTs a large batch
+     * needs fails for reasons that have nothing to do with the code under test. That is exactly
+     * how it failed under full-suite load while passing in isolation.
+     */
+    private static final AtomicInteger DB_SEQUENCE = new AtomicInteger();
+
+    private String db;
 
     private Context context;
     private QueueConfig config;
@@ -53,14 +66,16 @@ public class DeliveryBehaviourTest {
     @Before
     public void setUp() {
         context = ApplicationProvider.getApplicationContext();
-        context.getDatabasePath(DB).delete();
+        db = "delivery_behaviour_test_" + DB_SEQUENCE.incrementAndGet() + ".db";
+        context.getDatabasePath(db).delete();
         config = new QueueConfig("https://example.invalid/track", "Basic dGVzdDp0ZXN0");
         currentConfig = config;
+        currentDb = db;
     }
 
     @After
     public void tearDown() {
-        context.getDatabasePath(DB).delete();
+        context.getDatabasePath(db).delete();
     }
 
     // ------------------------------------------------------------------ fakes
@@ -138,6 +153,7 @@ public class DeliveryBehaviourTest {
      */
     private static FakePoster currentPoster;
     private static QueueConfig currentConfig;
+    private static String currentDb;
 
     /** DeliveryMessages with the transport and the database name swapped out. */
     private static final class TestableDelivery extends DeliveryMessages {
@@ -152,13 +168,14 @@ public class DeliveryBehaviourTest {
 
         @Override
         protected EventDbAdapter makeDbAdapter(Context ctx) {
-            return new EventDbAdapter(ctx, DB, currentConfig);
+            return new EventDbAdapter(ctx, currentDb, currentConfig);
         }
     }
 
     private TestableDelivery deliveryWith(FakePoster poster) {
         currentPoster = poster;
         currentConfig = config;
+        currentDb = db;
         return new TestableDelivery(context);
     }
 
@@ -172,7 +189,7 @@ public class DeliveryBehaviourTest {
     }
 
     private int rowCount() {
-        EventDbAdapter adapter = new EventDbAdapter(context, DB, config);
+        EventDbAdapter adapter = new EventDbAdapter(context, db, config);
         String[] batch = adapter.generateDataString(EventDbAdapter.Table.EVENTS);
         if (batch == null) {
             return 0;
@@ -371,11 +388,11 @@ public class DeliveryBehaviourTest {
     /** A malformed row must not stop the good ones being delivered. */
     @Test
     public void oneMalformedRowDoesNotStopDelivery() throws Exception {
-        EventDbAdapter adapter = new EventDbAdapter(context, DB, config);
+        EventDbAdapter adapter = new EventDbAdapter(context, db, config);
         adapter.addJSON(event("good one"), EventDbAdapter.Table.EVENTS);
 
         // A row that is not valid JSON, written past addJSON's typing.
-        context.openOrCreateDatabase(DB, Context.MODE_PRIVATE, null)
+        context.openOrCreateDatabase(db, Context.MODE_PRIVATE, null)
                 .execSQL(
                         "INSERT INTO events (data, created_at, automatic_data) VALUES (?, ?, 0)",
                         new Object[] {"{not json", System.currentTimeMillis()});

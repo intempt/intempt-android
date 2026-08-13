@@ -257,16 +257,15 @@ mavenPublishing {
 
 // Coverage on the JVM unit tests.
 //
-// Known limitation: every unit-test file here runs under RobolectricTestRunner, and
-// Robolectric's sandbox classloader reloads application classes, discarding JaCoCo's
-// instrumentation. The report therefore currently shows near-zero regardless of what the
-// tests actually exercise — only HttpStatusPolicyTest, which touches no Android types,
-// registers. The wiring is correct and left in place; the number becomes meaningful either
-// when non-Robolectric unit tests exist or when coverage is taken from the instrumented
-// suite via createDebugCoverageReport, which is the path Mixpanel uses.
+// This used to report near-zero and carried a note saying the measurement was broken and so
+// deliberately ungated. The measurement was broken: Robolectric's sandbox classloader reloads
+// application classes and discards JaCoCo's instrumentation, and JaCoCo then skips classes it
+// cannot attribute to a source location — so almost everything the tests actually exercised was
+// dropped from the report. That is fixed in the test task's JacocoTaskExtension above
+// (isIncludeNoLocationClasses, plus a jdk.internal.* exclude), and the number below is real.
 //
-// Deliberately not gated on a threshold. A floor enforced against a broken measurement
-// would be worse than no floor.
+// A broken measurement is worse than none, because it reads as a measurement. Now that it is
+// honest it can carry a floor — see jacocoCoverageVerification.
 tasks.register<JacocoReport>("jacocoTestReport") {
     dependsOn("testDebugUnitTest")
     reports {
@@ -297,6 +296,53 @@ tasks.register<JacocoReport>("jacocoTestReport") {
     executionData.setFrom(fileTree(layout.buildDirectory).include("**/*.exec", "**/*.ec"))
 }
 
+// The coverage floor, enforced in CI.
+//
+// The target is 85%. These numbers are not 85%, and setting them there today would fail every
+// PR — including ones that raise coverage — which trains people to bypass the gate. Setting 85
+// and excluding whatever fails it would be the same thing wearing a disguise.
+//
+// So the floor is a ratchet, pinned just under the measured value. It cannot be met by writing
+// no tests and it cannot be lowered without the diff saying so. Every increase moves it up; the
+// number in this file is always a real measurement, never an aspiration.
+//
+// Raise these as coverage rises. The gap to 85 is tracked, not hidden: the largest remaining
+// holes are FirebaseService, LifecycleCallbackService, NotificationDispatcherActivity and the
+// push-notification models, all of which need instrumented tests rather than JVM ones.
+// Measured 2026-08-14: LINE 2039/3267 = 62.4%, BRANCH 432/1083 = 39.9%.
+// Both floors sit just under that, so the gate blocks a regression today without blocking a PR
+// that improves things. Re-measure with `./gradlew :app:jacocoTestReport` and raise them.
+val coverageFloorLine = 0.62
+val coverageFloorBranch = 0.39
+
+tasks.register<JacocoCoverageVerification>("jacocoCoverageVerification") {
+    dependsOn("jacocoTestReport")
+
+    // Same class/source wiring as the report task. Pointing verification at a different set than
+    // the report is how a gate ends up green against a number nobody is looking at.
+    classDirectories.setFrom(tasks.named<JacocoReport>("jacocoTestReport").get().classDirectories)
+    sourceDirectories.setFrom(tasks.named<JacocoReport>("jacocoTestReport").get().sourceDirectories)
+    executionData.setFrom(tasks.named<JacocoReport>("jacocoTestReport").get().executionData)
+
+    violationRules {
+        rule {
+            limit {
+                counter = "LINE"
+                value = "COVEREDRATIO"
+                minimum = coverageFloorLine.toBigDecimal()
+            }
+            limit {
+                // Branch coverage is the one that catches untested error paths, which is where
+                // this SDK's defects have actually been. Gated separately so a rise in line
+                // coverage cannot mask a fall here.
+                counter = "BRANCH"
+                value = "COVEREDRATIO"
+                minimum = coverageFloorBranch.toBigDecimal()
+            }
+        }
+    }
+}
+
 ktlint {
     android.set(true)
     // The vendored substrate is Java and deliberately kept close to upstream; ktlint only
@@ -306,5 +352,3 @@ ktlint {
         exclude { it.file.path.contains("/generated/") }
     }
 }
-
-
