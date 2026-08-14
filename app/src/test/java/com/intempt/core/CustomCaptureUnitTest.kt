@@ -349,7 +349,13 @@ class CustomCaptureUnitTest {
         // Verify that the specific error message is present in the captured logs
         assertTrue(
             messageCaptor.allValues.any {
-                it.trim() == "Can't accept view of type ${unsupportedView.javaClass.name}. Supported types are: EditText, Spinner, ToggleButton, CheckBox, RadioButton, CompoundButton, TextView, SeekBar, RatingBar, TimePicker, DatePicker, ListView.".trim()
+                it.trim() ==
+                    (
+                        "Can't accept view of type ${unsupportedView.javaClass.name}. " +
+                            "Supported types are: EditText, Spinner, ToggleButton, CheckBox, " +
+                            "RadioButton, CompoundButton, TextView, SeekBar, RatingBar, " +
+                            "TimePicker, DatePicker, ListView."
+                    ).trim()
             },
         )
     }
