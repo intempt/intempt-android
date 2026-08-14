@@ -383,10 +383,12 @@ public class DeliveryMessages {
                     }
 
                     ///////////////////////////
-                    if ((returnCode >= mConfig.getBulkUploadLimit()
-                            || returnCode == EventDbAdapter.DB_OUT_OF_MEMORY_ERROR)
-                            && mFailedRetries <= 0
-                            && token != null) {
+                    if (DeliveryRetryPolicy.shouldFlushOnBulkLimit(
+                            returnCode,
+                            mConfig.getBulkUploadLimit(),
+                            EventDbAdapter.DB_OUT_OF_MEMORY_ERROR,
+                            mFailedRetries,
+                            token)) {
                         logAboutMessage(
                                 "Flushing queue due to bulk upload limit ("
                                         + returnCode
@@ -571,9 +573,7 @@ public class DeliveryMessages {
                     } else {
                         removeMessages(FLUSH_QUEUE, token);
                         mTrackEngageRetryAfter =
-                                Math.max((long) Math.pow(2, mFailedRetries) * 60000, mTrackEngageRetryAfter);
-                        mTrackEngageRetryAfter =
-                                Math.min(mTrackEngageRetryAfter, 10 * 60 * 1000); // limit 10 min
+                                DeliveryRetryPolicy.nextRetryDelay(mFailedRetries, mTrackEngageRetryAfter);
                         final Message flushMessage = Message.obtain();
                         flushMessage.what = FLUSH_QUEUE;
                         flushMessage.obj = token;
