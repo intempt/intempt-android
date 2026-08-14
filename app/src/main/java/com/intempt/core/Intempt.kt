@@ -111,6 +111,10 @@ object Intempt {
         return core
     }
 
+    /**
+     * Associates the current session with [userId], optionally logging [eventTitle] and
+     * merging [userAttributes]/[data] onto the user's profile.
+     */
     @JvmStatic
     @JvmOverloads
     fun identify(
@@ -122,6 +126,10 @@ object Intempt {
         core("identify")?.capture?.identify(userId, eventTitle, userAttributes, data)
     }
 
+    /**
+     * Associates the current session with an account/organization [accountId], optionally
+     * logging [eventTitle] and merging [accountAttributes] onto the account's profile.
+     */
     @JvmStatic
     @JvmOverloads
     fun group(
@@ -132,6 +140,7 @@ object Intempt {
         core("group")?.capture?.group(accountId, eventTitle, accountAttributes)
     }
 
+    /** Records a custom event named [eventTitle] with the given [data] properties. */
     @JvmStatic
     fun track(
         eventTitle: String,
@@ -140,6 +149,10 @@ object Intempt {
         core("track")?.capture?.track(eventTitle, data)
     }
 
+    /**
+     * Records [eventTitle] and, unlike [track], can attribute it to [accountId]/[userId] and
+     * merge [accountAttributes]/[userAttributes] onto their profiles in the same call.
+     */
     @JvmStatic
     @JvmOverloads
     fun record(
@@ -160,6 +173,7 @@ object Intempt {
         )
     }
 
+    /** Merges the profile previously known as [userId] into [anotherUserId]. */
     @JvmStatic
     fun alias(
         userId: String,
@@ -168,6 +182,10 @@ object Intempt {
         core("alias")?.capture?.alias(userId, anotherUserId)
     }
 
+    /**
+     * Records a consent decision (e.g. "opt-in"/"opt-out") for [action], valid until
+     * [validUntil] (epoch millis), with optional [email]/[message]/[category] context.
+     */
     @JvmStatic
     @JvmOverloads
     fun consent(
@@ -180,6 +198,7 @@ object Intempt {
         core("consent")?.capture?.consent(action, validUntil, email, message, category)
     }
 
+    /** Records that [quantity] units of [productId] were added to the cart. */
     @JvmStatic
     fun productAdd(
         productId: String,
@@ -188,16 +207,23 @@ object Intempt {
         core("productAdd")?.capture?.productAdd(productId, quantity)
     }
 
+    /** Records an order completion for [products], each a map of that product's properties. */
     @JvmStatic
     fun productOrdered(products: List<Map<String, Any>>) {
         core("productOrdered")?.capture?.productOrdered(products)
     }
 
+    /** Records that [productId] was viewed. */
     @JvmStatic
     fun productView(productId: String) {
         core("productView")?.capture?.productView(productId)
     }
 
+    /**
+     * Fetches up to [quantity] product recommendations for recommender [id], scoped to
+     * [productId] when given, returning only the requested [fields]. Returns null when the
+     * SDK is not initialized or the request fails.
+     */
     @JvmStatic
     suspend fun recommendation(
         id: String,
@@ -206,22 +232,27 @@ object Intempt {
         productId: String?,
     ): JsonObject? = core("recommendation")?.capture?.recommendation(id, quantity, fields, productId)
 
+    /** Clears the identified user/account for the current session. */
     @JvmStatic
     fun logOut() {
         core("logOut")?.capture?.logOut()
     }
 
+    /** Excludes [view] from autocapture so its text is never recorded. */
     @JvmStatic
     fun doNotCaptureText(view: View) {
         core("doNotCaptureText")?.capture?.doNotCaptureText(view)
     }
 
+    /** Controls the SDK's own diagnostic logging, separate from event tracking. */
     object Logging {
+        /** Enables the SDK's diagnostic log output. */
         @JvmStatic
         fun start() {
             core("Logging.start")?.capture?.enableLogging()
         }
 
+        /** Disables the SDK's diagnostic log output. */
         @JvmStatic
         fun stop() {
             core("Logging.stop")?.capture?.disableLogging()
@@ -232,12 +263,15 @@ object Intempt {
         fun isLoggingEnabled(): Boolean = core("Logging.isLoggingEnabled")?.capture?.isLoggingEnabled() ?: false
     }
 
+    /** Controls whether events are captured at all (independent of [Logging]). */
     object Tracking {
+        /** Opts back in to event capture after [stop]. */
         @JvmStatic
         fun start() {
             core("Tracking.start")?.capture?.optIn()
         }
 
+        /** Opts out of event capture; calls are accepted but nothing is recorded or sent. */
         @JvmStatic
         fun stop() {
             core("Tracking.stop")?.capture?.optOut()
