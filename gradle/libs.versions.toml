@@ -15,6 +15,7 @@ runner = "1.6.2"
 vanniktech="0.28.0"
 nmcp="0.0.8"
 ktlint="12.1.1"
+detekt="1.23.6"
 # Verifies every call against the android-api-level-23 signature, matching minSdk. Mixpanel
 # uses the same plugin at the same purpose; see the animalsniffer block in app/build.gradle.kts.
 animalsniffer="2.0.0"
@@ -83,4 +84,5 @@ kotlin-kapt = { id="kotlin-kapt"}
 vanniktech-deployer = { id="com.vanniktech.maven.publish", version.ref = "vanniktech"}
 gradleup-nmcp= {id="com.gradleup.nmcp", version.ref="nmcp"}
 ktlint = { id = "org.jlleitschuh.gradle.ktlint", version.ref = "ktlint" }
+detekt = { id = "io.gitlab.arturbosch.detekt", version.ref = "detekt" }
 animalsniffer = { id = "ru.vyarus.animalsniffer", version.ref = "animalsniffer" }

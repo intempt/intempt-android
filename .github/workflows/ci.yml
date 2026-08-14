@@ -132,6 +132,12 @@ jobs:
       - name: ktlint
         run: ./gradlew :app:ktlintCheck :sample:ktlintCheck --stacktrace
 
+      # Static analysis for complexity, duplication, and code smells — a different concern than
+      # ktlint above, which is formatting only. Pre-existing findings (112 at the time of
+      # writing) are frozen in app/config/detekt/baseline.xml, so this gates new findings only.
+      - name: detekt
+        run: ./gradlew :app:detekt --stacktrace
+
       # Gated. This was continue-on-error while the measurement was broken — Robolectric's
       # classloader discarded JaCoCo's instrumentation, so the report read near-zero regardless
       # of what the tests exercised. That is fixed, the number is real, and it now blocks.

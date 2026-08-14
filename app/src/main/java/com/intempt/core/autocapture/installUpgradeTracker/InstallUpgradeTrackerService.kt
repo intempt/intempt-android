@@ -69,7 +69,6 @@ internal class InstallUpgradeTrackerService
                 logger.log("InstallUpgradeTrackerService | Consumer App packageInfo code: $code")
                 return code
             } catch (e: Exception) {
-                e.printStackTrace()
                 logger.error("InstallUpgradeTrackerService | Error getting consumer app version code: ${e.message}")
                 -1
             }
