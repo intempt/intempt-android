@@ -1,0 +1,110 @@
+# Changelog
+
+All notable changes to the Intempt Android SDK are documented here.
+
+The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
+adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+Only `v2.0.1` is tagged in this repository's history, so entries below it do not exist. Rather than
+invent them, the `2.0.1` section records what the tag contains and nothing more. Everything since is
+under Unreleased.
+
+## [Unreleased]
+
+Targets `3.0.0` (`VERSION` in `gradle.properties`). The major bump is deliberate: `minSdk` moved and
+several defaults changed behaviour, so a consumer upgrading needs to read this.
+
+### Added
+
+- **Durable event queue.** Events are persisted to SQLite before delivery and deleted only after the
+  gateway confirms them. The previous queue was an in-memory list cleared *before* the network POST,
+  so any failure or process death silently lost every unflushed event.
+- **Delete-versus-retry policy** (`HttpStatusPolicy`). 408, 429, 5xx and network failures are
+  retried; everything else at 300 or above is dropped. Previously an unrecognised 4xx was retried
+  forever and, never being deleted, parked at the head of the queue and blocked every event behind
+  it — one bad batch stopped all delivery permanently.
+- **`Retry-After` is honoured** on 429 and 5xx responses.
+- **A host application** (`:sample`) that consumes the library the way a customer does, with
+  instrumented tests on an API 23 + 34 emulator matrix.
+- **CI.** Compile, unit tests, instrumented tests, lint, ktlint, a coverage floor, mutation testing
+  and AnimalSniffer now run on every pull request. Previously nothing ran on a PR at all —
+  `publish.yml` triggered only on a `v*` tag, so a change that did not compile could be merged.
+- **AnimalSniffer** API-compatibility gate against the `android-api-level-23` signature, so a
+  dependency reaching for a class absent at `minSdk` fails the build rather than the app.
+- **`@JvmStatic` and `@JvmOverloads`** across the public API. Java callers can now write
+  `Intempt.track(...)` instead of `Intempt.INSTANCE.track(...)`, and defaulted methods expose the
+  overload set Java expects.
+- **`initialize()` returns `Boolean`** and reports failure. It previously returned `Unit` and
+  swallowed every error, so a host app could not tell a working SDK from a dead one.
+- **Explicit `targetSdk`** on the library module.
+
+### Changed
+
+- **`minSdk` 31 → 23.** A real customer was blocked by the 31 floor.
+- **Apache 2.0.** The delivery substrate is vendored from
+  [mixpanel-android](https://github.com/mixpanel/mixpanel-android); `NOTICE` names all derived files
+  against their upstream paths, and both files ship inside the AAR.
+- **`kotlinx-serialization-json` is now an `api` dependency**, not `implementation`. `JsonElement`
+  and `JsonObject` appear in the public API, so as `implementation` the types were absent from a
+  consumer's compile classpath and calling `recommendation()` failed to compile in the host app.
+- **Jackson pinned to 2.13.5.** 2.16+ references `java.lang.BootstrapMethodError` (API 26), which
+  killed every host app on Android 7.0/7.1 during initialization.
+- **`logOut()` rotates `profileId`.** It previously restored the same one, leaking events between
+  users on a shared device.
+
+### Fixed
+
+- **Every event was silently discarded.** Delivery posted with `headers = null`, so no
+  `Authorization` header was sent, the gateway answered 401, and the batch was deleted as a
+  permanent client error. The durable queue worked exactly as designed while losing 100% of events.
+- **Passwords were sent in clear text** by autocapture. There are three text-read sites, not two;
+  the third wrote `targetValue`.
+- **A truncated 2xx was treated as a delivered batch.** A response shorter than its declared
+  `Content-Length` returned success with a partial body and the batch was deleted, so events were
+  lost with the platform never having finished accepting them.
+- **`Retry-After` was discarded on every 5xx.** `ServiceUnavailableException` does not extend
+  `IOException`, so it fell through to a generic handler and was wrapped, leaving the code that
+  honours the header unreachable.
+- **`isRetryable` disagreed with the transport above status 599.** The policy called such a status
+  transient while `HttpService` called it permanent.
+- **`CancellationException` was swallowed**, breaking structured concurrency with no exception
+  anywhere: a cancelled scope kept working and the symptom was a leak.
+- **API-level crashes:** `java.util.Base64` (API 26) in the auth path,
+  `DatePicker.setOnDateChangedListener` (API 26), `PackageInfo.longVersionCode` (API 28).
+- **R8 failed for every consumer** with `minifyEnabled true`, because ktor pulls in `slf4j-api`
+  whose `LoggerFactory` references `org.slf4j.impl` classes absent on Android. The library now ships
+  `-dontwarn` for it in `consumer-rules.pro`.
+- **A malformed `apiKey` threw `IndexOutOfBoundsException`** from inside the auth path. A key without
+  a `.` separator is now reported rather than fatal.
+- **`initialize()` returned `true` with no config asset present.** Credentials are read lazily, so a
+  misconfigured app was told it was healthy and dropped every event.
+- **`SCHEDULE_EXACT_ALARM`** permission removed; it was never used.
+
+### Removed
+
+- **Client-side IP capture and the `ipapi.co` call.** The SDK used to fetch the device's public IP
+  and city/region/country from `ipapi.co` on every session start and attach all four to the payload.
+  It ran outside consent gating — `SessionTracker` was the only capture path that never checked
+  `isUserOptIn` — with no consumer switch and no sub-processor disclosure anywhere in the repo.
+
+  Replaced with the mechanism mixpanel-android uses: `?ip=1` on the ingestion endpoint tells the
+  platform it may geolocate from the source IP of the request it already receives, and `?ip=0` tells
+  it not to. The device never handles its own IP and no third party is involved. Configurable via
+  `"useIpAddressForGeolocation"` in `intempt-config.json`, defaulting to `true` as Mixpanel's does.
+
+  **Breaking, two ways.** `userAttributes` no longer carries `ipAddress`, `city`, `region` or
+  `country`, and `SessionUserAttributes`' constructor lost those four parameters. Anyone reading geo
+  off a session event gets nothing until the platform derives it.
+
+- **Experiments and personalizations.** Those are `intempt.js` features and were never supported by
+  this SDK's backend contract.
+
+## [2.0.1]
+
+The last tagged release. Published to Maven Central as `com.intempt.sdk:intempt-android:2.0.1`.
+
+No changelog was kept at the time, and this file does not invent one. `git log v2.0.1` is the
+authoritative record of what that tag contains.
+
+[Unreleased]: https://github.com/intempt/intempt-android/compare/v2.0.1...HEAD
+[2.0.1]: https://github.com/intempt/intempt-android/releases/tag/v2.0.1

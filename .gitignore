@@ -13,3 +13,6 @@ local.properties
 gradle.properties
 
 google-services.json
+
+# Output of scripts/falsify.sh
+build/falsify-results.txt

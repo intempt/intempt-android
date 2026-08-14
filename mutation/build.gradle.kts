@@ -32,23 +32,41 @@ java {
 sourceSets {
     main {
         java {
-            setSrcDirs(listOf("../app/src/main/java"))
+            // The stub source dir carries a no-op android.util.Log so the classes below compile
+            // without android.jar — QueueLog imports it, and QueueConfig and TrackPayloadBuilder
+            // both call QueueLog. Without it this module could only ever cover HttpStatusPolicy.
+            setSrcDirs(listOf("../app/src/main/java", "src/main/stub"))
             // Everything here must compile without android.jar. Adding a class that imports
             // anything from `android.*` will fail this module's compile, which is the intended
             // guard rather than an inconvenience.
             include("com/intempt/core/queue/HttpStatusPolicy.java")
+            include("com/intempt/core/queue/TrackPayloadBuilder.java")
+            include("com/intempt/core/queue/QueueConfig.java")
+            include("com/intempt/core/queue/QueueLog.java")
+            include("com/intempt/core/queue/OfflineMode.java")
+            include("com/intempt/core/queue/ProxyServerInteractor.java")
+            include("android/util/Log.java")
         }
     }
     test {
         java {
-            setSrcDirs(listOf("../app/src/test/java"))
+            // Two roots: the shared tests compiled by :app as well, plus mutation-only tests for
+            // classes whose dependencies :app's unit-test task cannot provide (org.json resolves to
+            // the stub android.jar there and throws "not mocked").
+            setSrcDirs(listOf("../app/src/test/java", "src/test/java"))
             include("com/intempt/core/queue/HttpStatusPolicyTest.java")
+            include("com/intempt/core/queue/PureJvmQueueTest.java")
+            include("com/intempt/core/queue/TrackPayloadBuilderPureTest.java")
+            include("com/intempt/core/queue/QueueLogFallbackTest.java")
         }
     }
 }
 
 dependencies {
     testImplementation("junit:junit:4.13.2")
+    // Android bundles org.json; on the JVM it comes from Maven. Same API, so TrackPayloadBuilder
+    // compiles and behaves identically here.
+    implementation("org.json:json:20240303")
 }
 
 tasks.test {
@@ -57,8 +75,22 @@ tasks.test {
 
 pitest {
     pitestVersion.set("1.16.1")
-    targetClasses.set(listOf("com.intempt.core.queue.HttpStatusPolicy*"))
-    targetTests.set(listOf("com.intempt.core.queue.HttpStatusPolicyTest"))
+    targetClasses.set(
+        listOf(
+            "com.intempt.core.queue.HttpStatusPolicy*",
+            "com.intempt.core.queue.TrackPayloadBuilder*",
+            "com.intempt.core.queue.QueueConfig*",
+            "com.intempt.core.queue.QueueLog*",
+        ),
+    )
+    targetTests.set(
+        listOf(
+            "com.intempt.core.queue.HttpStatusPolicyTest",
+            "com.intempt.core.queue.PureJvmQueueTest",
+            "com.intempt.core.queue.TrackPayloadBuilderPureTest",
+            "com.intempt.core.queue.QueueLogFallbackTest",
+        ),
+    )
     threads.set(2)
     outputFormats.set(listOf("HTML", "XML"))
     timestampedReports.set(false)

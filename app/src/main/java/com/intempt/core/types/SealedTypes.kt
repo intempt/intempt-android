@@ -58,6 +58,9 @@ internal sealed class ConfigKeys(val key: String){
     data object IsTouchEnabledOpt : ConfigKeys("isTouchEnabled")
     data object IsTextCaptureEnabled : ConfigKeys("isTextCaptureEnabled")
     data object IsQueueEnabled : ConfigKeys("isQueueEnabled")
+
+    /** Mirrors Mixpanel's UseIpAddressForGeolocation. Default true. */
+    data object UseIpAddressForGeolocation : ConfigKeys("useIpAddressForGeolocation")
     data object IsAutoCaptureEnabled : ConfigKeys("isAutoCaptureEnabled")
     data object ItemsInQueue : ConfigKeys("itemsInQueue")
     data object TimeBuffer : ConfigKeys("timeBuffer")
@@ -73,6 +76,8 @@ internal sealed class DefaultConfigs<T>(val value: T){
     data object IsUserOptIn : DefaultConfigs<Boolean>(true)
     data object IsLoggingEnabled : DefaultConfigs<Boolean>(false)
     data object IsQueueEnabled : DefaultConfigs<Boolean>(true)
+
+    data object UseIpAddressForGeolocation : DefaultConfigs<Boolean>(true)
 }
 
 internal sealed class EventType(val value:String){

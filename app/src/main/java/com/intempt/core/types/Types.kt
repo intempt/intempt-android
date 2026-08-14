@@ -55,6 +55,7 @@ internal data class IntemptOptions(
     val isTouchEnabled: Boolean,
     val isTextCaptureEnabled: Boolean,
     val isQueueEnabled: Boolean,
+    val useIpAddressForGeolocation: Boolean,
     val isAutoCaptureEnabled: Boolean,
     val itemsInQueue: Int,
     val timeBuffer: Long,

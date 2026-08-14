@@ -72,7 +72,7 @@ Push lifecycle | `webhooks/events/push-notification` | no |
 
 | Family | Events | Detail |
 |---|---|---|
-Session | `Session start` | 30-min inactivity timeout; geo enrichment (city / region / country via `ipapi.co`) |
+Session | `Session start` | 30-min inactivity timeout; geo is derived **server-side** from the request IP (see `?ip=` below), not fetched on device |
 Screen | `View screen`, `Leave screen` | per Activity |
 Fragment | `Fragment transition` | |
 Touch | `Touch event` | UI element taps |
@@ -242,3 +242,26 @@ Page-vs-screen is defensible — mobile has screens. **But `Session Start` vs `S
 3 | **§11.1** — is a `group()` event named "Identify" intentional? | Product |
 4 | **CI gate** (test + lint on every PR) in the same push? Process, not a feature | Eng |
 5 | **Public docs fix** — `api-reference.yaml:43-51` documents the deprecated, insecure query-param auth as `required`; our own filter logs a warning against it | Docs |
+
+## Geolocation
+
+The SDK does not fetch, store or transmit the device's IP address.
+
+It appends `?ip=1` to the ingestion endpoint, which tells the platform it may derive
+city / region / country from the source IP of the request it already receives. `?ip=0` tells it not
+to. This is the same mechanism mixpanel-android uses
+(`MPConfig.getEndPointWithIpTrackingParam`), and it means no third party is involved and the device
+never handles its own IP.
+
+Turn it off in `intempt-config.json`:
+
+```json
+{ "options": { "useIpAddressForGeolocation": false } }
+```
+
+Defaults to `true`, matching Mixpanel's `UseIpAddressForGeolocation`.
+
+**Until the platform honours `?ip=`, session events carry no geo.** Previously the SDK called
+`ipapi.co` per session and put the IP plus city/region/country in the payload — outside consent
+gating, with no consumer switch and no sub-processor disclosure. That has been removed; the
+server-side half is tracked separately.

@@ -27,48 +27,108 @@ import android.util.Log;
 
     private static volatile boolean sEnabled = false;
 
+    /**
+     * Where queue log lines go. Null means straight to {@code android.util.Log}, which is what the
+     * vendored substrate did on its own.
+     *
+     * <p>This exists so the queue is not a second logging system. It used to write to logcat under
+     * its own flag, set from a different place than {@code LoggerManagerService}'s — so the output
+     * looked unified while "is logging enabled?" had two independent answers. Now
+     * {@code LoggerManagerService} installs itself here and there is one destination and one switch.
+     *
+     * <p>A sink rather than a direct call because this package is the vendored Java substrate: it
+     * cannot see the Kotlin service without inverting the dependency, and keeping the substrate
+     * ignorant of what consumes its output is also what keeps it comparable against upstream.
+     */
+    private static volatile Sink sSink = null;
+
+    /** Receives a queue log line. Priority values are {@code android.util.Log}'s. */
+    /* package */ interface Sink {
+        void write(int priority, String tag, String message, Throwable throwable);
+    }
+
+    /* package */ static void setSink(Sink sink) {
+        sSink = sink;
+    }
+
+    /**
+     * Routes one line, to the installed sink if there is one and to logcat otherwise.
+     *
+     * <p>The {@code sEnabled} check stays here for the no-sink case. When a sink IS installed it
+     * applies its own gate — {@code LoggerManagerService} reads
+     * {@code ConfigManagerService.isLoggingEnabled} directly — so this must not also gate, or
+     * enabling logging through the SDK's own API would still be suppressed by a flag the consumer
+     * never sees.
+     */
+    private static void emit(int priority, String tag, String message, Throwable throwable) {
+        final Sink sink = sSink;
+        if (sink != null) {
+            sink.write(priority, tag, message, throwable);
+            return;
+        }
+        if (!sEnabled) {
+            return;
+        }
+        if (throwable == null) {
+            Log.println(priority, tag, message);
+        } else {
+            Log.println(priority, tag, message + '\n' + Log.getStackTraceString(throwable));
+        }
+    }
+
+    /**
+     * Whether verbose queue logging is on.
+     *
+     * <p>Exists so {@code QueueConfig.setLoggingEnabled} has an observable effect. Without it,
+     * mutation testing showed that deleting the {@code setEnabled} call from that setter killed no
+     * test: the only assertion was that it did not throw, which a no-op also satisfies.
+     */
+    /* package */ static boolean isEnabled() {
+        return sEnabled;
+    }
+
     /* package */ static void setEnabled(boolean enabled) {
         sEnabled = enabled;
     }
 
     /* package */ static void v(String tag, String message) {
-        if (sEnabled) Log.v(tag, message);
+        emit(Log.VERBOSE, tag, message, null);
     }
 
     /* package */ static void v(String tag, String message, Throwable throwable) {
-        if (sEnabled) Log.v(tag, message, throwable);
+        emit(Log.VERBOSE, tag, message, throwable);
     }
 
     /* package */ static void d(String tag, String message) {
-        if (sEnabled) Log.d(tag, message);
+        emit(Log.DEBUG, tag, message, null);
     }
 
     /* package */ static void d(String tag, String message, Throwable throwable) {
-        if (sEnabled) Log.d(tag, message, throwable);
+        emit(Log.DEBUG, tag, message, throwable);
     }
 
     /* package */ static void i(String tag, String message) {
-        if (sEnabled) Log.i(tag, message);
+        emit(Log.INFO, tag, message, null);
     }
 
     /* package */ static void i(String tag, String message, Throwable throwable) {
-        if (sEnabled) Log.i(tag, message, throwable);
+        emit(Log.INFO, tag, message, throwable);
     }
 
     /* package */ static void w(String tag, String message) {
-        if (sEnabled) Log.w(tag, message);
+        emit(Log.WARN, tag, message, null);
     }
 
     /* package */ static void w(String tag, String message, Throwable throwable) {
-        if (sEnabled) Log.w(tag, message, throwable);
+        emit(Log.WARN, tag, message, throwable);
     }
 
     /* package */ static void e(String tag, String message) {
-        if (sEnabled) Log.e(tag, message);
+        emit(Log.ERROR, tag, message, null);
     }
 
     /* package */ static void e(String tag, String message, Throwable throwable) {
-        if (sEnabled) Log.e(tag, message, throwable);
+        emit(Log.ERROR, tag, message, throwable);
     }
 
     private QueueLog() {

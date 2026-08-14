@@ -11,6 +11,8 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Assume
 import org.junit.BeforeClass
@@ -166,6 +168,72 @@ class SdkOnDeviceTest {
             "Intempt.initialize() did not complete on API ${android.os.Build.VERSION.SDK_INT}",
             com.intempt.core.Intempt.isInitialized,
         )
+    }
+
+    /**
+     * The once-only initialize guard, asserted by object identity.
+     *
+     * <p>Lives here rather than in the library's unit tests because it needs a genuinely
+     * initialized SDK, and that needs a real intempt-config.json — the library module has no
+     * assets directory. Against an SDK that cannot initialize, `assertSame` on two nulls passes
+     * vacuously, which is worse than not testing it.
+     *
+     * <p>Checking the return value twice would not do: deleting the `if (isInitialized) return true`
+     * guard makes every call rebuild the Dagger graph and still return true, orphaning the previous
+     * core's worker threads. Identity is what catches that.
+     */
+    @Test
+    fun initializeIsIdempotent() {
+        assertTrue("the sample app must have initialized the SDK", com.intempt.core.Intempt.isInitialized)
+
+        val before = coreInstance()
+        assertNotNull("an initialized SDK must hold a core", before)
+
+        assertTrue(
+            "a repeated initialize must report the SDK is running",
+            com.intempt.core.Intempt.initialize(
+                androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext,
+            ),
+        )
+
+        assertSame(
+            "the second initialize rebuilt the object graph instead of returning early",
+            before,
+            coreInstance(),
+        )
+    }
+
+    /**
+     * The toggles must reach the core rather than return a safe constant.
+     *
+     * <p>`assertFalse(isLoggingEnabled())` against an uninitialized SDK cannot tell the guard from
+     * a hardcoded `false` — replacing the whole delegation with `= false` passes it. Driving the
+     * value from a live SDK is what pins that the call is wired through, and that needs a real
+     * config, so it belongs on-device.
+     */
+    @Test
+    fun theTogglesReflectRealStateOnDevice() {
+        assertTrue(com.intempt.core.Intempt.isInitialized)
+
+        com.intempt.core.Intempt.Logging.start()
+        assertTrue("start() must reach the core", com.intempt.core.Intempt.Logging.isLoggingEnabled())
+        com.intempt.core.Intempt.Logging.stop()
+        assertFalse("stop() must reach the core", com.intempt.core.Intempt.Logging.isLoggingEnabled())
+
+        com.intempt.core.Intempt.Tracking.start()
+        assertTrue("start() must reach the core", com.intempt.core.Intempt.Tracking.isTrackingEnabled())
+        com.intempt.core.Intempt.Tracking.stop()
+        assertFalse("stop() must reach the core", com.intempt.core.Intempt.Tracking.isTrackingEnabled())
+
+        // Left enabled, since other tests in this class rely on tracking being on.
+        com.intempt.core.Intempt.Tracking.start()
+    }
+
+    /** The core the facade holds. Reflection: there is no accessor, and there should not be one. */
+    private fun coreInstance(): Any? {
+        val field = com.intempt.core.Intempt::class.java.getDeclaredField("intemptCore")
+        field.isAccessible = true
+        return field.get(com.intempt.core.Intempt)
     }
 
     /** Autocapture, unprompted: starting the app must produce a screen view. */

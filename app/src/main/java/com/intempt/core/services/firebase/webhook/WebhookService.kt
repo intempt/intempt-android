@@ -1,6 +1,5 @@
 package com.intempt.core.services.firebase.webhook
 
-import android.util.Log
 import com.fasterxml.jackson.databind.JsonNode
 import com.intempt.core.autocapture.BaseComponent
 import com.intempt.core.services.ConfigManagerService
@@ -39,7 +38,7 @@ internal class WebhookService(
      * transient blip — without inventing a second persistence layer.
      */
     fun sendPushNotificationWebhook(requestBodyJson: JsonNode) {
-        Log.d("FCM", "sendPushNotificationWebhook triggered")
+        logger.debug("[FCM] sendPushNotificationWebhook triggered")
         coroutineScope.launch {
             var delayMs = INITIAL_RETRY_DELAY_MS
             repeat(MAX_ATTEMPTS) { attempt ->

@@ -140,10 +140,6 @@ class WireFormatTest {
                 androidId = "aid-123",
                 userAttributes =
                     SessionUserAttributes(
-                        ipAddress = "203.0.113.7",
-                        city = "Athens",
-                        region = "Attica",
-                        country = "GR",
                         deviceType = "phone",
                         carrier = "Cosmote",
                         platform = "android",
@@ -165,10 +161,18 @@ class WireFormatTest {
         assertEquals("phone", attrs["deviceType"])
         assertEquals("Cosmote", attrs["carrier"])
         assertEquals("android", attrs["platform"])
-        assertEquals("203.0.113.7", attrs["ipAddress"])
-        assertEquals("Attica", attrs["region"])
-        assertEquals("GR", attrs["country"])
-        assertEquals("Athens", attrs["city"])
+
+        // Geo is server-derived now, so none of these may appear. Asserted as absence rather than
+        // just dropped from the test: a field silently reappearing on the wire is exactly the kind
+        // of regression that would restore the third-party IP flow without anyone noticing.
+        listOf("ipAddress", "city", "region", "country").forEach {
+            assertTrue(
+                "`$it` must not be on the wire — the device no longer handles its own IP, and the " +
+                    "platform derives geo from the request via the ?ip= parameter",
+                !attrs.containsKey(it),
+            )
+        }
+        assertEquals("only device facts remain in userAttributes", 3, attrs.size)
     }
 
     /**
@@ -198,20 +202,20 @@ class WireFormatTest {
     }
 
     /**
-     * Geo fields are optional and default to empty strings, not to null.
+     * SessionUserAttributes carries only what the device can know.
      *
-     * <p>This pins a default rather than a transform, which is thin — but the default is what goes
-     * on the wire when the device has no geo data, and a null there is a different payload from an
-     * empty string.
+     * <p>It previously had ipAddress/city/region/country, all populated from a per-session call to
+     * ipapi.co. Pinned as a shape assertion so re-adding a geo field is a deliberate act with a
+     * failing test attached, not a quiet edit.
      */
     @Test
-    fun `unset geo attributes are empty strings rather than nulls`() {
-        val attrs = SessionUserAttributes(deviceType = "tablet", carrier = "", platform = "android")
+    fun `session user attributes carry no geo fields`() {
+        val fields = SessionUserAttributes::class.java.declaredFields.map { it.name }.toSet()
 
-        assertEquals("", attrs.ipAddress)
-        assertEquals("", attrs.city)
-        assertEquals("", attrs.region)
-        assertEquals("", attrs.country)
+        listOf("ipAddress", "city", "region", "country").forEach {
+            assertTrue("SessionUserAttributes must not carry `$it`", !fields.contains(it))
+        }
+        assertTrue("deviceType is still device-known", fields.contains("deviceType"))
     }
 
     // ----------------------------------------------------- fragment transition

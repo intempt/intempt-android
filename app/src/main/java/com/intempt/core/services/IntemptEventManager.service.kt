@@ -57,13 +57,7 @@ internal open class IntemptEventManagerService
         private val config: ConfigManagerService,
     ) {
         @SuppressLint("HardwareIds")
-        fun generateSessionEventPayload(
-            sessionStartEventName: String,
-            ipAddress: String,
-            city: String,
-            region: String,
-            country: String,
-        ): Array<IntemptEventProvider>  {
+        fun generateSessionEventPayload(sessionStartEventName: String): Array<IntemptEventProvider> {
             val eventProps = getBaseEventProps()
 
             val deviceName = "${Build.MANUFACTURER} ${Build.MODEL}"
@@ -86,10 +80,6 @@ internal open class IntemptEventManagerService
                     androidId = androidId,
                     userAttributes =
                         SessionUserAttributes(
-                            ipAddress = ipAddress,
-                            city = city,
-                            region = region,
-                            country = country,
                             deviceType = getDeviceType(),
                             carrier = getDeviceCarrier(),
                             platform = getDevicePlatform(),
