@@ -12,7 +12,7 @@ internal class ProductEvent(
     private val quantity: Int?,
 ) : IntemptEventProvider {
     override fun getEventTime(): Long {
-        return timestamp;
+        return timestamp
     }
 
     override fun toFormated(): Map<String, Any?> {

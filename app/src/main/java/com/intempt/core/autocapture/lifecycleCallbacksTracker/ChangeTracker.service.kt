@@ -48,7 +48,7 @@ internal open class ChangeTrackerService
         private val handler = Handler(Looper.getMainLooper())
         private val runnableWrapper: Array<Runnable?> = arrayOfNulls(1)
 
-        fun registerListener(activity: Activity)  {
+        fun registerListener(activity: Activity) {
             (activity.findViewById(R.id.content) as? ViewGroup)?.let { rootView ->
                 findAndRegisterChangeEvent(rootView, activity)
             }
@@ -57,7 +57,7 @@ internal open class ChangeTrackerService
         private fun findAndRegisterChangeEvent(
             viewGroup: ViewGroup,
             activity: Activity,
-        )  {
+        ) {
             logger.log("Invoke findAndInvokeChangeEvent")
             for (i in 0 until viewGroup.childCount) {
                 when (val view = viewGroup.getChildAt(i)) {
@@ -76,7 +76,7 @@ internal open class ChangeTrackerService
             }
         }
 
-        private fun checkViews(view: View): Boolean  {
+        private fun checkViews(view: View): Boolean {
             return view is EditText ||
                 view is Spinner ||
                 view is ToggleButton ||
@@ -179,7 +179,7 @@ internal open class ChangeTrackerService
         private fun handleCompoundButton(
             view: CompoundButton,
             activity: Activity,
-        )  {
+        ) {
             logger.log("ChangeTrackerService | Perform CompoundButton registration for $${view.javaClass.name}")
 
             view.setOnCheckedChangeListener { _, isChecked ->
@@ -192,7 +192,7 @@ internal open class ChangeTrackerService
         private fun handleRadioButton(
             view: CompoundButton,
             activity: Activity,
-        )  {
+        ) {
             view.setOnCheckedChangeListener { _, isChecked ->
                 if (isChecked) {
                     runnableWrapper[0] = debounceAndLog(handler, runnableWrapper[0], view, activity)
@@ -203,7 +203,7 @@ internal open class ChangeTrackerService
         private fun handleEditText(
             view: EditText,
             activity: Activity,
-        )  {
+        ) {
             view.doAfterTextChanged { _ ->
                 runnableWrapper[0] = debounceAndLog(handler, runnableWrapper[0], view, activity)
             }
@@ -212,7 +212,7 @@ internal open class ChangeTrackerService
         private fun handleSeekBar(
             view: SeekBar,
             activity: Activity,
-        )  {
+        ) {
             view.setOnSeekBarChangeListener(
                 object : SeekBar.OnSeekBarChangeListener {
                     override fun onProgressChanged(
@@ -234,7 +234,7 @@ internal open class ChangeTrackerService
         private fun handleSpinner(
             view: Spinner,
             activity: Activity,
-        )  {
+        ) {
             view.onItemSelectedListener =
                 object : AdapterView.OnItemSelectedListener {
                     override fun onItemSelected(

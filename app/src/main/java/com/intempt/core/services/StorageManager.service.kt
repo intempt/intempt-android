@@ -27,7 +27,7 @@ internal class StorageManagerService
         fun setLocalProp(
             key: String,
             value: Any,
-        )  {
+        ) {
             localStore[key] = value
         }
 
@@ -36,7 +36,7 @@ internal class StorageManagerService
             key: String,
             value: T,
             applyToPrefs: SharedPreferences.Editor.(String, T) -> Unit,
-        )  {
+        ) {
             coroutineScope.launch {
                 val sharedPreferences = context.getSharedPreferences(prefs, Context.MODE_PRIVATE)
                 val editor = sharedPreferences.edit()
@@ -183,18 +183,16 @@ internal class StorageManagerService
                 val sharedPreferences = context.getSharedPreferences(StorageKeys.UserPrefs.key, Context.MODE_PRIVATE)
                 val profId = sharedPreferences.getString(profKey, null)
 
-                if (!profId.isNullOrEmpty())
-                    {
-                        localStore[profKey] = profId
-                    } else
-                    {
-                        setStorageItem(
-                            prefs = StorageKeys.UserPrefs.key,
-                            key = StorageKeys.ProfileId.key,
-                            value = utils.generateId(IdTypeKeys.ProfileId.key),
-                        ) { key, value ->
-                            putString(key, value)
-                        }
+                if (!profId.isNullOrEmpty()) {
+                    localStore[profKey] = profId
+                } else {
+                    setStorageItem(
+                        prefs = StorageKeys.UserPrefs.key,
+                        key = StorageKeys.ProfileId.key,
+                        value = utils.generateId(IdTypeKeys.ProfileId.key),
+                    ) { key, value ->
+                        putString(key, value)
                     }
+                }
             }
     }

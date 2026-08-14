@@ -1,7 +1,6 @@
 package com.intempt.core.autocapture
 
 import android.content.Context
-
 import com.intempt.core.autocapture.installUpgradeTracker.InstallUpgradeTrackerComponent
 import com.intempt.core.autocapture.installUpgradeTracker.InstallUpgradeTrackerModule
 import com.intempt.core.autocapture.lifecycleCallbacksTracker.LifecycleCallBacksComponent
@@ -15,13 +14,14 @@ import dagger.Module
 import dagger.Provides
 import javax.inject.Singleton
 
+@Module(
+    includes = [
+        SessionTrackerModule::class,
+        InstallUpgradeTrackerModule::class,
+        LifecycleCallbackModule::class,
 
-@Module(includes = [
-    SessionTrackerModule::class,
-    InstallUpgradeTrackerModule::class,
-    LifecycleCallbackModule::class,
-
-])
+    ],
+)
 internal class AutoCaptureModule {
     @Provides
     @Singleton
@@ -41,9 +41,7 @@ internal class AutoCaptureModule {
             config,
             session,
             installUpgrade,
-            lifecycleCallBacksManager
+            lifecycleCallBacksManager,
         )
     }
 }
-
-

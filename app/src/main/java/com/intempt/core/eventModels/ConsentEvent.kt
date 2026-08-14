@@ -11,12 +11,12 @@ internal open class ConsentEvent(
     private val action: String,
     private val email: String? = null,
     private val message: String? = null,
-    private val category: String?= null,
+    private val category: String? = null,
     private val sourceId: String,
     private val validUntil: Long,
 ) : IntemptEventProvider {
     override fun getEventTime(): Long {
-        return timestamp;
+        return timestamp
     }
 
     override fun toFormated(): Map<String, Any?> {
@@ -32,7 +32,6 @@ internal open class ConsentEvent(
         email?.let { map["email"] = it }
         message?.let { map["message"] = it }
         category?.let { map["category"] = it }
-
 
         return map
     }

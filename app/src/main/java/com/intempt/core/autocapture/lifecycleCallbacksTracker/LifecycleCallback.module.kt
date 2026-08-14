@@ -11,7 +11,7 @@ internal class LifecycleCallbackModule {
     fun component(
         srv: LifecycleCallbackService,
         delivery: com.intempt.core.queue.DeliveryMessages,
-    ): LifecycleCallBacksComponent  {
+    ): LifecycleCallBacksComponent {
         return LifecycleCallBacksComponent(srv, delivery)
     }
 }

@@ -23,7 +23,6 @@ internal class HttpManagerService
         private val config: ConfigManagerService,
         private val logger: LoggerManagerService,
     ) {
-
         private val client =
             HttpClient {
                 install(ContentNegotiation) {

@@ -13,7 +13,7 @@ internal open class IdentifyEvent(
     private val data: Map<String, String>?,
 ) : IntemptEventProvider {
     override fun getEventTime(): Long {
-        return timestamp;
+        return timestamp
     }
 
     override fun toFormated(): Map<String, Any> {

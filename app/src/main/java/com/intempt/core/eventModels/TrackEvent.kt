@@ -11,19 +11,17 @@ internal open class TrackEvent(
     private val data: Map<String, String>,
 ) : IntemptEventProvider {
     override fun getEventTime(): Long {
-        return timestamp;
+        return timestamp
     }
 
     override fun toFormated(): Map<String, Any> {
-      return mapOf(
-          "sessionId" to sessionId,
-          "eventId" to eventId,
-          "pageId" to pageId,
-          "profileId" to profileId,
-          "timestamp" to timestamp,
-          "data" to data
-      )
+        return mapOf(
+            "sessionId" to sessionId,
+            "eventId" to eventId,
+            "pageId" to pageId,
+            "profileId" to profileId,
+            "timestamp" to timestamp,
+            "data" to data,
+        )
     }
-
-
 }

@@ -12,7 +12,7 @@ internal class AliasEvent(
     private val anotherUserId: String,
 ) : IntemptEventProvider {
     override fun getEventTime(): Long {
-        return timestamp;
+        return timestamp
     }
 
     override fun toFormated(): Map<String, Any> {
@@ -23,7 +23,7 @@ internal class AliasEvent(
             "profileId" to profileId,
             "timestamp" to timestamp,
             "userId" to userId,
-            "anotherUserId" to anotherUserId
+            "anotherUserId" to anotherUserId,
         )
     }
 }

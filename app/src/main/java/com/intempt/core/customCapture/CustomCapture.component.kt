@@ -47,21 +47,21 @@ internal class CustomCaptureComponent
             } ?: DefaultConfigs.IsUserOptIn.value
         }
 
-        fun enableLogging()  {
+        fun enableLogging() {
             utils.withTryCatch("disableLogging fails") {
                 srv.logger.log("Invoke enableLogging")
                 config.isLoggingEnabled = true
             }
         }
 
-        fun disableLogging()  {
+        fun disableLogging() {
             utils.withTryCatch("disableLogging fails") {
                 srv.logger.log("Invoke disableLogging")
                 config.isLoggingEnabled = false
             }
         }
 
-        fun optIn()  {
+        fun optIn() {
             utils.withTryCatch("optIn fails") {
                 srv.logger.log("Invoke optIn")
                 config.isUserOptIn = true
@@ -69,7 +69,7 @@ internal class CustomCaptureComponent
             }
         }
 
-        fun optOut()  {
+        fun optOut() {
             utils.withTryCatch("optOut fails") {
                 srv.logger.log("Invoke optOut")
                 config.isUserOptIn = false
@@ -77,7 +77,7 @@ internal class CustomCaptureComponent
             }
         }
 
-        fun doNotCaptureText(view: View)  {
+        fun doNotCaptureText(view: View) {
             utils.withTryCatch("doNotCaptureText fails") {
                 val canUse =
                     view is EditText ||
@@ -95,12 +95,13 @@ internal class CustomCaptureComponent
 
                 if (canUse) {
                     srv.setDoNotCaptureTag(view)
-                } else
-                    {
-                        srv.logger.error(
-                            "Can't accept view of type ${view.javaClass.name}. Supported types are: EditText, Spinner, ToggleButton, CheckBox, RadioButton, CompoundButton, TextView, SeekBar, RatingBar, TimePicker, DatePicker, ListView.",
-                        )
-                    }
+                } else {
+                    srv.logger.error(
+                        "Can't accept view of type ${view.javaClass.name}. Supported types are: " +
+                            "EditText, Spinner, ToggleButton, CheckBox, RadioButton, CompoundButton, " +
+                            "TextView, SeekBar, RatingBar, TimePicker, DatePicker, ListView.",
+                    )
+                }
             }
         }
 
@@ -165,7 +166,7 @@ internal class CustomCaptureComponent
         fun track(
             eventTitle: String,
             data: Map<String, String>,
-        )  {
+        ) {
             utils.withTryCatch("track fails") {
                 if (!config.isUserOptIn) return@withTryCatch
                 if (!srv.isTrackValid(eventTitle)) return@withTryCatch
@@ -190,7 +191,7 @@ internal class CustomCaptureComponent
             accountAttributes: Map<String, String>? = null,
             userAttributes: Map<String, String>? = null,
             data: Map<String, String>? = null,
-        )  {
+        ) {
             utils.withTryCatch("record fails") {
                 if (!config.isUserOptIn) return@withTryCatch
                 if (!srv.isTrackValid(eventTitle)) return@withTryCatch
@@ -218,7 +219,7 @@ internal class CustomCaptureComponent
         fun alias(
             userId: String,
             anotherUserId: String,
-        )  {
+        ) {
             utils.withTryCatch("alias fails") {
                 if (!config.isUserOptIn) return@withTryCatch
 
@@ -245,7 +246,7 @@ internal class CustomCaptureComponent
             email: String? = null,
             message: String? = null,
             category: String? = null,
-        )  {
+        ) {
             utils.withTryCatch("consent fails") {
                 if (!config.isUserOptIn) return@withTryCatch
                 if (!srv.isConsentValid(action)) return@withTryCatch
@@ -271,7 +272,7 @@ internal class CustomCaptureComponent
             }
         }
 
-        fun logOut()  {
+        fun logOut() {
             utils.withTryCatch("logOut fails") {
                 if (!config.isUserOptIn) return@withTryCatch
                 srv.logger.log("Invoke logOut")
@@ -282,7 +283,7 @@ internal class CustomCaptureComponent
         fun productAdd(
             productId: String,
             quantity: Int,
-        )  {
+        ) {
             utils.withTryCatch("productAdd fails") {
                 if (!config.isUserOptIn) return@withTryCatch
                 srv.logger.log("Invoke productAdd")
@@ -301,7 +302,7 @@ internal class CustomCaptureComponent
             }
         }
 
-        fun productOrdered(products: List<Map<String, Any>>)  {
+        fun productOrdered(products: List<Map<String, Any>>) {
             utils.withTryCatch("productOrdered fails") {
                 if (!config.isUserOptIn) return@withTryCatch
                 if (!srv.isProductListValid(products)) {
@@ -330,7 +331,7 @@ internal class CustomCaptureComponent
             }
         }
 
-        fun productView(productId: String)  {
+        fun productView(productId: String) {
             utils.withTryCatch("productView fails") {
                 if (!config.isUserOptIn) return@withTryCatch
                 srv.logger.log("Invoke productView")

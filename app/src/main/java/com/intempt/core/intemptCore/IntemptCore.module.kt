@@ -34,7 +34,7 @@ internal class IntemptCoreModule(
 
     @Provides
     @Singleton
-    fun provideUtilsService(logger: LoggerManagerService): UtilsService  {
+    fun provideUtilsService(logger: LoggerManagerService): UtilsService {
         return UtilsService(logger)
     }
 
@@ -43,19 +43,19 @@ internal class IntemptCoreModule(
     fun provideHttpService(
         config: ConfigManagerService,
         logger: LoggerManagerService,
-    ): HttpManagerService  {
+    ): HttpManagerService {
         return HttpManagerService(config, logger)
     }
 
     @Provides
     @Singleton
-    fun provideLoggerService(config: ConfigManagerService): LoggerManagerService  {
+    fun provideLoggerService(config: ConfigManagerService): LoggerManagerService {
         return LoggerManagerService(config)
     }
 
     @Provides
     @Singleton
-    fun provideStorageManagerService(utils: UtilsService): StorageManagerService  {
+    fun provideStorageManagerService(utils: UtilsService): StorageManagerService {
         return StorageManagerService(
             consumerContext.applicationContext,
             utils,
@@ -70,7 +70,7 @@ internal class IntemptCoreModule(
         http: HttpManagerService,
         intemptEvent: IntemptEventManagerService,
         delivery: DeliveryMessages,
-    ): EventPoolManagerService  {
+    ): EventPoolManagerService {
         return EventPoolManagerService(
             config,
             logger,
@@ -126,7 +126,7 @@ internal class IntemptCoreModule(
         storage: StorageManagerService,
         utils: UtilsService,
         config: ConfigManagerService,
-    ): IntemptEventManagerService  {
+    ): IntemptEventManagerService {
         return IntemptEventManagerService(
             consumerContext.applicationContext,
             storage,

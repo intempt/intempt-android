@@ -5,12 +5,12 @@ import android.content.Context
 import android.view.View
 
 internal data class DispatchEventProps(
-    val eventName:String,
-    val entityName:String,
+    val eventName: String,
+    val entityName: String,
     val event: Array<IntemptEventProvider>? = null,
-    val type:String,
+    val type: String,
     val context: Context,
-    val view: View? = null
+    val view: View? = null,
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
@@ -39,19 +39,19 @@ internal data class DispatchEventProps(
     }
 }
 
-internal data class HandleEventTypeProps(val type:String,val entityName:String,  val context: Context,  val view: View? = null )
+internal data class HandleEventTypeProps(val type: String, val entityName: String, val context: Context, val view: View? = null)
 
-internal data class ScreenViewProps(val activity: Activity, val entityName:String)
+internal data class ScreenViewProps(val activity: Activity, val entityName: String)
 
 internal data class IntemptConfigs(
     val apiKey: String,
     val sourceId: String,
     val organizationId: String,
-    val projectId: String
+    val projectId: String,
 )
 
 internal data class IntemptOptions(
-    val isLoggingEnabled : Boolean,
+    val isLoggingEnabled: Boolean,
     val isTouchEnabled: Boolean,
     val isTextCaptureEnabled: Boolean,
     val isQueueEnabled: Boolean,
@@ -67,19 +67,19 @@ internal data class IntemptOptions(
 
 internal data class ConfigResult(
     val configs: IntemptConfigs?,
-    val options: IntemptOptions?
+    val options: IntemptOptions?,
 )
 
 internal data class ModificationBodyParam(
-    val optimizationType:String,
-    val data:List<String>,
-    val paramType:String
+    val optimizationType: String,
+    val data: List<String>,
+    val paramType: String,
 )
 
 internal data class ModificationGetParam(
-    val optimizationType:String,
-    val data:List<String>,
-    val isNameType: Boolean
+    val optimizationType: String,
+    val data: List<String>,
+    val isNameType: Boolean,
 )
 
 internal data class RecommendationBody(
@@ -87,24 +87,22 @@ internal data class RecommendationBody(
     val sourceId: String,
     val limit: Int,
     val fields: List<String>,
-    val productId: String?
+    val productId: String?,
 )
 
-
-
-
-//Public types
+// Public types
 sealed class AutoCaptureParam
 
-data class UiEventProps(val activity: Activity, val view: View, val listenerType:String):AutoCaptureParam();
+data class UiEventProps(val activity: Activity, val view: View, val listenerType: String) : AutoCaptureParam()
+
 data class ScreenEventProps(
     val activity: Activity,
-    val eventName:String,
-    val entityName:String,
-    val eventType:String,
-):AutoCaptureParam();
+    val eventName: String,
+    val entityName: String,
+    val eventType: String,
+) : AutoCaptureParam()
 
 data class Product(
     val productId: String,
-    val quantity: Int? = null
+    val quantity: Int? = null,
 )

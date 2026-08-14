@@ -40,7 +40,6 @@ internal open class EventPoolManagerService
         private val delivery: DeliveryMessages,
         private val dispatcher: CoroutineDispatcher = Dispatchers.IO,
     ) : BaseComponent(logger) {
-
         // `dispatcher`, not Dispatchers.IO. This class accepted an injected dispatcher and
         // then ignored it here, so a test that supplied one still had the collector running
         // on the real IO pool — the injection was decorative. That is why work kept
@@ -146,7 +145,7 @@ internal open class EventPoolManagerService
             }
         }
 
-        private fun startEventCollection()  {
+        private fun startEventCollection() {
             logger.log("EventPoolManagerService | Started collecting events")
             subscribe(Job()) { event ->
                 logger.log("IntemptCoreService | Received event of type: ${event.getEventType()}")
@@ -205,7 +204,7 @@ internal open class EventPoolManagerService
             }
         }
 
-        private fun sendConsentEvent(event: IntemptEvent)  {
+        private fun sendConsentEvent(event: IntemptEvent) {
             val requestBodyJson = JSONObject(event.payload.first().toFormated())
 
             coroutineScope.launch {

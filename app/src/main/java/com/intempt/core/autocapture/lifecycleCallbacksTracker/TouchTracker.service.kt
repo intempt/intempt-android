@@ -88,20 +88,19 @@ internal class TouchTrackerService
             activity: Activity,
         ): Runnable {
             return utils.debounce(handler, debounceDelay, currentRunnable) {
-                if (view !== null)
-                    {
-                        eventPool.dispatchEvent(
-                            DispatchEventProps(
-                                eventName = Constants.TOUCH.EVENT_NAME,
-                                entityName = Constants.TOUCH.ENTITY_NAME,
-                                type = Constants.TOUCH.EVENT_TYPE,
-                                event = null,
-                                context = activity,
-                                view = view,
-                            ),
-                            "TouchTrackerService",
-                        )
-                    }
+                if (view !== null) {
+                    eventPool.dispatchEvent(
+                        DispatchEventProps(
+                            eventName = Constants.TOUCH.EVENT_NAME,
+                            entityName = Constants.TOUCH.ENTITY_NAME,
+                            type = Constants.TOUCH.EVENT_TYPE,
+                            event = null,
+                            context = activity,
+                            view = view,
+                        ),
+                        "TouchTrackerService",
+                    )
+                }
             }
         }
     }

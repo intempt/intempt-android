@@ -12,7 +12,7 @@ internal open class GroupEvent(
     private val accountAttributes: Map<String, Any>?,
 ) : IntemptEventProvider {
     override fun getEventTime(): Long {
-        return timestamp;
+        return timestamp
     }
 
     override fun toFormated(): Map<String, Any?> {
@@ -27,5 +27,4 @@ internal open class GroupEvent(
 
         return map
     }
-
 }

@@ -28,7 +28,7 @@ internal class ScreenTrackerService
             logger.log("ScreenTracker | $callBackName: ${fragment::class.java.simpleName}")
         }
 
-        fun storePageId()  {
+        fun storePageId() {
             return storage.setStorageItem(
                 prefs = StorageKeys.SessionPrefs.key,
                 key = StorageKeys.PageId.key,
@@ -62,7 +62,7 @@ internal class ScreenTrackerService
         private fun storeFragmentName(
             key: String,
             fragment: Fragment,
-        )  {
+        ) {
             return storage.setStorageItem(
                 prefs = StorageKeys.FragmentPrefs.key,
                 key,

@@ -30,7 +30,7 @@ internal class AutoCaptureComponent
     ) : BaseComponent(logger) {
         private val coroutineScope = CoroutineScope(SupervisorJob() + dispatcher)
 
-        fun start()  {
+        fun start() {
             if (!config.isAutoCaptureEnabled) return
 
             coroutineScope.launch {

@@ -14,11 +14,10 @@ internal class LifecycleCallbackService
         private val touchTrackerSrv: TouchTrackerService,
         private val changeTrackerSrv: ChangeTrackerService,
     ) {
-
         private val visibleFragmentHashes = mutableSetOf<Int>()
 
 // screenTrackerSrv
-        fun handleScreenView(activity: Activity)  {
+        fun handleScreenView(activity: Activity) {
             screenTrackerSrv.storePageId()
             screenTrackerSrv.logAndDispatch(
                 activity,
@@ -29,7 +28,7 @@ internal class LifecycleCallbackService
             )
         }
 
-        fun handleScreenLeave(activity: Activity)  {
+        fun handleScreenLeave(activity: Activity) {
             screenTrackerSrv.logAndDispatch(
                 activity,
                 Constants.SCREEN.ACTIVITY.LEAVE_EVENT_NAME,
@@ -39,7 +38,7 @@ internal class LifecycleCallbackService
             )
         }
 
-        fun handleFragmentVisibility(fragment: Fragment)  {
+        fun handleFragmentVisibility(fragment: Fragment) {
             val fragmentHashCode = fragment.hashCode()
             if (visibleFragmentHashes.contains(fragmentHashCode)) {
                 return
@@ -62,7 +61,7 @@ internal class LifecycleCallbackService
             )
         }
 
-        fun handleFragmentAdd(fragment: Fragment)  {
+        fun handleFragmentAdd(fragment: Fragment) {
             screenTrackerSrv.handleFragmentCallbacks(
                 "onFragmentAttached",
                 "addedFragment",
@@ -70,7 +69,7 @@ internal class LifecycleCallbackService
             )
         }
 
-        fun handleFragmentRemove(fragment: Fragment)  {
+        fun handleFragmentRemove(fragment: Fragment) {
             val fragmentHashCode = fragment.hashCode()
             screenTrackerSrv.handleFragmentCallbacks(
                 "onFragmentDetached",
@@ -81,11 +80,11 @@ internal class LifecycleCallbackService
         }
 
 // changeTrackerSrv
-        fun registerChangeEventListener(activity: Activity)  {
+        fun registerChangeEventListener(activity: Activity) {
             changeTrackerSrv.registerListener(activity)
         }
 
-        fun registerTouchEventListener(activity: Activity)  {
+        fun registerTouchEventListener(activity: Activity) {
             touchTrackerSrv.register(activity)
         }
     }

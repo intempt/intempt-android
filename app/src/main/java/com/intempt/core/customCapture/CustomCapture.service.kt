@@ -39,11 +39,11 @@ internal class CustomCaptureService
          */
         private fun isForbidden(eventTitle: String): Boolean = forbiddenEventNames.any { it.equals(eventTitle, ignoreCase = true) }
 
-        fun setDoNotCaptureTag(view: View)  {
+        fun setDoNotCaptureTag(view: View) {
             view.setTag(R.id.intemptDoNotCapture, true)
         }
 
-        fun logoutHandler()  {
+        fun logoutHandler() {
             storage.clearAllStorage()
         }
 
@@ -51,12 +51,11 @@ internal class CustomCaptureService
             userId: String,
             eventTitle: String?,
             userAttributes: Map<String, String>?,
-        ): Boolean  {
-            if (userId.isEmpty())
-                {
-                    logger.error("Identify parameters are invalid: set 'userId' to use 'identify'.")
-                    return false
-                }
+        ): Boolean {
+            if (userId.isEmpty()) {
+                logger.error("Identify parameters are invalid: set 'userId' to use 'identify'.")
+                return false
+            }
 
             // The rule that used to live here rejected identify() whenever userAttributes was
             // passed without an eventTitle, which is the most natural way to call it:
@@ -72,11 +71,10 @@ internal class CustomCaptureService
             // Caught by calling it the obvious way in the sample app and finding no identify row
             // in the on-device queue.
 
-            if (eventTitle != null && isForbidden(eventTitle))
-                {
-                    logger.error("The '$eventTitle' event title is forbidden")
-                    return false
-                }
+            if (eventTitle != null && isForbidden(eventTitle)) {
+                logger.error("The '$eventTitle' event title is forbidden")
+                return false
+            }
 
             return true
         }
@@ -85,18 +83,16 @@ internal class CustomCaptureService
             accountId: String,
             eventTitle: String?,
             accountAttributes: Map<String, String>?,
-        ): Boolean  {
-            if (accountId.isEmpty())
-                {
-                    logger.error("Group parameters are invalid: 'accountId' is required.")
-                    return false
-                }
+        ): Boolean {
+            if (accountId.isEmpty()) {
+                logger.error("Group parameters are invalid: 'accountId' is required.")
+                return false
+            }
 
-            if (eventTitle != null && isForbidden(eventTitle))
-                {
-                    logger.error("The '$eventTitle' event title is forbidden")
-                    return false
-                }
+            if (eventTitle != null && isForbidden(eventTitle)) {
+                logger.error("The '$eventTitle' event title is forbidden")
+                return false
+            }
 
             // Same dead rule as isIdentifyValid had, for the same reason: GroupEvent carries no
             // title, and the caller already writes `name = eventTitle ?: "Group"`. Requiring a
@@ -105,18 +101,16 @@ internal class CustomCaptureService
             return true
         }
 
-        fun isTrackValid(eventTitle: String?): Boolean  {
-            if (eventTitle.isNullOrEmpty())
-                {
-                    logger.error("Track parameters are invalid: eventTitle is required.")
-                    return false
-                }
+        fun isTrackValid(eventTitle: String?): Boolean {
+            if (eventTitle.isNullOrEmpty()) {
+                logger.error("Track parameters are invalid: eventTitle is required.")
+                return false
+            }
 
-            if (isForbidden(eventTitle))
-                {
-                    logger.error("The '$eventTitle' event title is forbidden")
-                    return false
-                }
+            if (isForbidden(eventTitle)) {
+                logger.error("The '$eventTitle' event title is forbidden")
+                return false
+            }
             return true
         }
 
@@ -127,16 +121,15 @@ internal class CustomCaptureService
          * rejected. Kotlin's `!==` is identity; `!=` is equals. Found by an adversarial review,
          * not by a test: all four consent tests asserted nothing that could see it.
          */
-        fun isConsentValid(action: String): Boolean  {
-            if (action.isNotEmpty() && action != "accept" && action != "reject")
-                {
-                    logger.error("Consent parameters are invalid: action should be either 'reject' or 'accept'.")
-                    return false
-                }
+        fun isConsentValid(action: String): Boolean {
+            if (action.isNotEmpty() && action != "accept" && action != "reject") {
+                logger.error("Consent parameters are invalid: action should be either 'reject' or 'accept'.")
+                return false
+            }
             return true
         }
 
-        fun isProductListValid(products: List<Map<String, Any>>): Boolean  {
+        fun isProductListValid(products: List<Map<String, Any>>): Boolean {
             return products.all { product ->
                 val productId = product["productId"]
                 val quantity = product["quantity"]
@@ -170,7 +163,7 @@ internal class CustomCaptureService
             )
         }
 
-        fun onScreenEventReceive(props: ScreenEventProps): DispatchEventProps  {
+        fun onScreenEventReceive(props: ScreenEventProps): DispatchEventProps {
             val (activity, eventName, entityName, eventType) = props
             return DispatchEventProps(
                 eventName = eventName,

@@ -23,7 +23,7 @@ internal class InstallUpgradeTrackerService
         val logger: LoggerManagerService,
         private val utils: UtilsService,
     ) {
-        fun handleVisibilityState(state: AppVisibilityState)  {
+        fun handleVisibilityState(state: AppVisibilityState) {
             storage.setStorageItem(
                 prefs = StorageKeys.AppPrefs.key,
                 key = StorageKeys.AppVisibilityState.key,
@@ -81,9 +81,9 @@ internal class InstallUpgradeTrackerService
                 logger.log("InstallUpgradeTrackerComponent | $logMessage")
                 eventSrv.dispatchEvent(
                     DispatchEventProps(
-                        eventName = Constants.INSTALL_UPGRADE.EVENT_NAME,
-                        entityName = Constants.INSTALL_UPGRADE.ENTITY_NAME,
-                        type = Constants.INSTALL_UPGRADE.EVENT_TYPE,
+                        eventName = Constants.InstallUpgrade.EVENT_NAME,
+                        entityName = Constants.InstallUpgrade.ENTITY_NAME,
+                        type = Constants.InstallUpgrade.EVENT_TYPE,
                         context = context,
                     ),
                     "InstallUpgradeTrackerService",

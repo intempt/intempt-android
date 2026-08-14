@@ -88,7 +88,7 @@ internal open class IntemptEventManagerService
             )
         }
 
-        fun generateProductEventPayload(products: List<Product>): Array<IntemptEventProvider>  {
+        fun generateProductEventPayload(products: List<Product>): Array<IntemptEventProvider> {
             return products.map { product ->
                 val eventProps = getBaseEventProps()
                 ProductEvent(
@@ -102,7 +102,7 @@ internal open class IntemptEventManagerService
             }.toTypedArray()
         }
 
-        fun generateFragmentTransitionEventPayload(): Array<IntemptEventProvider>?  {
+        fun generateFragmentTransitionEventPayload(): Array<IntemptEventProvider>? {
             return utils.withTryCatch("Error during generating Fragment Transition payload") {
                 val eventProps = getBaseEventProps()
 
@@ -127,7 +127,7 @@ internal open class IntemptEventManagerService
         fun generateScreenViewEventPayload(
             activity: Activity,
             entityName: String,
-        ): Array<IntemptEventProvider>  {
+        ): Array<IntemptEventProvider> {
             val eventProps = getBaseEventProps()
 
             val activityName = activity.localClassName
@@ -272,7 +272,7 @@ internal open class IntemptEventManagerService
             quantity: Int,
             fields: List<String>,
             productId: String?,
-        ): Map<String, Any?>  {
+        ): Map<String, Any?> {
             val map = mutableMapOf<String, Any>()
 
             map["id"] = storage.getProfileId()
@@ -349,7 +349,7 @@ internal open class IntemptEventManagerService
             category: String? = null,
             validUntil: Long,
             sourceId: String,
-        ): Array<IntemptEventProvider>  {
+        ): Array<IntemptEventProvider> {
             val eventProps = getBaseEventProps()
             return arrayOf(
                 ConsentEvent(

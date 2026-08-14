@@ -5,11 +5,8 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import javax.inject.Singleton
 
-
 @Module
 internal class SessionTrackerModule {
-
-
     @Provides
     @Singleton
     fun provideCoroutineDispatcher(): CoroutineDispatcher {
@@ -18,9 +15,7 @@ internal class SessionTrackerModule {
 
     @Provides
     @Singleton
-    fun component(
-        srv:SessionTrackerService
-    ): SessionTrackerComponent {
+    fun component(srv: SessionTrackerService): SessionTrackerComponent {
         return SessionTrackerComponent(srv)
     }
 }

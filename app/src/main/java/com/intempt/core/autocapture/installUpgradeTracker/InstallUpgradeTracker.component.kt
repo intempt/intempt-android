@@ -18,7 +18,7 @@ internal class InstallUpgradeTrackerComponent
         private val srv: InstallUpgradeTrackerService,
         private val dispatcher: CoroutineDispatcher = Dispatchers.Main,
     ) : BaseComponent(srv.logger) {
-        suspend fun start()  {
+        suspend fun start() {
             registerVisibilityTracking()
             registerInstallUpgradeTracking()
         }

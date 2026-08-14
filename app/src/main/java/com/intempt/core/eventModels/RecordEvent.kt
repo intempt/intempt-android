@@ -12,10 +12,10 @@ internal open class RecordEvent(
     private val userId: String?,
     private val accountAttributes: Map<String, Any>?,
     private val userAttributes: Map<String, Any>?,
-    private val data: Map<String, Any>?
+    private val data: Map<String, Any>?,
 ) : IntemptEventProvider {
     override fun getEventTime(): Long {
-        return timestamp;
+        return timestamp
     }
 
     override fun toFormated(): Map<String, Any> {
@@ -34,7 +34,5 @@ internal open class RecordEvent(
         data?.let { map["data"] = it }
 
         return map
-
-
     }
 }

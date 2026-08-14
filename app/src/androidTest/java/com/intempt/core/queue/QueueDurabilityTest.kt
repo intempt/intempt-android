@@ -30,15 +30,15 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class QueueDurabilityTest {
-
     private lateinit var context: Context
     private lateinit var config: QueueConfig
     private val dbName = "durability_test.db"
 
-    private fun event(id: String) = JSONObject()
-        .put("name", "Test event")
-        .put("type", "track")
-        .put("payload", org.json.JSONArray().put(JSONObject().put("eventId", id)))
+    private fun event(id: String) =
+        JSONObject()
+            .put("name", "Test event")
+            .put("type", "track")
+            .put("payload", org.json.JSONArray().put(JSONObject().put("eventId", id)))
 
     @Before
     fun setUp() {
@@ -110,7 +110,7 @@ class QueueDurabilityTest {
         context.openOrCreateDatabase(dbName, Context.MODE_PRIVATE, null).use { db ->
             db.execSQL(
                 "INSERT INTO events (data, created_at, automatic_data) VALUES (?, ?, 0)",
-                arrayOf("{this is not json", System.currentTimeMillis())
+                arrayOf("{this is not json", System.currentTimeMillis()),
             )
         }
         adapter.addJSON(event("ev_good_2"), EventDbAdapter.Table.EVENTS)
@@ -130,7 +130,8 @@ class QueueDurabilityTest {
 
         context.openOrCreateDatabase(dbName, Context.MODE_PRIVATE, null).use { db ->
             db.rawQuery(
-                "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='events'", null
+                "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='events'",
+                null,
             ).use { c ->
                 val names = mutableListOf<String>()
                 while (c.moveToNext()) names.add(c.getString(0))
@@ -148,7 +149,8 @@ class QueueDurabilityTest {
         context.openOrCreateDatabase(dbName, Context.MODE_PRIVATE, null).use { db ->
             db.rawQuery(
                 "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' " +
-                    "AND name != 'android_metadata'", null
+                    "AND name != 'android_metadata'",
+                null,
             ).use { c ->
                 val tables = mutableListOf<String>()
                 while (c.moveToNext()) tables.add(c.getString(0))
@@ -179,7 +181,7 @@ class QueueDurabilityTest {
     fun anEmptyQueueReadsAsNull() {
         assertNull(
             EventDbAdapter(context, dbName, config)
-                .generateDataString(EventDbAdapter.Table.EVENTS)
+                .generateDataString(EventDbAdapter.Table.EVENTS),
         )
     }
 }
