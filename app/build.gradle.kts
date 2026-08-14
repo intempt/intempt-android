@@ -1,3 +1,4 @@
+import org.gradle.testing.jacoco.plugins.JacocoTaskExtension
 import java.util.Properties
 
 plugins {
@@ -10,10 +11,67 @@ plugins {
     id("kotlin-parcelize")
     id("jacoco")
     alias(libs.plugins.ktlint)
+    alias(libs.plugins.animalsniffer)
 }
 
 jacoco {
     toolVersion = "0.8.12"
+}
+
+// API-compatibility gate, checked against the android-api-level-23 signature rather than inferred.
+//
+// Adopted from mixpanel-android, which runs the same plugin — it was the one build-quality check
+// they had and we did not, and it is aimed squarely at the bug class that has hurt this SDK most.
+// Three separate crashes on this branch were calls that do not exist at minSdk: Jackson reaching
+// java.lang.BootstrapMethodError (API 26) and killing every host app on Android 7, java.util.Base64
+// (API 26) in the auth path, and Map.putIfAbsent (API 24) in a test helper.
+//
+// Lint's NewApi did not catch any of them. It reads our sources, so a call inside a dependency's
+// bytecode is invisible to it, and the Base64 one it did see only after checkTestSources was
+// enabled. AnimalSniffer checks the compiled artifact against a signature file, so a dependency
+// reaching for a missing class fails the build instead of the app.
+//
+// The plugin's own default for ignoreFailures is false, so a violation fails the build. Not set
+// explicitly because the property is not reachable from the Kotlin DSL in 2.0.0 (it is private in a
+// supertype); asserted below instead, so the gate cannot silently become advisory.
+animalsniffer {
+    // Two documented exclusion classes. Both were verified individually rather than waved away —
+    // an exclusion added to make a gate green is how the gate stops meaning anything.
+    //
+    // android.app.NotificationChannel / NotificationManager: API 26, and correctly guarded by
+    //   `if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)` at FirebaseService.kt:170.
+    //   AnimalSniffer reads bytecode and cannot see a runtime version check, so this is
+    //   unavoidable. Mixpanel carries the same kind of exclusion for the same reason.
+    //
+    // java.lang.{Long,Boolean,Integer}: the static `hashCode(primitive)` overloads are API 24, and
+    //   they appear only inside the hashCode() that Kotlin generates for a data class with a
+    //   primitive field — we never call them. D8 backports them unconditionally, so they are
+    //   rewritten before they reach a device.
+    //
+    //   That last sentence is an assumption about the toolchain, not something to take on trust, so
+    //   it is pinned by DataClassHashCodeOnDeviceTest in sample/src/androidTest — which calls
+    //   hashCode() on the affected shapes and runs on the API 23 emulator in CI. If the backport
+    //   ever stops happening, that test fails on-device rather than this exclusion hiding it.
+    ignore(
+        "android.app.NotificationChannel",
+        "android.app.NotificationManager",
+        "java.lang.Long",
+        "java.lang.Boolean",
+        "java.lang.Integer",
+    )
+}
+
+// A warning nobody reads is not a gate, and the default is the only thing making this one real —
+// so it is checked rather than trusted. If a future plugin version flips the default, this fails at
+// configuration time instead of turning every API violation into a log line.
+gradle.taskGraph.whenReady {
+    tasks.withType(ru.vyarus.gradle.plugin.animalsniffer.AnimalSniffer::class.java).configureEach {
+        check(!ignoreFailures) {
+            "animalsniffer has ignoreFailures=true, which downgrades every minSdk violation to a " +
+                "warning. This gate exists because three separate API-level crashes shipped on this " +
+                "branch; it must fail the build."
+        }
+    }
 }
 
 android {
@@ -126,11 +184,25 @@ android {
             // source. Slower hardware changes the timing enough to surface leaks that a
             // fast local machine hides, so this stays until every scope is injectable.
             it.forkEvery = 1
+
+            // The fix for "coverage reports 0.1%". Robolectric loads classes through its own
+            // sandbox classloader, and JaCoCo skips classes it cannot attribute to a source
+            // location, so nearly everything Robolectric touched was dropped from the report.
+            // The number looked catastrophic while the tests were fine, which is worse than no
+            // report: it reads as a measurement.
+            it.extensions.configure(JacocoTaskExtension::class.java) {
+                isIncludeNoLocationClasses = true
+                excludes = listOf("jdk.internal.*")
+            }
         }
     }
 }
 
 dependencies {
+    // The signature the sources are checked against. Must track minSdk — bump both together, or
+    // the gate silently verifies against the wrong API level.
+    add("signature", "net.sf.androidscents.signature:android-api-level-23:6.0_r3@signature")
+
     implementation(libs.compose.ui)
     implementation(libs.compose.material)
     implementation(libs.compose.ui.tooling.preview)
@@ -246,16 +318,15 @@ mavenPublishing {
 
 // Coverage on the JVM unit tests.
 //
-// Known limitation: every unit-test file here runs under RobolectricTestRunner, and
-// Robolectric's sandbox classloader reloads application classes, discarding JaCoCo's
-// instrumentation. The report therefore currently shows near-zero regardless of what the
-// tests actually exercise — only HttpStatusPolicyTest, which touches no Android types,
-// registers. The wiring is correct and left in place; the number becomes meaningful either
-// when non-Robolectric unit tests exist or when coverage is taken from the instrumented
-// suite via createDebugCoverageReport, which is the path Mixpanel uses.
+// This used to report near-zero and carried a note saying the measurement was broken and so
+// deliberately ungated. The measurement was broken: Robolectric's sandbox classloader reloads
+// application classes and discards JaCoCo's instrumentation, and JaCoCo then skips classes it
+// cannot attribute to a source location — so almost everything the tests actually exercised was
+// dropped from the report. That is fixed in the test task's JacocoTaskExtension above
+// (isIncludeNoLocationClasses, plus a jdk.internal.* exclude), and the number below is real.
 //
-// Deliberately not gated on a threshold. A floor enforced against a broken measurement
-// would be worse than no floor.
+// A broken measurement is worse than none, because it reads as a measurement. Now that it is
+// honest it can carry a floor — see jacocoCoverageVerification.
 tasks.register<JacocoReport>("jacocoTestReport") {
     dependsOn("testDebugUnitTest")
     reports {
@@ -283,7 +354,70 @@ tasks.register<JacocoReport>("jacocoTestReport") {
         ),
     )
     sourceDirectories.setFrom(files("src/main/java"))
-    executionData.setFrom(fileTree(layout.buildDirectory).include("**/*.exec", "**/*.ec"))
+
+    // Scoped to the coverage output directory, not the whole build tree.
+    //
+    // This was `fileTree(layout.buildDirectory).include("**/*.exec", "**/*.ec")`, which declares
+    // every file under build/ as an input. Gradle then refuses to run this task alongside anything
+    // else that writes there — `jacocoTestReport` together with `ktlintCheck` fails outright with an
+    // implicit-dependency validation error. CI never hit it because those are separate invocations,
+    // so it sat as a landmine for the first person to combine them locally.
+    //
+    // AGP 8 writes to outputs/unit_test_code_coverage/<variant>/; the jacoco/ path is the AGP 7
+    // location, kept so the report does not silently read nothing if the path moves back.
+    executionData.setFrom(
+        fileTree(layout.buildDirectory) {
+            include("outputs/unit_test_code_coverage/**/*.exec")
+            include("jacoco/*.exec")
+        },
+    )
+}
+
+// The coverage floor, enforced in CI.
+//
+// The target is 85%. These numbers are not 85%, and setting them there today would fail every
+// PR — including ones that raise coverage — which trains people to bypass the gate. Setting 85
+// and excluding whatever fails it would be the same thing wearing a disguise.
+//
+// So the floor is a ratchet, pinned just under the measured value. It cannot be met by writing
+// no tests and it cannot be lowered without the diff saying so. Every increase moves it up; the
+// number in this file is always a real measurement, never an aspiration.
+//
+// Raise these as coverage rises. The gap to 85 is tracked, not hidden: the largest remaining
+// holes are FirebaseService, LifecycleCallbackService, NotificationDispatcherActivity and the
+// push-notification models, all of which need instrumented tests rather than JVM ones.
+// Measured 2026-08-14: LINE 2039/3267 = 62.4%, BRANCH 432/1083 = 39.9%.
+// Both floors sit just under that, so the gate blocks a regression today without blocking a PR
+// that improves things. Re-measure with `./gradlew :app:jacocoTestReport` and raise them.
+val coverageFloorLine = 0.62
+val coverageFloorBranch = 0.39
+
+tasks.register<JacocoCoverageVerification>("jacocoCoverageVerification") {
+    dependsOn("jacocoTestReport")
+
+    // Same class/source wiring as the report task. Pointing verification at a different set than
+    // the report is how a gate ends up green against a number nobody is looking at.
+    classDirectories.setFrom(tasks.named<JacocoReport>("jacocoTestReport").get().classDirectories)
+    sourceDirectories.setFrom(tasks.named<JacocoReport>("jacocoTestReport").get().sourceDirectories)
+    executionData.setFrom(tasks.named<JacocoReport>("jacocoTestReport").get().executionData)
+
+    violationRules {
+        rule {
+            limit {
+                counter = "LINE"
+                value = "COVEREDRATIO"
+                minimum = coverageFloorLine.toBigDecimal()
+            }
+            limit {
+                // Branch coverage is the one that catches untested error paths, which is where
+                // this SDK's defects have actually been. Gated separately so a rise in line
+                // coverage cannot mask a fall here.
+                counter = "BRANCH"
+                value = "COVEREDRATIO"
+                minimum = coverageFloorBranch.toBigDecimal()
+            }
+        }
+    }
 }
 
 ktlint {

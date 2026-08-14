@@ -86,9 +86,20 @@ package com.intempt.core.queue;
         // 408: request timeout. Genuinely transient, and it was NOT retried before this
         //      change — it fell into the wedging default instead, which is the worst of
         //      both outcomes: never retried, never dropped.
-        // 5xx: server fault, transient by definition.
+        // 5xx: server fault, transient by definition. Bounded at 599, not open-ended.
+        //      `status >= 500` swept in 600, 999 and Integer.MAX_VALUE, which disagreed with
+        //      HttpService's own classification: it treats 5xx as MIN/MAX_UNAVAILABLE_HTTP_RESPONSE_CODE
+        //      (500..599) and sends anything above 599 down the ClientErrorException path as
+        //      permanent. So the transport called such a status permanent while this policy called
+        //      it transient, and which one won depended on which code read it first. A status above
+        //      599 is not a valid HTTP status at all; retrying it forever is the wedging behaviour
+        //      this class exists to prevent. Found by a hostile-input sweep that asserted on every
+        //      value it generated instead of discarding the results.
         // <=0: no usable status at all, ie a network failure or a timeout with no response.
-        return status == 408 || status == 429 || status >= 500 || status <= 0;
+        return status == 408
+                || status == 429
+                || (status >= 500 && status <= 599)
+                || status <= 0;
     }
 
     private HttpStatusPolicy() {

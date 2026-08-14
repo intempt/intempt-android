@@ -38,7 +38,10 @@ class SdkOnDeviceTest {
     companion object {
         private const val DB = "intempt_events"
         private const val CONFIG = "intempt-config.json"
-        private const val TIMEOUT_MS = 10_000L
+        private const val TIMEOUT_MS = 30_000L
+
+        /** How often awaitEvent re-runs a repeatable action while waiting. */
+        private const val REEMIT_INTERVAL_MS = 750L
 
         /**
          * One cold start for the whole class. The SDK is a singleton initialized from
@@ -107,16 +110,37 @@ class SdkOnDeviceTest {
             }
         }
 
+        /**
+         * @param reemit re-runs the action that produces the event, every [REEMIT_INTERVAL_MS].
+         *
+         * Polling alone cannot win this race. A row exists exactly once and delivery can create
+         * and delete it entirely inside one poll window, after which no amount of further polling
+         * or a longer timeout will ever see it — the evidence is gone. That is how
+         * recordQueuesTheEventWithItsIdentifiers failed on API 23 while passing on API 34: the
+         * slower emulator widened the window. Its own failure message shows the same thing
+         * happening to unrelated rows, jumping from `e2e delivery ...-17` straight to `-23`.
+         *
+         * Re-emitting turns one chance into many. It does not change what is asserted — the event
+         * still has to reach the queue carrying the right identifiers — it just stops a single
+         * unlucky interleaving from deciding the result. Callers whose action is not safe to
+         * repeat pass nothing and keep the old single-shot behaviour.
+         */
         private fun awaitEvent(
             what: String,
+            reemit: (() -> Unit)? = null,
             predicate: (JSONObject) -> Boolean,
         ): JSONObject {
             val deadline = System.currentTimeMillis() + TIMEOUT_MS
+            var nextReemit = System.currentTimeMillis() + REEMIT_INTERVAL_MS
             while (System.currentTimeMillis() < deadline) {
                 sample().firstOrNull(predicate)?.let { return it }
-                // 50ms, not 250ms: delivery can remove a row within a few hundred
+                if (reemit != null && System.currentTimeMillis() >= nextReemit) {
+                    reemit()
+                    nextReemit = System.currentTimeMillis() + REEMIT_INTERVAL_MS
+                }
+                // 25ms, not 250ms: delivery can remove a row within a few hundred
                 // milliseconds, so the sampler has to run faster than the queue drains.
-                Thread.sleep(50)
+                Thread.sleep(25)
             }
             throw AssertionError(
                 "timed out after ${TIMEOUT_MS}ms waiting for $what. Observed: " +
@@ -124,7 +148,10 @@ class SdkOnDeviceTest {
             )
         }
 
-        private fun awaitEventNamed(name: String): JSONObject = awaitEvent("an event named '$name'") { it.optString("name") == name }
+        private fun awaitEventNamed(
+            name: String,
+            reemit: (() -> Unit)? = null,
+        ): JSONObject = awaitEvent("an event named '$name'", reemit) { it.optString("name") == name }
     }
 
     /**
@@ -171,8 +198,9 @@ class SdkOnDeviceTest {
     @Test
     fun trackQueuesTheEvent() {
         val name = "on-device track ${System.nanoTime()}"
-        com.intempt.core.Intempt.track(name, mapOf("source" to "androidTest"))
-        assertEquals("track", awaitEventNamed(name).optString("type"))
+        val emit = { com.intempt.core.Intempt.track(name, mapOf("source" to "androidTest")) }
+        emit()
+        assertEquals("track", awaitEventNamed(name, reemit = emit).optString("type"))
     }
 
     /**
@@ -184,13 +212,16 @@ class SdkOnDeviceTest {
     @Test
     fun recordQueuesTheEventWithItsIdentifiers() {
         val name = "on-device record ${System.nanoTime()}"
-        com.intempt.core.Intempt.record(
-            eventTitle = name,
-            userId = "androidtest-record-user",
-            data = mapOf("step" to "checkout"),
-        )
+        val emit = {
+            com.intempt.core.Intempt.record(
+                eventTitle = name,
+                userId = "androidtest-record-user",
+                data = mapOf("step" to "checkout"),
+            )
+        }
+        emit()
 
-        val event = awaitEventNamed(name)
+        val event = awaitEventNamed(name, reemit = emit)
         assertEquals("record", event.optString("type"))
         val payload = event.getJSONArray("payload").getJSONObject(0)
         assertEquals("androidtest-record-user", payload.optString("userId"))
@@ -202,7 +233,8 @@ class SdkOnDeviceTest {
         val from = "androidtest-alias-a-${System.nanoTime()}"
         val to = "androidtest-alias-b-${System.nanoTime()}"
 
-        com.intempt.core.Intempt.alias(from, to)
+        val emit = { com.intempt.core.Intempt.alias(from, to) }
+        emit()
 
         // Matched on the generated ids, not merely on type == "alias".
         // everyPublicCallSurvivesOnThisApiLevel also calls alias(), and with no ordering
@@ -210,7 +242,7 @@ class SdkOnDeviceTest {
         // "u-survive". Sharing one app process across tests means every predicate has to be
         // specific enough to identify its own event.
         val event =
-            awaitEvent("the alias event this test emitted") { row ->
+            awaitEvent("the alias event this test emitted", reemit = emit) { row ->
                 row.optString("type") == "alias" &&
                     row.optJSONArray("payload")?.optJSONObject(0)?.optString("userId") == from
             }
@@ -226,12 +258,15 @@ class SdkOnDeviceTest {
      */
     @Test
     fun identifyWithoutAnEventTitleStillQueues() {
-        com.intempt.core.Intempt.identify(
-            userId = "androidtest-user",
-            userAttributes = mapOf("plan" to "free"),
-        )
+        val emit = {
+            com.intempt.core.Intempt.identify(
+                userId = "androidtest-user",
+                userAttributes = mapOf("plan" to "free"),
+            )
+        }
+        emit()
         val event =
-            awaitEvent("this test's titleless identify") { row ->
+            awaitEvent("this test's titleless identify", reemit = emit) { row ->
                 row.optString("type") == "identify" &&
                     row.optJSONArray("payload")?.optJSONObject(0)?.optString("userId") == "androidtest-user"
             }
@@ -246,12 +281,15 @@ class SdkOnDeviceTest {
      */
     @Test
     fun groupWithoutAnEventTitleIsNamedGroupNotIdentify() {
-        com.intempt.core.Intempt.group(
-            accountId = "androidtest-account",
-            accountAttributes = mapOf("tier" to "smb"),
-        )
+        val emit = {
+            com.intempt.core.Intempt.group(
+                accountId = "androidtest-account",
+                accountAttributes = mapOf("tier" to "smb"),
+            )
+        }
+        emit()
         val event =
-            awaitEvent("this test's titleless group") { row ->
+            awaitEvent("this test's titleless group", reemit = emit) { row ->
                 row.optString("type") == "group" &&
                     row.optJSONArray("payload")?.optJSONObject(0)?.optString("accountId") == "androidtest-account"
             }

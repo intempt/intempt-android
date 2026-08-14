@@ -532,6 +532,22 @@ public class HttpService implements RemoteService {
                 if (responseCode >= 200 && responseCode < 300) { // Success
                     in = connection.getInputStream();
                     response = slurp(in);
+
+                    // A 2xx whose body stopped short of its declared Content-Length is a broken
+                    // connection, not an acknowledgement. Without this check the truncated read is
+                    // returned as a successful result, DeliveryMessages deletes the batch, and the
+                    // events are gone even though the platform never finished accepting them.
+                    //
+                    // Found by a test that expected a throw and got a 0-byte success instead. The
+                    // check is against the DECLARED length, so a legitimate bodyless 200
+                    // (Content-Length: 0, or no header at all) is still a success.
+                    final int declaredLength = connection.getContentLength();
+                    if (declaredLength > 0 && response.length < declaredLength) {
+                        throw new IOException(
+                                "Truncated response: declared " + declaredLength + " bytes, received "
+                                        + response.length + ". Treating as a transport failure so the"
+                                        + " batch is retried rather than dropped.");
+                    }
                 } else if (responseCode >= MIN_UNAVAILABLE_HTTP_RESPONSE_CODE
                         && responseCode <= MAX_UNAVAILABLE_HTTP_RESPONSE_CODE) { // Server Error 5xx
                     QueueLog.w(
@@ -596,7 +612,21 @@ public class HttpService implements RemoteService {
                         e);
                 QueueLog.d(LOGTAG, "EOFException, likely network issue for request to " + fullUrl);
                 throw new IOException("EOFException during network request", e);
-            } catch (final IOException e) { // Includes ServiceUnavailableException if thrown above
+            } catch (final ServiceUnavailableException e) {
+                // ServiceUnavailableException extends Exception, not IOException, so without this
+                // branch a 5xx fell through to the generic Exception handler below and was wrapped
+                // in an IOException. Three things broke silently as a result:
+                //
+                //   - performRequest's `lastException instanceof ServiceUnavailableException` check
+                //     never matched, so the caller never saw a 5xx as distinct from a socket error.
+                //   - The Retry-After header the exception carries was discarded, so the server's
+                //     backpressure instruction was ignored and the SDK kept flushing on its own
+                //     schedule — the behaviour that gets an SDK rate-limited.
+                //   - DeliveryMessages' own catch for ServiceUnavailableException was dead code.
+                //
+                // onNetworkError has already been reported at the throw site, so this only rethrows.
+                throw e;
+            } catch (final IOException e) {
                 // Report error via listener
                 onNetworkError(
                         connection,
