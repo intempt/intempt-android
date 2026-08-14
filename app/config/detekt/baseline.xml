@@ -7,6 +7,7 @@
     <ID>DestructuringDeclarationWithTooManyEntries:CustomCaptureService.kt$CustomCaptureService$val (activity, eventName, entityName, eventType) = props</ID>
     <ID>DestructuringDeclarationWithTooManyEntries:EventPoolManagerService.kt$EventPoolManagerService$val (eventName, entityName, event, type, context, view) = props</ID>
     <ID>EmptyFunctionBlock:BaseAutoCaptureComponent.kt$BaseAutoCaptureComponent${}</ID>
+    <ID>EmptyFunctionBlock:CertificatePinningUnitTest.kt$CertificatePinningUnitTest.&lt;no name provided>${}</ID>
     <ID>EmptyFunctionBlock:ChangeTrackerService.kt$ChangeTrackerService.&lt;no name provided>${}</ID>
     <ID>EmptyFunctionBlock:LifecycleCallBacksComponent.kt$LifecycleCallBacksComponent${ }</ID>
     <ID>EmptyFunctionBlock:LifecycleCallBacksComponent.kt$LifecycleCallBacksComponent${}</ID>
