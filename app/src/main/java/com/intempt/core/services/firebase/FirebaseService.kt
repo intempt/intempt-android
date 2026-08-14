@@ -29,7 +29,7 @@ import com.intempt.core.services.firebase.model.PushNotificationMetadata
 import com.intempt.core.services.firebase.webhook.WebhookService
 import kotlinx.coroutines.tasks.await
 
-class FirebaseService : FirebaseMessagingService() {
+internal class FirebaseService : FirebaseMessagingService() {
     var token: String = ""
 
     // Lazy, not a field initializer. Dagger constructs FirebaseService eagerly as part of
