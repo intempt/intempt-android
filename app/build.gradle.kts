@@ -282,13 +282,8 @@ dependencies {
     // the gate silently verifies against the wrong API level.
     add("signature", "net.sf.androidscents.signature:android-api-level-23:6.0_r3@signature")
 
-    implementation(libs.compose.ui)
-    implementation(libs.compose.material)
-    implementation(libs.compose.ui.tooling.preview)
-    implementation(libs.activity.compose)
     implementation(libs.dagger)
     implementation(libs.androidx.lifecycle.process)
-    implementation(libs.androidx.ui.android)
     implementation(libs.core.ktx)
     kapt(libs.dagger.compiler)
     implementation(kotlin("reflect"))

@@ -21,7 +21,6 @@ import android.widget.SeekBar
 import android.widget.Spinner
 import android.widget.TimePicker
 import android.widget.ToggleButton
-import androidx.compose.ui.platform.ComposeView
 import androidx.fragment.app.Fragment
 import com.intempt.core.autocapture.lifecycleCallbacksTracker.ChangeTrackerService
 import com.intempt.core.autocapture.lifecycleCallbacksTracker.LifecycleCallBacksComponent
@@ -101,7 +100,6 @@ class ChangeTrackerUnitTest {
     private lateinit var ratingBar: RatingBar
     private lateinit var timePicker: TimePicker
     private lateinit var listView: ListView
-    private lateinit var composeView: ComposeView
 
     private lateinit var context: Context
     private lateinit var config: ConfigManagerService
@@ -407,8 +405,6 @@ class ChangeTrackerUnitTest {
         val spinnerAdapter = ArrayAdapter(activity, R.layout.simple_spinner_item, listOf("Item 1", "Item 2"))
         spinnerAdapter.setDropDownViewResource(R.layout.simple_spinner_dropdown_item)
         spinner.adapter = spinnerAdapter
-
-        composeView = spy(ComposeView(activity).apply { id = View.generateViewId() })
 
         listOf(
             toggleButton,

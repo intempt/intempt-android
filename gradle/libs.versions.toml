@@ -32,13 +32,10 @@ dokka="1.9.20"
 dependencyCheck="10.0.4"
 dagger="2.52"
 lifecycleProcess="2.8.7"
-uiAndroid = "1.7.5"
-compose = "1.7.5"
 
 junit = "4.13.2"
 junitVersion = "1.2.1"
 espressoCore = "3.6.1"
-activity-compose = "1.9.3"
 mockitoCore="5.5.0"
 mockitoKt="4.0.0"
 archTest="2.2.0"
@@ -78,12 +75,6 @@ material = { group = "com.google.android.material", name = "material", version.r
 dagger = { group="com.google.dagger", name= "dagger", version.ref = "dagger" }
 dagger-compiler = { group = "com.google.dagger", name = "dagger-compiler", version.ref = "dagger" }
 androidx-lifecycle-process = { group = "androidx.lifecycle", name = "lifecycle-process", version.ref = "lifecycleProcess" }
-androidx-ui-android = { group = "androidx.compose.ui", name = "ui-android", version.ref = "uiAndroid" }
-compose-ui = { group = "androidx.compose.ui", name = "ui", version.ref = "compose" }
-compose-material = { group = "androidx.compose.material", name = "material", version.ref = "compose" }
-compose-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-tooling-preview", version.ref = "compose" }
-compose-ui-tooling = { group = "androidx.compose.ui", name = "ui-tooling", version.ref = "compose" }
-activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activity-compose" }
 core-ktx = { group = "androidx.test", name = "core-ktx", version.ref = "coreKtxVersion" }
 
 
