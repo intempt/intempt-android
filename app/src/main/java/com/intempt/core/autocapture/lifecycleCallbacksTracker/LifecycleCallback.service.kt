@@ -44,7 +44,6 @@ internal class LifecycleCallbackService
                 return
             }
             visibleFragmentHashes.add(fragmentHashCode)
-//        println("ScreenTracker | handleFragmentVisibility ${fragment.javaClass.simpleName}:$fragmentHashCode")
 
             screenTrackerSrv.handleFragmentCallbacks(
                 "onFragmentResumed",

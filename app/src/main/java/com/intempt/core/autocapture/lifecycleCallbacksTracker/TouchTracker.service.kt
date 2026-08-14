@@ -36,7 +36,6 @@ internal class TouchTrackerService
             activity.window.callback =
                 object : Window.Callback by originalCallback {
                     override fun dispatchTouchEvent(event: MotionEvent?): Boolean {
-                        println("dispatchTouchEvent TouchTrackerService")
                         if (event?.action == MotionEvent.ACTION_UP) {
                             val rootView = activity.window.decorView
                             val touchedView = findTouchedView(rootView, event.rawX.toInt(), event.rawY.toInt())
