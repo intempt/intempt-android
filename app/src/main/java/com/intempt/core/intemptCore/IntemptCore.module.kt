@@ -4,6 +4,7 @@ import android.content.Context
 import com.intempt.core.Intempt
 import com.intempt.core.autocapture.AutoCaptureModule
 import com.intempt.core.customCapture.CustomCaptureModule
+import com.intempt.core.queue.ConsentAuditLog
 import com.intempt.core.queue.DeliveryMessages
 import com.intempt.core.queue.QueueConfig
 import com.intempt.core.services.ConfigManagerService
@@ -77,6 +78,7 @@ internal class IntemptCoreModule(
             http,
             intemptEvent,
             delivery,
+            consentAudit = ConsentAuditLog(consumerContext.applicationContext),
         )
     }
 

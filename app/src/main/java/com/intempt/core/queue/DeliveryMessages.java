@@ -343,8 +343,24 @@ public class DeliveryMessages {
             public void handleMessage(Message msg) {
                 if (mDbAdapter == null) {
                     mDbAdapter = makeDbAdapter(mContext);
-                    mDbAdapter.cleanupEvents(
-                            System.currentTimeMillis() - mConfig.getDataExpiration(), EventDbAdapter.Table.EVENTS);
+                    sweepExpiredEvents();
+                } else {
+                    // Modification: re-run the age-based sweep periodically, not only once
+                    // per worker lifetime.
+                    //
+                    // Upstream only ever calls cleanupEvents(time, ...) here, guarded by
+                    // "mDbAdapter == null" — i.e. exactly once per (re)start of this handler.
+                    // A row only leaves the table two other ways: delivered successfully, or
+                    // dropped for an unrecoverable status (see shouldDrop below). A row stuck
+                    // on a *retryable* failure (offline, 5xx, timeout) sits in the table for
+                    // as long as the process lives, however many days that is; the retry
+                    // backoff below keeps re-sending FLUSH_QUEUE the whole time, but nothing
+                    // ever re-checks its age. On a process that never restarts the delivery
+                    // worker, the 5-day expiration configured in QueueConfig never actually
+                    // fires again after the first message. Re-checking on every handled
+                    // message would be wasteful, so this is gated to run at most once per
+                    // expiration window.
+                    sweepExpiredEventsIfDue();
                 }
 
                 try {
@@ -609,10 +625,24 @@ public class DeliveryMessages {
                 return mDbAdapter.addJSON(message, EventDbAdapter.Table.EVENTS);
             }
 
+            private void sweepExpiredEvents() {
+                mDbAdapter.cleanupEvents(
+                        System.currentTimeMillis() - mConfig.getDataExpiration(), EventDbAdapter.Table.EVENTS);
+                mLastExpirationSweepTime = System.currentTimeMillis();
+            }
+
+            private void sweepExpiredEventsIfDue() {
+                final long now = System.currentTimeMillis();
+                if (now - mLastExpirationSweepTime >= mConfig.getDataExpiration()) {
+                    sweepExpiredEvents();
+                }
+            }
+
             private EventDbAdapter mDbAdapter;
             private final long mFlushInterval;
             private long mTrackEngageRetryAfter;
             private int mFailedRetries;
+            private long mLastExpirationSweepTime;
         } // AnalyticsMessageHandler
 
         private void updateFlushFrequency() {
