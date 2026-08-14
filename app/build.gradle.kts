@@ -12,7 +12,13 @@ plugins {
     id("jacoco")
     alias(libs.plugins.ktlint)
     alias(libs.plugins.animalsniffer)
+    alias(libs.plugins.binary.compatibility.validator)
 }
+
+// ABI-compatibility gate: `apiCheck` fails the build if the public surface drifted from the
+// committed app/api/app.api file without that file being regenerated via `apiDump`. It is a
+// guardrail against an accidental breaking change slipping in unnoticed, not a scoring exercise —
+// intentional API changes just need `./gradlew :app:apiDump` run and the updated file committed.
 
 jacoco {
     toolVersion = "0.8.12"

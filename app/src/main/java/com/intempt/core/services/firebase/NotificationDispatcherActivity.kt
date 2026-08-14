@@ -14,7 +14,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-class NotificationDispatcherActivity : AppCompatActivity() {
+internal class NotificationDispatcherActivity : AppCompatActivity() {
     /**
      * Lazily built so an Activity launched by a notification tap does not pay for it until it logs.
      * These calls used to go straight to `android.util.Log`, so notification-tap diagnostics ignored

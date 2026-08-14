@@ -4,7 +4,7 @@ import android.os.Parcelable
 import kotlinx.parcelize.Parcelize
 
 @Parcelize
-data class PushNotificationMetadata(
+internal data class PushNotificationMetadata(
     val orgId: String,
     val projectId: String,
     val transformerId: String,

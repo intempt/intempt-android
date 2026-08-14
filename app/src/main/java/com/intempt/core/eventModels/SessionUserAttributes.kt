@@ -10,7 +10,7 @@ package com.intempt.core.eventModels
  *
  * What remains is what only the device can know.
  */
-data class SessionUserAttributes(
+internal data class SessionUserAttributes(
     val deviceType: String,
     val carrier: String,
     val platform: String,

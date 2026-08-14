@@ -184,6 +184,14 @@ jobs:
       - name: AnimalSniffer (API compatibility at minSdk)
         run: ./gradlew :app:animalsnifferRelease --stacktrace
 
+      # ABI-compatibility gate: fails if the public surface (app/api/app.api) drifted without
+      # the file being regenerated via `./gradlew :app:apiDump` and committed. AnimalSniffer
+      # above checks calls made *by* the SDK against the platform; this checks the surface the
+      # SDK exposes *to* consumers, so an accidental breaking change to a public signature is
+      # caught here instead of shipping silently.
+      - name: Binary compatibility (public API surface)
+        run: ./gradlew :app:apiCheck --stacktrace
+
       # Pre-existing violations are frozen in app/config/ktlint/baseline.xml (567 at the time of
       # writing, counted with grep -c "<error"), so this
       # gates new Kotlin only. Reformatting the existing codebase would be a 200-file diff
