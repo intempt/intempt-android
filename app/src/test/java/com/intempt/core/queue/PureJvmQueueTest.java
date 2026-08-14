@@ -272,4 +272,86 @@ public class PureJvmQueueTest {
             QueueLog.setSink(null);
         }
     }
+
+    // ------------------------------------------------------------- Certificate pinning (opt-in)
+
+    @Test
+    public void sslSocketFactoryIsNullByDefaultOnEveryLegacyConstructor() {
+        // Off by default: none of the pre-existing constructors take a factory, and HttpService
+        // null-checks this to fall back to platform-default TLS trust validation.
+        assertNull(new QueueConfig("https://example.invalid/track").getSSLSocketFactory());
+        assertNull(new QueueConfig("https://example.invalid/track", AUTH).getSSLSocketFactory());
+        assertNull(
+                new QueueConfig("https://example.invalid/track", AUTH, null, false).getSSLSocketFactory());
+        assertNull(
+                new QueueConfig("https://example.invalid/track", AUTH, null, false, 10, 1000L)
+                        .getSSLSocketFactory());
+    }
+
+    @Test
+    public void sslSocketFactoryIsAppliedWhenExplicitlyConfigured() {
+        final javax.net.ssl.SSLSocketFactory fake = fakeSslSocketFactory();
+
+        final QueueConfig config =
+                new QueueConfig("https://example.invalid/track", AUTH, null, false, 10, 1000L, fake);
+
+        assertNotNull(
+                "pinning is opt-in: a configured factory must be surfaced to HttpService",
+                config.getSSLSocketFactory());
+        assertTrue(
+                "the exact factory supplied must be applied, not a copy or a default",
+                config.getSSLSocketFactory() == fake);
+    }
+
+    @Test
+    public void sslSocketFactoryStaysNullWhenExplicitlyPassedAsNull() {
+        final QueueConfig config =
+                new QueueConfig("https://example.invalid/track", AUTH, null, false, 10, 1000L, null);
+
+        assertNull(
+                "explicit null (no certificatePins configured) must mean unchanged, "
+                        + "platform-default TLS -- never an implicit pinning behaviour",
+                config.getSSLSocketFactory());
+    }
+
+    /** A minimal fake -- identity is all these tests need, no real TLS involved. */
+    private static javax.net.ssl.SSLSocketFactory fakeSslSocketFactory() {
+        return new javax.net.ssl.SSLSocketFactory() {
+            @Override
+            public String[] getDefaultCipherSuites() {
+                return new String[0];
+            }
+
+            @Override
+            public String[] getSupportedCipherSuites() {
+                return new String[0];
+            }
+
+            @Override
+            public java.net.Socket createSocket(java.net.Socket s, String host, int port, boolean autoClose) {
+                throw new UnsupportedOperationException("not used by these tests");
+            }
+
+            @Override
+            public java.net.Socket createSocket(String host, int port) {
+                throw new UnsupportedOperationException("not used by these tests");
+            }
+
+            @Override
+            public java.net.Socket createSocket(String host, int port, java.net.InetAddress localHost, int localPort) {
+                throw new UnsupportedOperationException("not used by these tests");
+            }
+
+            @Override
+            public java.net.Socket createSocket(java.net.InetAddress host, int port) {
+                throw new UnsupportedOperationException("not used by these tests");
+            }
+
+            @Override
+            public java.net.Socket createSocket(
+                    java.net.InetAddress address, int port, java.net.InetAddress localAddress, int localPort) {
+                throw new UnsupportedOperationException("not used by these tests");
+            }
+        };
+    }
 }

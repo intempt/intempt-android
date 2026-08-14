@@ -63,6 +63,10 @@ internal data class IntemptOptions(
     // staging or at a local stub; without it the endpoint was a compile-time constant and
     // the delivery leg could not be tested at all without a real project and key.
     val apiUrl: String?,
+    // Opt-in TLS certificate pinning for the ingestion endpoint. Empty (the default) means
+    // unchanged, platform-default TLS trust validation -- pinning activates only when the host
+    // app supplies pins.
+    val certificatePins: List<String> = emptyList(),
 )
 
 internal data class ConfigResult(

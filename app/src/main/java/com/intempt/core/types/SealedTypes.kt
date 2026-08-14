@@ -88,6 +88,13 @@ internal sealed class ConfigKeys(val key: String) {
     data object TimeBuffer : ConfigKeys("timeBuffer")
 
     data object ApiUrl : ConfigKeys("apiUrl")
+
+    /**
+     * Optional, opt-in TLS certificate pins for the ingestion endpoint, as a JSON array of
+     * "sha256/BASE64" SPKI hashes (OkHttp CertificatePinner format). Absent or empty means no
+     * pinning -- unchanged, platform-default TLS trust validation.
+     */
+    data object CertificatePins : ConfigKeys("certificatePins")
 }
 
 internal sealed class DefaultConfigs<T>(val value: T) {
@@ -108,6 +115,8 @@ internal sealed class DefaultConfigs<T>(val value: T) {
     data object IsQueueEnabled : DefaultConfigs<Boolean>(true)
 
     data object UseIpAddressForGeolocation : DefaultConfigs<Boolean>(true)
+
+    data object CertificatePins : DefaultConfigs<List<String>>(emptyList())
 }
 
 internal sealed class EventType(val value: String) {

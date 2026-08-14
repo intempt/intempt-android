@@ -26,6 +26,10 @@ animalsniffer="2.0.0"
 # dokkaHtml task wired in app/build.gradle.kts and the "Generating API docs" section in
 # CONTRIBUTING.md. Pinned to the last release compatible with Kotlin 1.9.x.
 dokka="1.9.20"
+# Scans the resolved dependency graph against the NVD for known CVEs. See the
+# dependencyCheck block in app/build.gradle.kts and the "Dependency vulnerability scan"
+# step in .github/workflows/ci.yml.
+dependencyCheck="10.0.4"
 dagger="2.52"
 lifecycleProcess="2.8.7"
 uiAndroid = "1.7.5"
@@ -95,3 +99,4 @@ detekt = { id = "io.gitlab.arturbosch.detekt", version.ref = "detekt" }
 animalsniffer = { id = "ru.vyarus.animalsniffer", version.ref = "animalsniffer" }
 binary-compatibility-validator = { id = "org.jetbrains.kotlinx.binary-compatibility-validator", version.ref = "binaryCompatibilityValidator" }
 dokka = { id = "org.jetbrains.dokka", version.ref = "dokka" }
+dependency-check = { id = "org.owasp.dependencycheck", version.ref = "dependencyCheck" }

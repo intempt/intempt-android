@@ -7,6 +7,7 @@ import com.intempt.core.customCapture.CustomCaptureModule
 import com.intempt.core.queue.ConsentAuditLog
 import com.intempt.core.queue.DeliveryMessages
 import com.intempt.core.queue.QueueConfig
+import com.intempt.core.services.CertificatePinning
 import com.intempt.core.services.ConfigManagerService
 import com.intempt.core.services.HttpManagerService
 import com.intempt.core.services.IntemptEventManagerService
@@ -99,6 +100,9 @@ internal class IntemptCoreModule(
             false,
             config.itemsInQueue,
             config.timeBuffer,
+            // Opt-in: null (no pinning, platform-default TLS) unless the host app configured
+            // certificatePins in intempt-config.json.
+            CertificatePinning.sslSocketFactoryFor(config.certificatePins),
         ).also {
             it.setLoggingEnabled(config.isLoggingEnabled)
 

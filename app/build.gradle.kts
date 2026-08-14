@@ -15,6 +15,7 @@ plugins {
     alias(libs.plugins.binary.compatibility.validator)
     alias(libs.plugins.dokka)
     alias(libs.plugins.detekt)
+    alias(libs.plugins.dependency.check)
 }
 
 // ABI-compatibility gate: `apiCheck` fails the build if the public surface drifted from the
@@ -47,6 +48,45 @@ tasks.dokkaHtml.configure {
             suppress.set(false)
         }
     }
+}
+
+// Scans this module's resolved dependency graph (transitives included) against the National
+// Vulnerability Database. Targets :app specifically -- not the :mutation sidecar, which recompiles
+// a handful of :app's own sources with no Android/network/serialization dependencies and so has
+// nothing meaningful to scan.
+//
+// Gated on CVSS >= 9 (critical) rather than the default of "any known CVE": a small SDK with a
+// handful of direct dependencies (Ktor, Dagger, AndroidX) regularly carries medium/high CVEs in
+// transitives that are unreachable from this codebase (e.g. server-only code paths), and gating on
+// those would make the check noise a maintainer learns to ignore or bypass. Critical, exploitable
+// vulnerabilities should still fail the build outright.
+dependencyCheck {
+    failBuildOnCVSS = 9.0f
+    // JVM/Android dependencies only. The default analyzer set includes ones aimed at other
+    // ecosystems (Node, .NET, Ruby, PHP, Swift) that this project has nothing for; disabling them
+    // is a meaningful chunk of the scan's runtime with zero loss of coverage here.
+    analyzers.assemblyEnabled = false
+    analyzers.nodeEnabled = false
+    analyzers.nodeAuditEnabled = false
+    analyzers.nuspecEnabled = false
+    analyzers.nugetconfEnabled = false
+    analyzers.retirejs.enabled = false
+    analyzers.golangDepEnabled = false
+    analyzers.golangModEnabled = false
+    analyzers.cocoapodsEnabled = false
+    analyzers.swiftEnabled = false
+    analyzers.swiftPackageResolvedEnabled = false
+    analyzers.rubygemsEnabled = false
+    analyzers.cmakeEnabled = false
+    analyzers.autoconfEnabled = false
+    analyzers.opensslEnabled = false
+    analyzers.msbuildEnabled = false
+    // Speeds up and stabilizes CI: an NVD API key raises the feed's rate limit drastically. Absent
+    // (forks without the secret), the analyzer still runs, just slower -- it does not fail the
+    // build. See INTEMPT_NVD_API_KEY in .github/workflows/ci.yml.
+    nvd.apiKey = System.getenv("INTEMPT_NVD_API_KEY")
+    formats = listOf("HTML", "JSON")
+    outputDirectory = "$buildDir/reports/dependency-check"
 }
 
 // API-compatibility gate, checked against the android-api-level-23 signature rather than inferred.
