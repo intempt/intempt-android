@@ -102,6 +102,65 @@ jobs:
           name: unit-test-report
           path: app/build/reports/tests/
 
+  method-count:
+    name: SDK method count regression
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3  # v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407  # v3
+      - uses: gradle/actions/setup-gradle@48b5f213c81028ace310571dc5ec0fbbca0b2947  # v4
+
+      # This counts the SDK's OWN method count, not the sample app's post-R8 total. The
+      # AAR's classes.jar holds only code compiled from :app — Ktor/Jackson/Glide/Firebase/
+      # Compose ship as transitive Maven dependencies and are never merged into it, so they
+      # cannot inflate this number. (The 28,668-method, 3.64MB figure for a sample app that
+      # only calls initialize() is almost entirely those dependencies after R8 merges
+      # everything into one dex; that is a separate, larger trim effort, not this gate.)
+      #
+      # d8-dexing classes.jar in isolation prints warnings about missing Android/Kotlin
+      # stdlib types ("was not found, it is required for ... desugaring") because no
+      # classpath is supplied — those are expected and harmless; d8 still emits a correct
+      # dex and method_ids_size still counts every method the SDK itself defines or
+      # references from its own code.
+      #
+      # Ceiling: measured baseline is 2,409 methods (:app's own compiled code, verified
+      # locally at 2,413 via this exact d8/dexdump pipeline — the few-method difference is
+      # from build/toolchain drift, not scope). 2,700 gives ~12% headroom for normal
+      # feature growth while still catching an accidental heavy dependency pull or a
+      # generated-code explosion (e.g. kapt/Dagger blowing up, or accidentally vendoring a
+      # third-party lib's sources into :app).
+      - name: Build release AAR
+        run: ./gradlew :app:assembleRelease --stacktrace
+
+      - name: Count SDK's own methods (d8 + dexdump on the AAR's classes.jar)
+        run: |
+          set -euo pipefail
+          AAR=$(find app/build/outputs/aar -name "*.aar" | head -1)
+          if [ -z "$AAR" ]; then
+            echo "::error::No release AAR found under app/build/outputs/aar"
+            exit 1
+          fi
+
+          WORKDIR="$(mktemp -d)"
+          unzip -q "$AAR" classes.jar -d "$WORKDIR"
+
+          BUILD_TOOLS_DIR=$(find "$ANDROID_HOME/build-tools" -maxdepth 1 -mindepth 1 -type d | sort -V | tail -1)
+          "$BUILD_TOOLS_DIR/d8" --release --output "$WORKDIR" "$WORKDIR/classes.jar"
+
+          METHOD_COUNT=$("$BUILD_TOOLS_DIR/dexdump" -f "$WORKDIR/classes.dex" \
+            | grep "method_ids_size" | awk '{print $NF}')
+
+          CEILING=2700
+          echo "SDK's own method count: $METHOD_COUNT (ceiling: $CEILING, baseline: ~2,409)"
+          if [ "$METHOD_COUNT" -gt "$CEILING" ]; then
+            echo "::error::SDK method count $METHOD_COUNT exceeds ceiling $CEILING. If this growth is intentional, raise CEILING in .github/workflows/ci.yml with a note on why."
+            exit 1
+          fi
+
   lint:
     name: Android lint
     runs-on: ubuntu-latest
