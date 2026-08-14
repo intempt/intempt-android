@@ -1,6 +1,7 @@
 package com.intempt.core.services.eventPool
 import com.intempt.core.autocapture.BaseComponent
 import com.intempt.core.eventModels.IntemptEvent
+import com.intempt.core.queue.ConsentAuditLog
 import com.intempt.core.queue.DeliveryMessages
 import com.intempt.core.services.ConfigManagerService
 import com.intempt.core.services.HttpManagerService
@@ -39,6 +40,10 @@ internal open class EventPoolManagerService
         private val intemptEvent: IntemptEventManagerService,
         private val delivery: DeliveryMessages,
         private val dispatcher: CoroutineDispatcher = Dispatchers.IO,
+        // Nullable with a null default so every existing call site (production wiring in
+        // IntemptCoreModule aside) keeps compiling unchanged. Production wiring supplies a
+        // real instance; null only shows up in tests that don't care about the audit trail.
+        private val consentAudit: ConsentAuditLog? = null,
     ) : BaseComponent(logger) {
         // `dispatcher`, not Dispatchers.IO. This class accepted an injected dispatcher and
         // then ignored it here, so a test that supplied one still had the collector running
@@ -206,6 +211,14 @@ internal open class EventPoolManagerService
 
         private fun sendConsentEvent(event: IntemptEvent) {
             val requestBodyJson = JSONObject(event.payload.first().toFormated())
+
+            // Recorded unconditionally, before the network attempt, and not only in the
+            // catch block below. Consent events bypass the durable queue entirely (they
+            // post directly, above), so without this a failed -- or never-attempted, e.g.
+            // process death mid-call -- send left no trace that the decision was ever made.
+            // A compliance request for "this user's consent history" must be answerable
+            // from local state, not from having trusted that the HTTP call succeeded.
+            consentAudit?.record(requestBodyJson)
 
             coroutineScope.launch {
                 try {

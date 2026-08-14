@@ -546,4 +546,66 @@ public class DeliveryBehaviourTest {
 
         assertFalse("reaching here is the assertion", false);
     }
+
+    /**
+     * The age-based expiration sweep must not run only once per worker lifetime.
+     *
+     * Before this fix, {@code cleanupEvents(time, EVENTS)} only ran inside the
+     * {@code mDbAdapter == null} branch of {@code handleMessage} -- i.e. exactly once, the
+     * first message this handler ever processes. A row stuck on a retryable failure (offline,
+     * 5xx, timeout) is never deleted by id, and is never re-checked against its age either: the
+     * 5-day expiration configured in {@code QueueConfig} only fires again if the worker itself
+     * restarts. A process that never restarts its delivery worker can hold a permanently-stuck
+     * row well past its configured expiration, for as long as the process lives.
+     *
+     * This proves the fix with a {@code QueueConfig} whose expiration is a few hundred
+     * milliseconds instead of five days, so "wait past the expiration" is a real
+     * {@code Thread.sleep} rather than a hypothetical five-day one.
+     */
+    @Test
+    public void expirationSweepRunsAgainWithoutRestartingTheWorker() throws Exception {
+        final long expirationMs = 200;
+        QueueConfig tinyExpirationConfig =
+                new QueueConfig("https://example.invalid/track", "Basic dGVzdDp0ZXN0") {
+                    @Override
+                    public long getDataExpiration() {
+                        return expirationMs;
+                    }
+                };
+        currentConfig = tinyExpirationConfig;
+        currentDb = db;
+        FakePoster poster = new FakePoster(0, true); // throwIo -> retryable, never deleted by id
+        currentPoster = poster;
+        TestableDelivery delivery = new TestableDelivery(context);
+
+        delivery.enqueueEvent(event("stuck"));
+        delivery.flush();
+
+        long deadline = System.currentTimeMillis() + 10_000;
+        while (System.currentTimeMillis() < deadline && poster.calls.get() == 0) {
+            Thread.sleep(25);
+        }
+        Thread.sleep(200);
+        assertTrue("delivery never attempted the retryable send", poster.calls.get() >= 1);
+        assertEquals("a retryable failure must not delete the row", 1, rowCount());
+
+        // Let the row become older than the (tiny) expiration window, and let enough real
+        // time pass since the worker's one-time startup sweep that the periodic re-sweep is
+        // now due.
+        Thread.sleep(expirationMs * 3);
+
+        delivery.flush();
+
+        deadline = System.currentTimeMillis() + 10_000;
+        while (System.currentTimeMillis() < deadline && rowCount() != 0) {
+            Thread.sleep(25);
+        }
+
+        assertEquals(
+                "the age-based sweep must re-run on a later message, not only once at worker "
+                        + "startup, or a row stuck on a retryable failure outlives its "
+                        + "configured expiration for as long as the process lives",
+                0,
+                rowCount());
+    }
 }
