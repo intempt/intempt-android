@@ -14,6 +14,7 @@ plugins {
     alias(libs.plugins.animalsniffer)
     alias(libs.plugins.binary.compatibility.validator)
     alias(libs.plugins.dokka)
+    alias(libs.plugins.detekt)
 }
 
 // ABI-compatibility gate: `apiCheck` fails the build if the public surface drifted from the
@@ -474,5 +475,37 @@ ktlint {
     ignoreFailures.set(false)
     filter {
         exclude { it.file.path.contains("/generated/") }
+    }
+}
+
+// Static analysis for complexity, duplication, and code smells — ktlint above is formatting
+// only and does not look at any of that.
+//
+// buildUponDefaultConfig pulls in detekt's own baked-in ruleset so config.yml only needs to
+// state the handful of deviations from it, not reproduce the whole thing.
+//
+// The vendored queue/ package (see its own file-header comments) is excluded: it is kept
+// deliberately close to upstream Mixpanel Java, detekt's complexity/style rules do not apply
+// to Java sources anyway, and diverging it from upstream to satisfy a Kotlin linter would
+// defeat the point of vendoring it.
+detekt {
+    buildUponDefaultConfig = true
+    config.setFrom(files("$projectDir/config/detekt/detekt.yml"))
+    baseline = file("$projectDir/config/detekt/baseline.xml")
+    source.setFrom(
+        files(
+            "src/main/java",
+            "src/test/java",
+        ),
+    )
+}
+
+tasks.withType<io.gitlab.arturbosch.detekt.Detekt>().configureEach {
+    exclude("**/core/queue/**")
+    reports {
+        html.required.set(true)
+        xml.required.set(false)
+        sarif.required.set(false)
+        txt.required.set(false)
     }
 }

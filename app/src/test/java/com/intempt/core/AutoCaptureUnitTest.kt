@@ -341,7 +341,8 @@ class AutoCaptureUnitTest {
                     System.currentTimeMillis(),
                     System.currentTimeMillis(),
                     MotionEvent.ACTION_DOWN,
-                    100f, // Coordinates within the ImageView
+                    // Coordinates within the ImageView
+                    100f,
                     100f,
                     0,
                 )
@@ -352,7 +353,8 @@ class AutoCaptureUnitTest {
                     System.currentTimeMillis(),
                     System.currentTimeMillis(),
                     MotionEvent.ACTION_UP,
-                    100f, // Coordinates within the ImageView
+                    // Coordinates within the ImageView
+                    100f,
                     100f,
                     0,
                 )

@@ -1,0 +1,34 @@
+build:
+  maxIssues: 0
+
+config:
+  validation: true
+  warningsAsErrors: false
+
+# This project's detekt config is deliberately thin: `buildUponDefaultConfig = true` in
+# app/build.gradle.kts already loads detekt's full built-in ruleset, so only the deviations
+# from it need to be listed here.
+style:
+  MagicNumber:
+    # Test files use plenty of literal timeouts, sizes, and IDs; treating every one as a magic
+    # number is noise, not a smell, for test code specifically.
+    excludes: ["**/test/**"]
+  ForbiddenComment:
+    # The codebase's own convention is TODO/FIXME with an owner and a dated follow-up, not an
+    # outright ban on them.
+    active: false
+
+complexity:
+  TooManyFunctions:
+    # Component/Module/Service files intentionally aggregate several related capture handlers;
+    # splitting them further would fight the project's own file-per-role convention rather
+    # than reduce real complexity.
+    thresholdInClasses: 15
+    thresholdInFiles: 15
+
+naming:
+  FunctionNaming:
+    # Kotlin test functions use backtick-quoted, human-readable names
+    # (`` `should receive event of type identify` ``); detekt's default identifier pattern
+    # rejects spaces, so tests need their own pattern.
+    ignoreAnnotated: ["Test"]
