@@ -379,6 +379,64 @@ public class EventDbAdapterTest {
         assertEquals(20000, out.getJSONObject(0).getString("blob").length());
     }
 
+    // ------------------------------------------------------------------- dedup
+
+    private static JSONObject eventWithId(String id) throws JSONException {
+        return new JSONObject()
+                .put("name", "Purchase")
+                .put("type", "track")
+                .put("payload", new JSONArray().put(new JSONObject().put("eventId", id)));
+    }
+
+    /**
+     * The whole point of the dedup key: the same logical event enqueued twice (a caller retry,
+     * a redelivered message from an upstream layer) must not become two rows that both get
+     * sent to the server.
+     */
+    @Test
+    public void enqueuingTheSameEventIdTwiceInsertsItOnlyOnce() throws JSONException {
+        assertEquals(1, db.addJSON(eventWithId("abc-123"), EVENTS));
+        assertEquals("the duplicate must be silently dropped, not counted as a new row",
+                1, db.addJSON(eventWithId("abc-123"), EVENTS));
+
+        assertEquals(1, queued().length());
+    }
+
+    @Test
+    public void eventsWithDifferentIdsBothInsert() throws JSONException {
+        db.addJSON(eventWithId("abc-123"), EVENTS);
+        db.addJSON(eventWithId("def-456"), EVENTS);
+
+        assertEquals(2, queued().length());
+    }
+
+    /**
+     * Rows with no {@code eventId} at all — including every other test in this file, which
+     * uses bare {@code {"event": name}} objects — must keep inserting unconditionally. The
+     * dedup column being nullable-and-unique only works if SQLite treats distinct NULLs as
+     * non-colliding; this pins that assumption against a regression to a non-nullable column.
+     */
+    @Test
+    public void eventsWithNoEventIdNeverCollideWithEachOther() throws JSONException {
+        assertEquals(1, db.addJSON(event("no-id-a"), EVENTS));
+        assertEquals(2, db.addJSON(event("no-id-b"), EVENTS));
+        assertEquals(3, db.addJSON(event("no-id-c"), EVENTS));
+
+        assertEquals(3, queued().length());
+    }
+
+    /** The dedup key must survive a process restart, or a redelivered event after a crash mid-flush would double-insert. */
+    @Test
+    public void theDedupKeySurvivesAcrossAdapterInstances() throws JSONException {
+        db.addJSON(eventWithId("abc-123"), EVENTS);
+
+        final EventDbAdapter reopened = new EventDbAdapter(context, DB, config);
+        assertEquals("the reopened adapter must still recognise the duplicate",
+                1, reopened.addJSON(eventWithId("abc-123"), EVENTS));
+
+        assertEquals(1, queued().length());
+    }
+
     private static void waitForTheClockToAdvancePast(long timestamp) {
         while (System.currentTimeMillis() <= timestamp) {
             Thread.yield();

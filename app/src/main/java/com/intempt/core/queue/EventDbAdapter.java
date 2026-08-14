@@ -56,6 +56,7 @@ import android.database.sqlite.SQLiteOpenHelper;
     public static final String KEY_DATA = "data";
     public static final String KEY_CREATED_AT = "created_at";
     public static final String KEY_AUTOMATIC_DATA = "automatic_data";
+    public static final String KEY_DEDUP_KEY = "dedup_key";
 
     public static final int ID_COLUMN_INDEX = 0;
     public static final int DATA_COLUMN_INDEX = 1;
@@ -70,15 +71,19 @@ import android.database.sqlite.SQLiteOpenHelper;
     private static final int MIN_DB_VERSION = 1;
 
     // If you increment DATABASE_VERSION, don't forget to define migration
-    private static final int DATABASE_VERSION = 1; // current database version
-    private static final int MAX_DB_VERSION = 1; // Max database version onUpdate can migrate to.
+    private static final int DATABASE_VERSION = 2; // current database version
+    private static final int MAX_DB_VERSION = 2; // Max database version onUpdate can migrate to.
 
 
     private static final String CREATE_EVENTS_TABLE =
        "CREATE TABLE " + Table.EVENTS.getName() + " (_id INTEGER PRIMARY KEY AUTOINCREMENT, " +
         KEY_DATA + " STRING NOT NULL, " +
         KEY_CREATED_AT + " INTEGER NOT NULL, " +
-        KEY_AUTOMATIC_DATA + " INTEGER DEFAULT 0)";
+        KEY_AUTOMATIC_DATA + " INTEGER DEFAULT 0, " +
+        // Nullable and UNIQUE: SQL treats every NULL as distinct from every other NULL, so
+        // rows with no dedup key (no eventId in their payload — see EventDedupKey) never
+        // collide with each other and always insert, exactly like before this column existed.
+        KEY_DEDUP_KEY + " TEXT UNIQUE)";
     private static final String EVENTS_TIME_INDEX =
         "CREATE INDEX IF NOT EXISTS time_idx ON " + Table.EVENTS.getName() +
         " (" + KEY_CREATED_AT + ");";
@@ -181,7 +186,16 @@ import android.database.sqlite.SQLiteOpenHelper;
             final ContentValues cv = new ContentValues();
             cv.put(KEY_DATA, j.toString());
             cv.put(KEY_CREATED_AT, System.currentTimeMillis());
-            db.insert(tableName, null, cv);
+            final String dedupKey = EventDedupKey.extract(j);
+            if (dedupKey != null) {
+                cv.put(KEY_DEDUP_KEY, dedupKey);
+            }
+            // CONFLICT_IGNORE rather than plain insert: a duplicate dedup key means this exact
+            // set of events is already queued (or already sent and awaiting cleanup), so the
+            // insert is silently skipped instead of throwing. Silent is correct here — a caller
+            // enqueuing the same event twice is not an error the queue needs to report, and the
+            // COUNT(*) below still reflects the true, deduplicated queue depth either way.
+            db.insertWithOnConflict(tableName, null, cv, SQLiteDatabase.CONFLICT_IGNORE);
 
             c = db.rawQuery("SELECT COUNT(*) FROM " + tableName, null);
             c.moveToFirst();

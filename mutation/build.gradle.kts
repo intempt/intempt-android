@@ -45,6 +45,7 @@ sourceSets {
             include("com/intempt/core/queue/QueueLog.java")
             include("com/intempt/core/queue/OfflineMode.java")
             include("com/intempt/core/queue/ProxyServerInteractor.java")
+            include("com/intempt/core/queue/EventDedupKey.java")
             include("android/util/Log.java")
         }
     }
@@ -58,6 +59,7 @@ sourceSets {
             include("com/intempt/core/queue/PureJvmQueueTest.java")
             include("com/intempt/core/queue/TrackPayloadBuilderPureTest.java")
             include("com/intempt/core/queue/QueueLogFallbackTest.java")
+            include("com/intempt/core/queue/EventDedupKeyPureTest.java")
         }
     }
 }
@@ -81,6 +83,7 @@ pitest {
             "com.intempt.core.queue.TrackPayloadBuilder*",
             "com.intempt.core.queue.QueueConfig*",
             "com.intempt.core.queue.QueueLog*",
+            "com.intempt.core.queue.EventDedupKey*",
         ),
     )
     targetTests.set(
@@ -89,6 +92,7 @@ pitest {
             "com.intempt.core.queue.PureJvmQueueTest",
             "com.intempt.core.queue.TrackPayloadBuilderPureTest",
             "com.intempt.core.queue.QueueLogFallbackTest",
+            "com.intempt.core.queue.EventDedupKeyPureTest",
         ),
     )
     threads.set(2)
