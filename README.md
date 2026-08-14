@@ -71,6 +71,51 @@ That's it. `Intempt.initialize(context)` automatically registers the device's FC
 handles incoming push notifications — no extra calls, and no need to declare any Firebase
 services in your manifest (the SDK provides them).
 
+## Configuration
+
+Create `src/main/assets/intempt-config.json`. The SDK reads it on `initialize()` and will refuse
+to start without valid credentials:
+
+```json
+{
+  "auth": {
+    "INTEMPT_API_KEY": "your-key-id.your-key-secret",
+    "INTEMPT_SOURCE_ID": "your-source-id",
+    "INTEMPT_ORGANIZATION_ID": "your-org",
+    "INTEMPT_PROJECT_ID": "your-project"
+  },
+  "options": {
+    "isLoggingEnabled": false,
+    "isTouchEnabled": true,
+    "isTextCaptureEnabled": true,
+    "isAutoCaptureEnabled": true,
+    "isQueueEnabled": true,
+    "useIpAddressForGeolocation": true,
+    "itemsInQueue": 5,
+    "timeBuffer": 5000
+  }
+}
+```
+
+Every `options` key is optional; the values above are the defaults.
+
+| Option | Type | Default | Meaning |
+|---|---|---|---|
+| `isLoggingEnabled` | boolean | `false` | Debug logging to logcat, tag `Intempt` |
+| `isTouchEnabled` | boolean | `true` | Touch event auto-capture |
+| `isTextCaptureEnabled` | boolean | `true` | Capture text/values on interaction |
+| `isAutoCaptureEnabled` | boolean | `true` | Screen and interaction auto-capture |
+| `isQueueEnabled` | boolean | `true` | Batch events rather than sending one at a time |
+| `useIpAddressForGeolocation` | boolean | `true` | Whether Intempt may derive geo from the request IP — see [Geolocation](#geolocation) |
+| `itemsInQueue` | int | `5` | Queued events that trigger a flush |
+| `timeBuffer` | long | `5000` | **Milliseconds** between batch sends — not seconds |
+
+The API key ships inside your APK and is extractable from any installed build. Use a key scoped
+to ingestion only.
+
+`:sample` generates this file at build time from `local.properties` or the environment, so the
+credentials never get committed. See `sample/build.gradle.kts` if you want the same for your app.
+
 ## Quick Start
 
 ```kotlin
@@ -88,6 +133,31 @@ Intempt.track("purchase_completed", mapOf(
 // Identify a user
 Intempt.identify("john@example.com", "login", mapOf("plan" to "pro"))
 ```
+
+## Using it from Java
+
+The public API is annotated with `@JvmStatic` and `@JvmOverloads`, so Java callers use the plain
+static form and get the overloads that Kotlin default arguments imply:
+
+```java
+public class MyApplication extends Application {
+    @Override public void onCreate() {
+        super.onCreate();
+
+        if (!Intempt.initialize(this)) {
+            // Analytics is off. Nothing else needs guarding.
+        }
+
+        Intempt.identify("john@example.com");                 // shortest overload
+        Intempt.identify("john@example.com", "login");         // and every arity between
+        Intempt.track("purchase_completed", Map.of("amount", "49.99"));
+        Intempt.Logging.start();                               // nested objects too
+    }
+}
+```
+
+No `Intempt.INSTANCE.` prefix is needed anywhere. `recommendation()` is a `suspend` function and
+needs a Kotlin caller or a coroutine bridge.
 
 ## Features
 
@@ -311,6 +381,19 @@ Exclude a specific view from automatic text capture. Call after the view is infl
 Intempt.doNotCaptureText(mySecretTextField)
 ```
 
+### Geolocation
+
+The SDK does not fetch, store or transmit the device's IP address.
+
+`useIpAddressForGeolocation` controls whether Intempt may derive city / region / country from the
+source IP of the requests it already receives. It defaults to `true`; set it to `false` in
+`intempt-config.json` and no geolocation happens at either end.
+
+Session events carry `deviceType`, `carrier` and `platform` in `userAttributes`. They no longer
+carry `ipAddress`, `city`, `region` or `country` — earlier versions fetched those from a
+third-party service on every session start. If you read those fields, see
+[docs/MIGRATION.md](docs/MIGRATION.md).
+
 ### Logging
 
 Toggle SDK debug logging.
@@ -378,14 +461,17 @@ Moving from `2.0.1`? See [docs/MIGRATION.md](docs/MIGRATION.md) for the breaking
 
 ## Documentation
 
-Full documentation: [docs.intempt.com](https://docs.intempt.com/docs/android-sdk)
+Full documentation: [docs.intempt.com/api/sdk/android](https://docs.intempt.com/api/sdk/android)
 
 ## Requirements
 
 - **Android API 23+** (Android 6.0). Verified by an instrumented suite that runs on an
   API 23 emulator in CI, not only on the current target — three crashes that were invisible
   above the floor shipped before that gate existed.
-- Kotlin
+- **compileSdk / targetSdk 35**, both set explicitly on the library module.
+- **Kotlin or Java.** The public API is annotated for Java interop — see
+  [Using it from Java](#using-it-from-java). `recommendation()` is the one exception; it is a
+  `suspend` function.
 
 ## For devs
 
