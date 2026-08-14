@@ -430,11 +430,11 @@ public final class com/intempt/core/services/UtilsService_Factory : dagger/inter
 }
 
 public final class com/intempt/core/services/eventPool/EventPoolManagerService_Factory : dagger/internal/Factory {
-	public fun <init> (Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;)V
-	public static fun create (Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;)Lcom/intempt/core/services/eventPool/EventPoolManagerService_Factory;
+	public fun <init> (Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;)V
+	public static fun create (Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;)Lcom/intempt/core/services/eventPool/EventPoolManagerService_Factory;
 	public fun get ()Lcom/intempt/core/services/eventPool/EventPoolManagerService;
 	public synthetic fun get ()Ljava/lang/Object;
-	public static fun newInstance (Lcom/intempt/core/services/ConfigManagerService;Lcom/intempt/core/services/LoggerManagerService;Lcom/intempt/core/services/HttpManagerService;Lcom/intempt/core/services/IntemptEventManagerService;Lcom/intempt/core/queue/DeliveryMessages;Lkotlinx/coroutines/CoroutineDispatcher;)Lcom/intempt/core/services/eventPool/EventPoolManagerService;
+	public static fun newInstance (Lcom/intempt/core/services/ConfigManagerService;Lcom/intempt/core/services/LoggerManagerService;Lcom/intempt/core/services/HttpManagerService;Lcom/intempt/core/services/IntemptEventManagerService;Lcom/intempt/core/queue/DeliveryMessages;Lkotlinx/coroutines/CoroutineDispatcher;Lcom/intempt/core/queue/ConsentAuditLog;)Lcom/intempt/core/services/eventPool/EventPoolManagerService;
 }
 
 public final class com/intempt/core/services/firebase/model/PushNotificationMetadata$Creator : android/os/Parcelable$Creator {
