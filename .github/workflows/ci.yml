@@ -92,7 +92,7 @@ jobs:
       # entry point. All three API-level crashes fixed on this branch are reachable from
       # initialize() plus one tracking call, and none were caught by the library's own
       # unit tests, because those never start the SDK.
-      - name: Run sample app tests (SDK in a host app, API 24 + 34)
+      - name: Run sample app tests (SDK in a host app, JVM at API 24 + 34)
         run: ./gradlew :sample:testDebugUnitTest --stacktrace
 
       - name: Upload test report

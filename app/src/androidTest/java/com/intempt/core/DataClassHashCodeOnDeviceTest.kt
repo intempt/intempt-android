@@ -5,7 +5,7 @@ import com.intempt.core.eventModels.ScreenViewEvent
 import com.intempt.core.eventModels.SessionEvent
 import com.intempt.core.eventModels.SessionUserAttributes
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNotEquals
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -51,16 +51,17 @@ class DataClassHashCodeOnDeviceTest {
                     SessionUserAttributes(deviceType = "phone", carrier = "", platform = "android"),
             )
 
-        // The call itself is the test: on an unpatched API 23 this throws NoSuchMethodError.
+        // The call itself is the assertion: on an API 23 without D8's backport this throws
+        // NoSuchMethodError. There is deliberately no assertNotNull on the result — hashCode()
+        // returns an Int, which cannot be null, so such an assertion could never fail. Writing one
+        // here would be the same empty-assertion mistake this whole test exists to guard against.
         val hash = event.hashCode()
 
-        assertNotNull(
-            "hashCode() must not throw at API ${android.os.Build.VERSION.SDK_INT} — if it did, the " +
-                "Long.hashCode(long) AnimalSniffer exclusion is unsafe and the SDK is broken on this " +
-                "Android version",
+        assertEquals(
+            "hashCode must be stable across calls at API ${android.os.Build.VERSION.SDK_INT}",
             hash,
+            event.hashCode(),
         )
-        assertEquals("hashCode must be stable across calls", hash, event.hashCode())
     }
 
     /** A nullable Long, which generates a slightly different hashCode path. */
@@ -79,9 +80,16 @@ class DataClassHashCodeOnDeviceTest {
                 timeOnScreen = timeOnScreen,
             )
 
-        assertNotNull(screenView(4_200L).hashCode())
-        assertNotNull("the null branch generates its own path", screenView(null).hashCode())
+        // Both calls are the assertion; the null branch generates its own bytecode path. Compared
+        // for equality rather than non-nullity, since an Int is never null.
         assertEquals(screenView(4_200L).hashCode(), screenView(4_200L).hashCode())
+        assertEquals(screenView(null).hashCode(), screenView(null).hashCode())
+        assertNotEquals(
+            "a different timeOnScreen must produce a different hash, or the field is not in the " +
+                "generated hashCode at all and this test would pass without exercising it",
+            screenView(4_200L).hashCode(),
+            screenView(null).hashCode(),
+        )
     }
 
     /** equals() shares the generated primitive comparisons, so it is exercised too. */
