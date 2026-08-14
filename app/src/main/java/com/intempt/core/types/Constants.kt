@@ -1,6 +1,6 @@
 package com.intempt.core.types
 
-object Constants {
+internal object Constants {
     object CHANGE {
         val EVENT_NAME = "Change event"
         val ENTITY_NAME = "changeEvent"

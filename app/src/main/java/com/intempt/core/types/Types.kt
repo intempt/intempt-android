@@ -94,19 +94,18 @@ internal data class RecommendationBody(
     val productId: String?,
 )
 
-// Public types
-sealed class AutoCaptureParam
+internal sealed class AutoCaptureParam
 
-data class UiEventProps(val activity: Activity, val view: View, val listenerType: String) : AutoCaptureParam()
+internal data class UiEventProps(val activity: Activity, val view: View, val listenerType: String) : AutoCaptureParam()
 
-data class ScreenEventProps(
+internal data class ScreenEventProps(
     val activity: Activity,
     val eventName: String,
     val entityName: String,
     val eventType: String,
 ) : AutoCaptureParam()
 
-data class Product(
+internal data class Product(
     val productId: String,
     val quantity: Int? = null,
 )
