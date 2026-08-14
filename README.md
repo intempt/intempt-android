@@ -364,6 +364,18 @@ It is also a test target. `:sample:testDebugUnitTest` boots the SDK on the JVM a
 back out of the on-device queue — including that a password typed into a real `EditText`
 never reaches it. Both run in CI on every pull request.
 
+## Usage recipes
+
+The API Reference above documents each call in isolation. For realistic, multi-step flows —
+consent-gated tracking, a full ecommerce funnel, rendering a recommendation feed with error
+handling — see [docs/RECIPES.md](docs/RECIPES.md).
+
+## Upgrading
+
+Moving from `2.0.1`? See [docs/MIGRATION.md](docs/MIGRATION.md) for the breaking changes in
+`3.0.0` and how to update your code, including a required change if you construct
+`SessionUserAttributes` or read geo fields off it.
+
 ## Documentation
 
 Full documentation: [docs.intempt.com](https://docs.intempt.com/docs/android-sdk)
