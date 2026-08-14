@@ -12,10 +12,34 @@ plugins {
     id("jacoco")
     alias(libs.plugins.ktlint)
     alias(libs.plugins.animalsniffer)
+    alias(libs.plugins.dokka)
 }
 
 jacoco {
     toolVersion = "0.8.12"
+}
+
+// Generates an HTML API reference from the KDoc already on com.intempt.core.Intempt and its
+// nested Logging/Tracking objects. Local-only for now (see CONTRIBUTING.md "Generating API
+// docs"); not wired into CI or publish.yml — there is no hosting target for it yet, and adding
+// one is a separate decision from having the docs.
+//
+// Run: ./gradlew :app:dokkaHtml   (output: app/build/dokka/html/index.html)
+tasks.dokkaHtml.configure {
+    moduleName.set("Intempt Android SDK")
+    dokkaSourceSets.configureEach {
+        // The public surface is com.intempt.core.Intempt (and its nested Logging/Tracking
+        // objects); everything else is internal implementation (queue, delivery, autocapture)
+        // living in subpackages, which stay suppressed below.
+        perPackageOption {
+            matchingRegex.set(""".*""")
+            suppress.set(true)
+        }
+        perPackageOption {
+            matchingRegex.set("""com\.intempt\.core""")
+            suppress.set(false)
+        }
+    }
 }
 
 // API-compatibility gate, checked against the android-api-level-23 signature rather than inferred.

@@ -27,6 +27,19 @@ fail the build; existing ones are tracked against a shrinking baseline in
 - A test that can't fail is worse than no test — if you can comment out the code under test
   and the test still passes, it isn't asserting anything real.
 
+## Generating API docs
+
+The public surface (`com.intempt.core.Intempt` and its nested `Logging`/`Tracking` objects) is
+fully KDoc'd. Render it to browsable HTML with Dokka:
+
+```bash
+./gradlew :app:dokkaHtml
+```
+
+Output lands at `app/build/dokka/html/index.html` — open it directly in a browser. This is
+local-only for now: it isn't wired into CI or `publish.yml`, since there's no hosting target
+for it yet.
+
 ## Public API changes
 
 `com.intempt.core.Intempt` is the SDK's entire public surface. Any change to it:
