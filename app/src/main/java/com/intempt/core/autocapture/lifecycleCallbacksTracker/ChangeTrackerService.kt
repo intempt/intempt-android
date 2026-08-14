@@ -64,7 +64,7 @@ internal open class ChangeTrackerService
                     is RecyclerView -> {
                         val layoutManager = view.layoutManager
                         for (j in 0 until view.childCount) {
-                            val childView = layoutManager?.getChildAt(i)
+                            val childView = layoutManager?.getChildAt(j)
                             if (childView != null) {
                                 findAndRegisterChangeEvent(view, activity)
                             }
