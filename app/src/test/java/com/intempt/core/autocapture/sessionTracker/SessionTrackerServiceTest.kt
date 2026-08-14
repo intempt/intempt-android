@@ -109,17 +109,43 @@ class SessionTrackerServiceTest {
         verify(eventPool, times(1)).dispatchEvent(any(), eq("SessionTrackerService"))
     }
 
+    /**
+     * The boundary is `>`, so a session that has NOT exceeded the timeout stays alive.
+     *
+     * Rewritten because the previous version was flaky and tested nothing. It read the clock
+     * twice and asserted the difference was not greater than the timeout:
+     *
+     *     val now = System.currentTimeMillis()
+     *     val elapsed = System.currentTimeMillis() - (now - SESSION_TIMEOUT)
+     *     assertFalse(elapsed > SESSION_TIMEOUT)
+     *
+     * `elapsed` is `SESSION_TIMEOUT` plus however long passed between the two reads, so it passed
+     * only when zero milliseconds elapsed between two statements — which held locally and failed
+     * on CI. It also never called production code; it recomputed the comparison inside the test,
+     * so it would have kept passing if `onInit` had stopped checking the timeout entirely.
+     *
+     * This asserts the observable behaviour instead, on the same side of the boundary, with a
+     * margin no scheduler delay can cross. Testing the exact millisecond needs an injectable
+     * clock in SessionTrackerService; there is no seam for one today, and adding it is a
+     * production change rather than a test fix.
+     */
     @Test
-    fun `exactly at the timeout boundary the session is treated as still active`() {
-        // currentTimestamp - sessionTime == SESSION_TIMEOUT uses a strict `>` comparison, so the
-        // exact boundary must NOT restart the session.
-        val now = System.currentTimeMillis()
-        stubSessionTime(now - Constants.SESSION.SESSION_TIMEOUT)
+    fun `a session just inside the timeout is kept alive rather than restarted`() {
+        // One second short of the timeout. The old test aimed at exactly the boundary and hit a
+        // race; a second of headroom is unreachable by execution jitter and still exercises the
+        // not-yet-expired branch.
+        stubSessionTime(System.currentTimeMillis() - (Constants.SESSION.SESSION_TIMEOUT - 1_000L))
 
-        // Freeze "now" indirectly isn't possible without a clock seam, so instead assert the
-        // documented boundary semantics directly on the same comparison the production code uses.
-        val elapsed = System.currentTimeMillis() - (now - Constants.SESSION.SESSION_TIMEOUT)
-        assertFalse("exactly at the timeout must not itself count as expired", elapsed > Constants.SESSION.SESSION_TIMEOUT)
+        runBlocking { service.onInit() }
+
+        // Kept alive: the timestamp is refreshed, no new session id, no start event.
+        val valueCaptor = argumentCaptor<Any>()
+        verify(storage, times(1)).setStorageItem(any(), any(), valueCaptor.capture(), any())
+        assertTrue(
+            "a session inside the window must only refresh its timestamp",
+            valueCaptor.firstValue is Long,
+        )
+        verify(eventPool, never()).dispatchEvent(any(), any())
     }
 
     @Test
