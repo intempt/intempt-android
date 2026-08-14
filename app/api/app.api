@@ -324,6 +324,7 @@ public class com/intempt/core/queue/QueueConfig {
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Z)V
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ZIJ)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ZIJLjavax/net/ssl/SSLSocketFactory;)V
 	public fun getAuthorization ()Ljava/lang/String;
 	public fun getBackupHost ()Ljava/lang/String;
 	public fun getBulkUploadLimit ()I
