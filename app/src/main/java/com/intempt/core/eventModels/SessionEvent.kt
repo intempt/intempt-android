@@ -42,14 +42,8 @@ internal data class SessionEvent(
                 "deviceType" to userAttributes.deviceType,
                 "carrier" to userAttributes.carrier,
                 "platform" to userAttributes.platform,
-                "ipAddress" to userAttributes.ipAddress,
-                "region" to userAttributes.region,
-                "country" to userAttributes.country,
-                "city" to userAttributes.city
-            )
+            ),
         )
-
-
     }
 
     override fun toString(): String {
@@ -71,11 +65,7 @@ internal data class SessionEvent(
             userAttributes: {
                 deviceType: ${userAttributes.deviceType},
                 carrier: ${userAttributes.carrier},
-                platform: ${userAttributes.platform},
-                ipAddress: ${userAttributes.ipAddress},
-                region: ${userAttributes.region},
-                country: ${userAttributes.country},
-                city: ${userAttributes.city}
+                platform: ${userAttributes.platform}
             }
         }
     """

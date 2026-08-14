@@ -11,7 +11,6 @@ import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Build
-import android.util.Log
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
@@ -41,13 +40,20 @@ class FirebaseService : FirebaseMessagingService() {
     // push handling, which is the only thing that needs Jackson.
     val mapper by lazy { jacksonObjectMapper() }
 
-    companion object {
-        private const val TAG = "FCM"
-    }
+    /**
+     * The SDK's logger, lazily built for the same reason [mapper] is: this class is constructed
+     * eagerly as part of the core graph, and a host app with no Firebase configured never reaches
+     * any of these paths.
+     *
+     * <p>Every log line in this file used to call `android.util.Log` directly, which meant push
+     * handling ignored `Intempt.Logging.stop()` entirely — a customer who turned logging off still
+     * got push diagnostics in logcat.
+     */
+    private val logger by lazy { LoggerManagerService(ConfigManagerService(this)) }
 
     override fun onMessageReceived(remoteMessage: RemoteMessage) {
         super.onMessageReceived(remoteMessage)
-        Log.d(TAG, "Received message from=${remoteMessage.from} messageId=${remoteMessage.messageId}")
+        logger.debug("[FCM] Received message from=${remoteMessage.from} messageId=${remoteMessage.messageId}")
 
         // An Intempt push always carries a "content" entry in the FCM data payload.
         // Any other message — a plain notification message, a different sender, or a
@@ -55,9 +61,8 @@ class FirebaseService : FirebaseMessagingService() {
         // never crash the host app on an unexpected message.
         val contentJson = remoteMessage.data["content"]
         if (contentJson == null) {
-            Log.i(
-                TAG,
-                "Ignoring non-Intempt message (no 'content' data field). " +
+            logger.info(
+                "[FCM] Ignoring non-Intempt message (no 'content' data field). " +
                     "data=${remoteMessage.data} notificationTitle=${remoteMessage.notification?.title}",
             )
             return
@@ -67,7 +72,7 @@ class FirebaseService : FirebaseMessagingService() {
             try {
                 mapper.readValue<PushNotificationContent>(contentJson)
             } catch (e: Exception) {
-                Log.e(TAG, "Ignoring Intempt push: could not parse content=$contentJson", e)
+                logger.error("[FCM] Ignoring Intempt push: could not parse content=$contentJson", e)
                 return
             }
 
@@ -78,7 +83,7 @@ class FirebaseService : FirebaseMessagingService() {
                 try {
                     mapper.readValue<PushNotificationMetadata>(metaJson)
                 } catch (e: Exception) {
-                    Log.e(TAG, "Could not parse metadata=$metaJson; rendering without tracking", e)
+                    logger.error("[FCM] Could not parse metadata=$metaJson; rendering without tracking", e)
                     null
                 }
             }
@@ -97,10 +102,10 @@ class FirebaseService : FirebaseMessagingService() {
                         PushNotificationWebhookRequest.WebhookType.DELIVERED,
                         metadata,
                     )
-                Log.d(TAG, "Tracking push as delivered")
+                logger.debug("[FCM] Tracking push as delivered")
                 webhookService.sendPushNotificationWebhook(mapper.valueToTree(deliveredWebhookRequest))
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to build/send delivered webhook; rendering anyway", e)
+                logger.error("[FCM] Failed to build/send delivered webhook; rendering anyway", e)
             }
         }
 
@@ -117,7 +122,7 @@ class FirebaseService : FirebaseMessagingService() {
      */
     override fun onNewToken(token: String) {
         super.onNewToken(token)
-        Log.d(TAG, "FCM token rotated, reporting it")
+        logger.debug("[FCM] FCM token rotated, reporting it")
         this.token = token
 
         try {
@@ -138,17 +143,17 @@ class FirebaseService : FirebaseMessagingService() {
             )
         } catch (e: Throwable) {
             // Never let a token report crash the messaging service.
-            Log.e(TAG, "Could not report the rotated FCM token", e)
+            logger.error("[FCM] Could not report the rotated FCM token", e)
         }
     }
 
     suspend fun initializeToken(): String {
         return try {
             val token = FirebaseMessaging.getInstance().token.await()
-            Log.d("FCM", "FCM Token: $token")
+            logger.debug("[FCM] FCM Token: $token")
             token
         } catch (e: Exception) {
-            Log.w("FCM", "Fetching FCM registration token failed", e)
+            logger.error("[FCM] Fetching FCM registration token failed", e)
             throw e
         }
     }
@@ -159,9 +164,9 @@ class FirebaseService : FirebaseMessagingService() {
         metadata: PushNotificationMetadata?,
         webhookService: WebhookService,
     ) {
-        Log.d("FCM", "Notification was received")
-        Log.d("FCM", "Metadata is: $metadata")
-        Log.d("FCM", "Content is: $content")
+        logger.debug("[FCM] Notification was received")
+        logger.debug("[FCM] Metadata is: $metadata")
+        logger.debug("[FCM] Content is: $content")
 
         val channelId = "default_channel"
 
@@ -178,11 +183,11 @@ class FirebaseService : FirebaseMessagingService() {
         val intentTest: Intent =
             when {
                 !content.webUrl.isNullOrBlank() -> {
-                    Log.d("FCM", "Creating VIEW intent for ${content.webUrl}")
+                    logger.debug("[FCM] Creating VIEW intent for ${content.webUrl}")
                     Intent(Intent.ACTION_VIEW, Uri.parse(content.webUrl))
                 }
                 else -> {
-                    Log.d("FCM", "Creating launch intent for package")
+                    logger.debug("[FCM] Creating launch intent for package")
                     context.packageManager.getLaunchIntentForPackage(context.packageName) ?: Intent()
                 }
             }
@@ -272,9 +277,9 @@ class FirebaseService : FirebaseMessagingService() {
         with(NotificationManagerCompat.from(context)) {
             if (notificationsAllowed(context)) {
                 notify(notificationId, builder.build())
-                Log.d("FCM", "Notification shown with ID: $notificationId")
+                logger.debug("[FCM] Notification shown with ID: $notificationId")
             } else {
-                Log.w("FCM", "Notifications are disabled for this app. Tracking as bounced.")
+                logger.warn("[FCM] Notifications are disabled for this app. Tracking as bounced.")
                 metadata?.let {
                     val bouncedWebhookRequest =
                         PushNotificationWebhookRequest(

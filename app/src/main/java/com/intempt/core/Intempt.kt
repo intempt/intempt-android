@@ -31,6 +31,7 @@ object Intempt {
     private var intemptCore: IntemptCoreService? = null
 
     /** True once [initialize] has completed successfully. */
+    @JvmStatic
     val isInitialized: Boolean
         get() = intemptCore != null
 
@@ -41,6 +42,7 @@ object Intempt {
      *   every failure, so a host app had no way at all to tell a working SDK from a dead
      *   one — the only signal was a printed line on stdout.
      */
+    @JvmStatic
     fun initialize(context: Context): Boolean {
         if (isInitialized) {
             Log.i(TAG, "Already initialized; ignoring this call")
@@ -53,6 +55,25 @@ object Intempt {
                     .create(IntemptCoreModule(context))
 
             component.inject(this)
+
+            // Credentials are read lazily, so Dagger wires up perfectly against a config asset
+            // that does not exist. Before this check, initialize() returned true for an app with
+            // no intempt-config.json at all: the SDK reported itself healthy, queued events, and
+            // posted them with no Authorization header, so every batch 401'd and was dropped.
+            //
+            // The whole reason this function returns a Boolean is that it used to return Unit and
+            // a host app had no way to tell a working SDK from a dead one. Returning true here
+            // made that signal a lie.
+            val config = component.config()
+            if (!config.isConfigured) {
+                Log.e(
+                    TAG,
+                    "Initialization failed: intempt-config.json is missing or incomplete " +
+                        "(no ${config.missingCredentials().joinToString(", ")}). The SDK is " +
+                        "disabled and all calls are no-ops. Add the file to src/main/assets.",
+                )
+                return false
+            }
 
             intemptCore = component.initService()
         } catch (e: Throwable) {
@@ -90,6 +111,8 @@ object Intempt {
         return core
     }
 
+    @JvmStatic
+    @JvmOverloads
     fun identify(
         userId: String,
         eventTitle: String? = null,
@@ -99,6 +122,8 @@ object Intempt {
         core("identify")?.capture?.identify(userId, eventTitle, userAttributes, data)
     }
 
+    @JvmStatic
+    @JvmOverloads
     fun group(
         accountId: String,
         eventTitle: String? = null,
@@ -107,6 +132,7 @@ object Intempt {
         core("group")?.capture?.group(accountId, eventTitle, accountAttributes)
     }
 
+    @JvmStatic
     fun track(
         eventTitle: String,
         data: Map<String, String>,
@@ -114,6 +140,8 @@ object Intempt {
         core("track")?.capture?.track(eventTitle, data)
     }
 
+    @JvmStatic
+    @JvmOverloads
     fun record(
         eventTitle: String,
         accountId: String? = null,
@@ -132,6 +160,7 @@ object Intempt {
         )
     }
 
+    @JvmStatic
     fun alias(
         userId: String,
         anotherUserId: String,
@@ -139,6 +168,8 @@ object Intempt {
         core("alias")?.capture?.alias(userId, anotherUserId)
     }
 
+    @JvmStatic
+    @JvmOverloads
     fun consent(
         action: String,
         validUntil: Long,
@@ -149,6 +180,7 @@ object Intempt {
         core("consent")?.capture?.consent(action, validUntil, email, message, category)
     }
 
+    @JvmStatic
     fun productAdd(
         productId: String,
         quantity: Int,
@@ -156,14 +188,17 @@ object Intempt {
         core("productAdd")?.capture?.productAdd(productId, quantity)
     }
 
+    @JvmStatic
     fun productOrdered(products: List<Map<String, Any>>) {
         core("productOrdered")?.capture?.productOrdered(products)
     }
 
+    @JvmStatic
     fun productView(productId: String) {
         core("productView")?.capture?.productView(productId)
     }
 
+    @JvmStatic
     suspend fun recommendation(
         id: String,
         quantity: Int,
@@ -171,37 +206,45 @@ object Intempt {
         productId: String?,
     ): JsonObject? = core("recommendation")?.capture?.recommendation(id, quantity, fields, productId)
 
+    @JvmStatic
     fun logOut() {
         core("logOut")?.capture?.logOut()
     }
 
+    @JvmStatic
     fun doNotCaptureText(view: View) {
         core("doNotCaptureText")?.capture?.doNotCaptureText(view)
     }
 
     object Logging {
+        @JvmStatic
         fun start() {
             core("Logging.start")?.capture?.enableLogging()
         }
 
+        @JvmStatic
         fun stop() {
             core("Logging.stop")?.capture?.disableLogging()
         }
 
         /** False when the SDK is not initialized. */
+        @JvmStatic
         fun isLoggingEnabled(): Boolean = core("Logging.isLoggingEnabled")?.capture?.isLoggingEnabled() ?: false
     }
 
     object Tracking {
+        @JvmStatic
         fun start() {
             core("Tracking.start")?.capture?.optIn()
         }
 
+        @JvmStatic
         fun stop() {
             core("Tracking.stop")?.capture?.optOut()
         }
 
         /** False when the SDK is not initialized. */
+        @JvmStatic
         fun isTrackingEnabled(): Boolean = core("Tracking.isTrackingEnabled")?.capture?.isTrackingEnabled() ?: false
     }
 }

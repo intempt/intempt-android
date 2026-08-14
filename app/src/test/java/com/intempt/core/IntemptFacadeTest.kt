@@ -5,10 +5,7 @@ import androidx.test.core.app.ApplicationProvider
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
-import org.junit.Assert.assertSame
-import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -60,87 +57,45 @@ class IntemptFacadeTest {
     }
 
     /**
-     * A finding, pinned rather than fixed here because changing it changes public API behaviour.
+     * A missing config asset must be reported, not swallowed.
      *
-     * There is no intempt-config.json anywhere in this module — no assets directory at all — and
-     * `initialize` still returns true. The credentials are read lazily on first use, so Dagger
-     * wires up a core object successfully against a config that does not exist.
+     * <p>This test used to assert the opposite, pinning the bug: credentials are read lazily, so
+     * Dagger wired up happily against an intempt-config.json that does not exist and initialize()
+     * returned true. An app shipped without the asset in some build flavour was told it was
+     * healthy, queued events, and posted them with no Authorization header — every batch 401'd and
+     * was dropped, with no failure anywhere.
      *
-     * The contract says "true when the SDK is running", and the reason it returns a Boolean at all
-     * is that it previously returned Unit and a host app had no way to tell a working SDK from a
-     * dead one. That signal is still not reliable: an app shipped without the config asset in some
-     * build flavour gets `true`, reports itself healthy, and drops every event.
+     * <p>The whole reason initialize() returns a Boolean is that it used to return Unit and a host
+     * app had no way to tell a working SDK from a dead one. Returning true here made that signal a
+     * lie. initialize() now checks that all four credentials were resolved.
      *
-     * Pinned as-is so the current behaviour is at least stated somewhere. Making initialize
-     * validate the config eagerly is the fix, and it is an API behaviour change that belongs in
-     * its own PR with Beso's call on it — not folded into a coverage branch.
+     * <p>There is no assets directory in this module, which is what makes this the real
+     * misconfigured-customer case rather than a simulation of one.
      */
     @Test
-    fun `initialize succeeds even with no config asset present`() {
+    fun `initialize fails when the config asset is missing`() {
         val started = Intempt.initialize(ApplicationProvider.getApplicationContext())
 
-        assertTrue(
-            "documenting current behaviour: initialize does not validate that credentials exist",
-            started,
-        )
-        assertTrue("and the SDK then reports itself ready", Intempt.isInitialized)
+        assertFalse("a missing config must be reported, not swallowed", started)
+        assertFalse("a failed initialize must not leave the SDK looking ready", Intempt.isInitialized)
     }
 
-    /**
-     * Initializing twice must be a no-op rather than rebuilding the object graph.
-     *
-     * <p>Asserted by object identity. Checking the return value twice proves nothing: deleting the
-     * `if (isInitialized) return true` guard makes every call rebuild Dagger and still return true,
-     * so the old version of this test passed against exactly the regression it was named for.
-     * A rebuilt graph would also orphan the previous core's worker threads.
-     */
+    /** A failed initialize must be repeatable without throwing, and must keep reporting failure. */
     @Test
-    fun `initialize is safe to call more than once`() {
+    fun `a failed initialize can be retried and still reports failure`() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
 
-        assertTrue(Intempt.initialize(context))
-        val afterFirst = coreInstance()
-        assertNotNull("the SDK must hold a core after a successful initialize", afterFirst)
-
-        assertTrue("a repeated call must not report a different state", Intempt.initialize(context))
-
-        assertSame(
-            "the second initialize rebuilt the object graph instead of returning early, which " +
-                "orphans the first core's worker threads",
-            afterFirst,
-            coreInstance(),
-        )
+        assertFalse(Intempt.initialize(context))
+        assertFalse("the second attempt must not report success", Intempt.initialize(context))
+        assertFalse(Intempt.isInitialized)
     }
 
-    /** The core the facade is currently holding, or null. */
-    private fun coreInstance(): Any? {
-        val field = Intempt::class.java.getDeclaredField("intemptCore")
-        field.isAccessible = true
-        return field.get(Intempt)
-    }
-
-    /**
-     * The toggles must actually reach the core, not merely return a safe constant.
-     *
-     * <p>`assertFalse(isLoggingEnabled())` against an uninitialized SDK cannot tell the guard from
-     * a hardcoded `false` — replacing the whole delegation with `= false` passed it. Driving the
-     * value from an initialized SDK is what pins that the call is wired through.
-     */
-    @Test
-    fun `the toggles reflect real state once initialized`() {
-        Intempt.initialize(ApplicationProvider.getApplicationContext())
-        assertTrue("this test needs a live SDK to mean anything", Intempt.isInitialized)
-
-        Intempt.Logging.start()
-        assertTrue("start() must reach the core, not return a constant", Intempt.Logging.isLoggingEnabled())
-        Intempt.Logging.stop()
-        assertFalse("stop() must reach the core", Intempt.Logging.isLoggingEnabled())
-
-        Intempt.Tracking.start()
-        assertTrue("start() must reach the core", Intempt.Tracking.isTrackingEnabled())
-        Intempt.Tracking.stop()
-        assertFalse("stop() must reach the core", Intempt.Tracking.isTrackingEnabled())
-    }
+    // The once-only guard and the toggle round-trip both need a genuinely initialized SDK, which
+    // needs a real config asset. They live in sample/src/androidTest/SdkOnDeviceTest.kt, where the
+    // host app has one — see `initializeIsIdempotent` and `theTogglesReflectRealStateOnDevice`.
+    // Asserting them here against an SDK that cannot initialize would pass vacuously: assertSame
+    // on two nulls succeeds, and assertFalse on a toggle is true whether the guard works or the
+    // value is hardcoded.
 
     // ------------------------------------------------- every entry point, unarmed
 

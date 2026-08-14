@@ -45,6 +45,24 @@ jobs:
             echo "RELEASE_VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
           fi
 
+      # A tag with no changelog entry is how this SDK reached 2.0.1 with no changelog at all. The
+      # workflow already resolved RELEASE_VERSION above, so the check costs nothing and runs before
+      # anything is uploaded — a staged deployment is awkward to retract, an early exit is not.
+      - name: Refuse to publish a version with no CHANGELOG entry
+        run: |
+          set -euo pipefail
+          if [ ! -f CHANGELOG.md ]; then
+            echo "::error::CHANGELOG.md is missing. See RELEASING.md step 2."
+            exit 1
+          fi
+          if ! grep -qE "^## \\[${RELEASE_VERSION}\\]" CHANGELOG.md; then
+            echo "::error::CHANGELOG.md has no '## [${RELEASE_VERSION}]' heading. Move the Unreleased section under it before tagging — see RELEASING.md step 2."
+            echo "Headings currently present:"
+            grep -E "^## " CHANGELOG.md || true
+            exit 1
+          fi
+          echo "CHANGELOG.md documents ${RELEASE_VERSION}."
+
       - name: Publish to Maven Central (staged deployment)
         run: |
           chmod +x ./gradlew

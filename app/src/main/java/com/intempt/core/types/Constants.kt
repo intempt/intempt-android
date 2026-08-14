@@ -43,7 +43,6 @@ object Constants {
         val SECONDS_PER_MINUTE = 60;
         val MILLISECONDS_PER_SECOND = 1000L;
         val SESSION_TIMEOUT = MINUTE_STEP * SECONDS_PER_MINUTE * MILLISECONDS_PER_SECOND
-        val LOCATON_API = "https://ipapi.co/json/"
     }
 
     object INSTALL_UPGRADE {

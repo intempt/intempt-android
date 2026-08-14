@@ -12,15 +12,10 @@ import com.intempt.core.types.Constants
 import com.intempt.core.types.DispatchEventProps
 import com.intempt.core.types.IdTypeKeys
 import com.intempt.core.types.StorageKeys
-import io.ktor.client.statement.HttpResponse
-import io.ktor.client.statement.bodyAsText
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -38,12 +33,8 @@ internal class SessionTrackerService
         private val dispatcher: CoroutineDispatcher = Dispatchers.IO,
     ) : BaseComponent(logger) {
         private var coroutineJob: Job? = null
-        private var ip: String = ""
-        private var city: String = ""
-        private var region: String = ""
-        private var country: String = ""
 
-        suspend fun onInit()  {
+        suspend fun onInit() {
             val sessionTime = getSessionTime()
             val currentTimestamp = System.currentTimeMillis()
 
@@ -71,17 +62,15 @@ internal class SessionTrackerService
             logger.log("SessionTrackerService | Started collecting events")
             eventPool.subscribe(Job()) { value ->
                 logger.log("SessionTrackerService | Received event type ${value.getEventType()}")
-                if (value.getEventType() != Constants.SESSION.EVENT_TYPE)
-                    {
-                        validateSession(value)
-                    }
+                if (value.getEventType() != Constants.SESSION.EVENT_TYPE) {
+                    validateSession(value)
+                }
             }
         }
 
         private suspend fun runSessionStart() =
             withContext(dispatcher) {
                 logger.log("SessionTrackerService | Run session in start")
-                val locationInfo = getLocationInfo() // run async location fetching if needed
                 dispatchEvent("Session start")
             }
 
@@ -96,24 +85,27 @@ internal class SessionTrackerService
 //        }
 //    }
 
-        suspend fun getLocationInfo() {
-            logger.log("SessionTrackerService | Get Location")
-            withContext(dispatcher) {
-                try {
-                    val response: HttpResponse = http.get(Constants.SESSION.LOCATON_API)
-                    val locationInfo = response.bodyAsText()
-
-                    val jsonElement = Json.parseToJsonElement(locationInfo).jsonObject
-
-                    ip = jsonElement["ip"]?.jsonPrimitive?.content ?: ""
-                    region = jsonElement["region"]?.jsonPrimitive?.content ?: ""
-                    city = jsonElement["city"]?.jsonPrimitive?.content ?: ""
-                    country = jsonElement["country_name"]?.jsonPrimitive?.content ?: ""
-                } catch (e: Exception) {
-                    logger.error("getLocationInfo Error: ${e.message}")
-                }
-            }
-        }
+        // getLocationInfo() used to live here. It called ipapi.co on every session start, read back
+        // the device's public IP plus city/region/country, and attached all four to the payload.
+        //
+        // Removed, matching mixpanel-android. Three separate problems, not one:
+        //
+        //   - It sent the device's IP to a third party on every session start. Mixpanel makes no
+        //     third-party call at all; its server derives geo from the source IP of the request it
+        //     already receives (MPConfig.getEndPointWithIpTrackingParam appends ?ip=1, one query
+        //     param, and that is the entire mechanism).
+        //   - It ran regardless of consent. Every other capture path in this SDK checks
+        //     config.isUserOptIn; this one uniquely did not, so an opted-out user's device still
+        //     called out.
+        //   - There was no consumer switch and no sub-processor disclosure. Mixpanel ships
+        //     setUseIpAddressForGeolocation(boolean) plus a manifest key, defaulting to on.
+        //
+        // Geo is now server-derived: the ?ip= parameter on the events endpoint tells the platform
+        // whether to geolocate from the request. See ConfigManagerService.eventsUrl.
+        //
+        // NOTE FOR THE PLATFORM: this depends on ingestion honouring ?ip= and deriving
+        // city/region/country from the request IP. Until that ships, session events carry no geo.
+        // Tracked separately from this SDK change.
 
         private fun initSessionInStorage() {
             logger.log("SessionTrackerService | Initialize Session in storage")
@@ -125,10 +117,6 @@ internal class SessionTrackerService
             val newEvent =
                 intemptEvent.generateSessionEventPayload(
                     sessionStartEventName = sessionStartEventName,
-                    ipAddress = ip,
-                    city = city,
-                    region = region,
-                    country = country,
                 )
 
             eventPool.dispatchEvent(
@@ -145,7 +133,7 @@ internal class SessionTrackerService
             logger.log("SessionTrackerService | Dispatch session event: $newEvent")
         }
 
-        private fun storeSessionId()  {
+        private fun storeSessionId() {
             logger.log("SessionTrackerService | Store session id")
             storage.setStorageItem(
                 prefs = StorageKeys.SessionPrefs.key,
@@ -156,7 +144,7 @@ internal class SessionTrackerService
             }
         }
 
-        private fun storeSessionTime()  {
+        private fun storeSessionTime() {
             logger.log("SessionTrackerService | Store session time")
             storage.setStorageItem(
                 prefs = StorageKeys.SessionPrefs.key,
@@ -167,7 +155,7 @@ internal class SessionTrackerService
             }
         }
 
-        private fun validateSession(event: IntemptEvent)  {
+        private fun validateSession(event: IntemptEvent) {
             logger.log("SessionTrackerService | Validate session for")
             val sessionTime = getSessionTime()
             val eventTimestamp = event.getEventTimestamp()

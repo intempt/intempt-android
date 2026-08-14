@@ -125,7 +125,8 @@ jobs:
       - name: AnimalSniffer (API compatibility at minSdk)
         run: ./gradlew :app:animalsnifferRelease --stacktrace
 
-      # 1,119 pre-existing violations are frozen in app/config/ktlint/baseline.xml, so this
+      # Pre-existing violations are frozen in app/config/ktlint/baseline.xml (567 at the time of
+      # writing, counted with grep -c "<error"), so this
       # gates new Kotlin only. Reformatting the existing codebase would be a 200-file diff
       # with no behavioural change; it can happen incrementally.
       - name: ktlint

@@ -82,7 +82,10 @@ internal class IntemptCoreModule(
 
     @Provides
     @Singleton
-    fun provideQueueConfig(config: ConfigManagerService): QueueConfig {
+    fun provideQueueConfig(
+        config: ConfigManagerService,
+        logger: LoggerManagerService,
+    ): QueueConfig {
         // The Basic token, built exactly as HttpManagerService builds it for every other
         // request. Without it the vendored transport posts unauthenticated and the gateway's
         // 401 is treated as an unrecoverable status, so the batch is deleted rather than
@@ -96,6 +99,15 @@ internal class IntemptCoreModule(
             config.timeBuffer,
         ).also {
             it.setLoggingEnabled(config.isLoggingEnabled)
+
+            // One destination for the whole SDK. Installed here because this is the only place that
+            // already wires the queue's logging, and doing it from LoggerManagerService's own
+            // constructor would mean any instance built in a test silently took over the static
+            // sink for every other test in the JVM.
+            val sink = logger.asQueueSink()
+            it.setLogSink { priority, tag, message, throwable ->
+                sink(priority, tag, message, throwable)
+            }
         }
     }
 
@@ -130,6 +142,14 @@ internal interface IntemptCoreComponent {
     fun inject(intempt: Intempt)
 
     fun initService(): IntemptCoreService
+
+    /**
+     * The resolved configuration, so [com.intempt.core.Intempt.initialize] can check that
+     * credentials were actually found before reporting the SDK as running. Without this the
+     * facade could only observe that Dagger wired up, which it does whether or not
+     * intempt-config.json exists.
+     */
+    fun config(): ConfigManagerService
 
     @Component.Factory
     interface Factory {

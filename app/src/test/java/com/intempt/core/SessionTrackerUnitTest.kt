@@ -33,6 +33,7 @@ import org.mockito.Mockito.atLeastOnce
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.spy
 import org.mockito.Mockito.verify
+import org.mockito.Mockito.verifyNoInteractions
 import org.mockito.Mockito.`when`
 import org.mockito.kotlin.any
 import org.mockito.kotlin.eq
@@ -228,7 +229,7 @@ class SessionTrackerUnitTest {
         }
 
 //    @Test
-    fun `runSessionStart should fetch location info and dispatch event`() =
+    fun `runSessionStart dispatches a session event and makes no third-party call`() =
         runTest {
             val expiredSessionTimestamp = System.currentTimeMillis() - (Constants.SESSION.SESSION_TIMEOUT + 1000)
             val testDispatcher = StandardTestDispatcher(testScheduler)
@@ -260,6 +261,20 @@ class SessionTrackerUnitTest {
 
             testScheduler.advanceUntilIdle()
 
-            verify(sessionTrackerService, atLeastOnce()).getLocationInfo()
+            // getLocationInfo() no longer exists. It called ipapi.co on every session start, sent
+            // the device's IP to a third party outside consent gating, and attached IP plus geo to
+            // the payload. Geo is server-derived now, from the request the platform already
+            // receives — see the ?ip= parameter on ConfigManagerService.eventsUrl.
+            //
+            // Asserted as absence rather than deleted: the point of this test is now that a session
+            // start dispatches its event WITHOUT any outbound lookup, so re-introducing one has a
+            // failing test attached.
+            // The event still reaches the pool...
+            verify(eventPool, atLeastOnce()).dispatchEvent(any(), anyString())
+
+            // ...and nothing is fetched to build it. `httpSrv` is the transport the ipapi.co call
+            // used; no interaction with it means no outbound lookup happened. That is the property
+            // this test now protects, so re-introducing a per-session third-party call fails here.
+            verifyNoInteractions(httpSrv)
         }
 }

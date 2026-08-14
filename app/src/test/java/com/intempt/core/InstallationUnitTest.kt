@@ -14,7 +14,6 @@ import com.intempt.core.services.StorageManagerService
 import com.intempt.core.services.UtilsService
 import com.intempt.core.services.eventPool.EventPoolManagerService
 import com.intempt.core.types.StorageKeys
-import junit.framework.TestCase.assertEquals
 import junit.framework.TestCase.assertNotNull
 import junit.framework.TestCase.assertTrue
 import junit.framework.TestCase.fail
@@ -22,6 +21,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestCoroutineScheduler
 import kotlinx.coroutines.test.TestDispatcher
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import org.junit.Assert.assertFalse
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -151,7 +151,7 @@ class InstallationUnitTest {
     }
 
     @Test
-    fun `should init without errors`()  {
+    fun `should init without errors`() {
         try {
             Intempt.initialize(context)
         } catch (e: Exception) {
@@ -159,25 +159,34 @@ class InstallationUnitTest {
         }
     }
 
+    /**
+     * A failing initialize must not take the host app down.
+     *
+     * Rewritten, not weakened. It used to `spy(Intempt)`, stub `initialize` to throw, call it, catch
+     * the throw and verify the call — which tested that Mockito can throw, not that the SDK
+     * survives. It also stopped working the moment the public API gained `@JvmStatic`: the call then
+     * dispatches to the generated static method rather than the spy, so the stub never applied, the
+     * real `initialize` ran, and Dagger reached `getApplicationContext` on the mock — surfacing as
+     * `UnfinishedVerificationException` pointing at a line that had nothing to do with it.
+     *
+     * The property is now asserted directly against the real implementation, which is stronger: no
+     * exception escapes, and the failure is reported through the return value. There is no config
+     * asset in this module, so this is the genuinely-misconfigured path.
+     */
     @Test
-    fun `should render main activity even if SDK fails to initialize`() {
-        val message = "Initialization failed"
-        val intempt = spy(Intempt)
-        doThrow(RuntimeException(message))
-            .`when`(intempt).initialize(context)
+    fun `a failing initialize reports failure instead of throwing`() {
+        val started = Intempt.initialize(context)
 
-        try {
-            intempt.initialize(context)
-        } catch (e: Exception) {
-            assertEquals(message, e.message)
-        }
-
-        verify(intempt).initialize(context)
+        assertFalse(
+            "initialize must report a missing config rather than claiming the SDK is running",
+            started,
+        )
+        assertFalse("and must not leave the SDK looking ready", Intempt.isInitialized)
         assertNotNull(context)
     }
 
     @Test
-    fun `should render main activity if identify fails`()  {
+    fun `should render main activity if identify fails`() {
         doThrow(RuntimeException("Simulated error during emitEvent"))
             .`when`(eventPoolSrv).emitEvent(any())
 

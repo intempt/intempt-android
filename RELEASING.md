@@ -35,11 +35,21 @@ The version is read from `VERSION` in `gradle.properties` (overridable per-relea
 
 1. **Land all changes on `main`** (via PR). Do not tag a feature branch — the guard will reject it.
 
-2. **Bump the version.** Edit `VERSION` in `gradle.properties` (e.g. `VERSION=2.0.1`) and merge
+2. **Move the `Unreleased` section of `CHANGELOG.md` under the new version heading**, with the
+   release date, and open a fresh empty `Unreleased` above it. Update the two link definitions at the
+   bottom of the file.
+
+   This is a required step, not a courtesy. Consumers upgrading across the `minSdk` change and the
+   defaults that changed behaviour have no other way to find out what moved, and reconstructing it
+   from `git log` after the fact is how the SDK ended up with no changelog for its first two
+   releases. The publish workflow checks that the tag you are about to cut has a matching heading and
+   refuses otherwise.
+
+3. **Bump the version.** Edit `VERSION` in `gradle.properties` (e.g. `VERSION=2.0.1`) and merge
    that to `main` too. Use [semver](https://semver.org/): patch for fixes, minor for additive
    features, major for breaking changes.
 
-3. **Tag the release commit on `main` and push the tag:**
+4. **Tag the release commit on `main` and push the tag:**
 
    ```bash
    git checkout main
@@ -48,15 +58,15 @@ The version is read from `VERSION` in `gradle.properties` (overridable per-relea
    git push origin v2.0.1    # this triggers the publish workflow
    ```
 
-4. **Watch the run:** GitHub → **Actions** → "Publish to Maven Central". It will:
+5. **Watch the run:** GitHub → **Actions** → "Publish to Maven Central". It will:
    - verify the commit is on `main`,
    - build + sign,
    - upload a **staged** deployment.
 
-5. **Publish on the portal:** go to [central.sonatype.com](https://central.sonatype.com) →
+6. **Publish on the portal:** go to [central.sonatype.com](https://central.sonatype.com) →
    **Deployments**, review `com.intempt.sdk:intempt-android:<version>`, and click **Publish**.
 
-6. **Verify:** after it validates and syncs (~15–30 min) the version appears at
+7. **Verify:** after it validates and syncs (~15–30 min) the version appears at
    `https://repo1.maven.org/maven2/com/intempt/sdk/intempt-android/`.
 
 ## Notes & troubleshooting

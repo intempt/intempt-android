@@ -190,4 +190,28 @@ public class QueueConfig {
     public void setLoggingEnabled(boolean enabled) {
         QueueLog.setEnabled(enabled);
     }
+
+    /**
+     * Routes the queue package's log output to the SDK's logger.
+     *
+     * <p>This is what stops the queue being a second logging system. Before it, the queue wrote to
+     * logcat behind its own flag while {@code LoggerManagerService} wrote behind a different one —
+     * two switches, one destination, so "is logging enabled?" had two answers and turning it off
+     * through the SDK's public API silenced only half the output.
+     *
+     * <p>Takes four primitives rather than a Kotlin type because this package is the vendored Java
+     * substrate and must not depend on the Kotlin service layer.
+     *
+     * @param sink receives (priority, tag, message, throwable); priorities are android.util.Log's.
+     *             Null restores the default of writing straight to logcat behind
+     *             {@link #setLoggingEnabled(boolean)}.
+     */
+    public void setLogSink(QueueLogSink sink) {
+        QueueLog.setSink(sink == null ? null : sink::write);
+    }
+
+    /** Public mirror of the queue's internal sink, so the Kotlin layer can implement it. */
+    public interface QueueLogSink {
+        void write(int priority, String tag, String message, Throwable throwable);
+    }
 }
