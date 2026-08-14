@@ -11,10 +11,67 @@ plugins {
     id("kotlin-parcelize")
     id("jacoco")
     alias(libs.plugins.ktlint)
+    alias(libs.plugins.animalsniffer)
 }
 
 jacoco {
     toolVersion = "0.8.12"
+}
+
+// API-compatibility gate, checked against the android-api-level-23 signature rather than inferred.
+//
+// Adopted from mixpanel-android, which runs the same plugin — it was the one build-quality check
+// they had and we did not, and it is aimed squarely at the bug class that has hurt this SDK most.
+// Three separate crashes on this branch were calls that do not exist at minSdk: Jackson reaching
+// java.lang.BootstrapMethodError (API 26) and killing every host app on Android 7, java.util.Base64
+// (API 26) in the auth path, and Map.putIfAbsent (API 24) in a test helper.
+//
+// Lint's NewApi did not catch any of them. It reads our sources, so a call inside a dependency's
+// bytecode is invisible to it, and the Base64 one it did see only after checkTestSources was
+// enabled. AnimalSniffer checks the compiled artifact against a signature file, so a dependency
+// reaching for a missing class fails the build instead of the app.
+//
+// The plugin's own default for ignoreFailures is false, so a violation fails the build. Not set
+// explicitly because the property is not reachable from the Kotlin DSL in 2.0.0 (it is private in a
+// supertype); asserted below instead, so the gate cannot silently become advisory.
+animalsniffer {
+    // Two documented exclusion classes. Both were verified individually rather than waved away —
+    // an exclusion added to make a gate green is how the gate stops meaning anything.
+    //
+    // android.app.NotificationChannel / NotificationManager: API 26, and correctly guarded by
+    //   `if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)` at FirebaseService.kt:170.
+    //   AnimalSniffer reads bytecode and cannot see a runtime version check, so this is
+    //   unavoidable. Mixpanel carries the same kind of exclusion for the same reason.
+    //
+    // java.lang.{Long,Boolean,Integer}: the static `hashCode(primitive)` overloads are API 24, and
+    //   they appear only inside the hashCode() that Kotlin generates for a data class with a
+    //   primitive field — we never call them. D8 backports them unconditionally, so they are
+    //   rewritten before they reach a device.
+    //
+    //   That last sentence is an assumption about the toolchain, not something to take on trust, so
+    //   it is pinned by DataClassHashCodeOnDeviceTest in sample/src/androidTest — which calls
+    //   hashCode() on the affected shapes and runs on the API 23 emulator in CI. If the backport
+    //   ever stops happening, that test fails on-device rather than this exclusion hiding it.
+    ignore(
+        "android.app.NotificationChannel",
+        "android.app.NotificationManager",
+        "java.lang.Long",
+        "java.lang.Boolean",
+        "java.lang.Integer",
+    )
+}
+
+// A warning nobody reads is not a gate, and the default is the only thing making this one real —
+// so it is checked rather than trusted. If a future plugin version flips the default, this fails at
+// configuration time instead of turning every API violation into a log line.
+gradle.taskGraph.whenReady {
+    tasks.withType(ru.vyarus.gradle.plugin.animalsniffer.AnimalSniffer::class.java).configureEach {
+        check(!ignoreFailures) {
+            "animalsniffer has ignoreFailures=true, which downgrades every minSdk violation to a " +
+                "warning. This gate exists because three separate API-level crashes shipped on this " +
+                "branch; it must fail the build."
+        }
+    }
 }
 
 android {
@@ -142,6 +199,10 @@ android {
 }
 
 dependencies {
+    // The signature the sources are checked against. Must track minSdk — bump both together, or
+    // the gate silently verifies against the wrong API level.
+    add("signature", "net.sf.androidscents.signature:android-api-level-23:6.0_r3@signature")
+
     implementation(libs.compose.ui)
     implementation(libs.compose.material)
     implementation(libs.compose.ui.tooling.preview)
@@ -293,7 +354,23 @@ tasks.register<JacocoReport>("jacocoTestReport") {
         ),
     )
     sourceDirectories.setFrom(files("src/main/java"))
-    executionData.setFrom(fileTree(layout.buildDirectory).include("**/*.exec", "**/*.ec"))
+
+    // Scoped to the coverage output directory, not the whole build tree.
+    //
+    // This was `fileTree(layout.buildDirectory).include("**/*.exec", "**/*.ec")`, which declares
+    // every file under build/ as an input. Gradle then refuses to run this task alongside anything
+    // else that writes there — `jacocoTestReport` together with `ktlintCheck` fails outright with an
+    // implicit-dependency validation error. CI never hit it because those are separate invocations,
+    // so it sat as a landmine for the first person to combine them locally.
+    //
+    // AGP 8 writes to outputs/unit_test_code_coverage/<variant>/; the jacoco/ path is the AGP 7
+    // location, kept so the report does not silently read nothing if the path moves back.
+    executionData.setFrom(
+        fileTree(layout.buildDirectory) {
+            include("outputs/unit_test_code_coverage/**/*.exec")
+            include("jacoco/*.exec")
+        },
+    )
 }
 
 // The coverage floor, enforced in CI.

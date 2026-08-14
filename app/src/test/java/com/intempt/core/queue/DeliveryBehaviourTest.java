@@ -245,6 +245,14 @@ public class DeliveryBehaviourTest {
         return count;
     }
 
+    /**
+     * The number of rows in the queue.
+     *
+     * <p>Reads {@code batch[2]}, the total depth, rather than the length of {@code batch[1]}. The
+     * batch is capped at flushBatchSize, so measuring its length under-reports any queue longer
+     * than the cap — a test asserting "everything was delivered" would pass while 15 rows were
+     * still sitting there.
+     */
     private int rowCount() {
         EventDbAdapter adapter = new EventDbAdapter(context, db, config);
         String[] batch = adapter.generateDataString(EventDbAdapter.Table.EVENTS);
@@ -252,13 +260,24 @@ public class DeliveryBehaviourTest {
             return 0;
         }
         try {
-            return new JSONArray(batch[1]).length();
+            return Integer.parseInt(batch[2]);
         } catch (Exception e) {
             return -1;
         }
     }
 
-    /** Enqueues, flushes, and waits for the worker thread to settle. */
+    /**
+     * Enqueues, flushes, and waits for the worker thread to settle.
+     *
+     * <p>The assertion at the end is load-bearing and was missing. Every "must be retried" test
+     * checks that rows are still in the queue afterwards — but rows are also still in the queue if
+     * delivery never ran at all. Without proof that a POST happened, those tests could not tell a
+     * correct retry from a worker that never started, which is the difference between testing the
+     * delete-versus-retry decision and testing nothing.
+     *
+     * <p>An adversarial audit found this; it was not theoretical. Stubbing out the worker's call to
+     * {@code sendAllData} left all four retry tests green.
+     */
     private FakePoster deliver(int status, boolean throwIo, int events) throws Exception {
         FakePoster poster = new FakePoster(status, throwIo);
         TestableDelivery delivery = deliveryWith(poster);
@@ -272,6 +291,12 @@ public class DeliveryBehaviourTest {
             Thread.sleep(25);
         }
         Thread.sleep(400); // let cleanupEvents finish after the POST returns
+
+        assertTrue(
+                "delivery never posted at all, so this test proves nothing about what it does with "
+                        + "status " + status + " — the queue's contents below would look identical "
+                        + "for a worker that never started",
+                poster.calls.get() >= 1);
         return poster;
     }
 

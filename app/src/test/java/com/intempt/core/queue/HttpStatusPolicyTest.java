@@ -79,14 +79,29 @@ public class HttpStatusPolicyTest {
         assertFalse(HttpStatusPolicy.shouldDrop(204));
     }
 
+    /**
+     * Every failure must be routed to exactly one of drop or retry.
+     *
+     * <p>This used to assert only {@code !(drop && retry)}. That is unfalsifiable: shouldDrop is
+     * defined as {@code status >= 300 && !isRetryable(status)}, so the conjunction is
+     * {@code A && !A && B} — false by construction for any isRetryable whatsoever, including one
+     * that returns a constant. An adversarial audit caught it, and replacing isRetryable's body
+     * with {@code return false} confirmed it: three sibling tests went red and this one did not
+     * notice.
+     *
+     * <p>The half that carries the weight is the other direction — neither-drop-nor-retry is the
+     * wedging case, where a batch is retried forever and blocks every event behind it.
+     */
     @Test
-    public void dropAndRetryAreMutuallyExclusive() {
-        // A status routed to both, or to neither when it is a failure, means the caller's
-        // if/else in sendData would silently pick one and hide the other.
-        for (int status : new int[] {400, 401, 403, 404, 409, 422, 429, 500, 502, 503}) {
-            assertFalse(
-                    "status " + status + " must not be both droppable and retryable",
-                    HttpStatusPolicy.shouldDrop(status) && HttpStatusPolicy.isRetryable(status));
+    public void everyFailureIsRoutedToExactlyOneOfDropOrRetry() {
+        for (int status : new int[] {400, 401, 403, 404, 408, 409, 413, 422, 429, 500, 502, 503}) {
+            boolean drop = HttpStatusPolicy.shouldDrop(status);
+            boolean retry = HttpStatusPolicy.isRetryable(status);
+
+            assertFalse("status " + status + " must not be both droppable and retryable", drop && retry);
+            assertTrue(
+                    "status " + status + " is neither dropped nor retryable, which wedges the queue",
+                    drop || retry);
         }
     }
     /**
@@ -107,8 +122,13 @@ public class HttpStatusPolicyTest {
                 "a stateless policy must not be instantiable",
                 java.lang.reflect.Modifier.isPrivate(constructor.getModifiers()));
 
+        // The instance is created only so the constructor body is executed — PIT's line-coverage
+        // threshold counts it, and a deliberately-unreachable constructor otherwise drags a
+        // four-line class to 50%. Deliberately NOT asserted on: `assertNotNull` on the result of a
+        // successful `newInstance()` asserts a JVM guarantee, not anything about this class, and no
+        // production change could ever make that assertion alone fail.
         constructor.setAccessible(true);
-        assertNotNull(constructor.newInstance());
+        constructor.newInstance();
     }
     /**
      * The lower boundary of "is this an error at all", found by mutation testing rather than by
@@ -136,5 +156,28 @@ public class HttpStatusPolicyTest {
                     "status " + status + " cannot succeed as sent and must not wedge the queue",
                     HttpStatusPolicy.shouldDrop(status));
         }
+    }
+    /**
+     * The upper edge of the retryable 5xx band, found by mutation testing rather than by reading:
+     * PIT flipped {@code status <= 599} to {@code status < 599} and survived, so nothing pinned 599
+     * itself.
+     *
+     * <p>599 is a real server error and must be retried; 600 is not a valid HTTP status at all and
+     * must be dropped rather than retried forever. Both sides are asserted so the band cannot drift
+     * in either direction.
+     */
+    @Test
+    public void theRetryableServerErrorBandStopsAt599() {
+        assertTrue("599 is a server error and is transient", HttpStatusPolicy.isRetryable(599));
+        assertFalse("599 is retryable, so it must not also be dropped", HttpStatusPolicy.shouldDrop(599));
+
+        assertFalse("600 is not a valid HTTP status and must not be retried", HttpStatusPolicy.isRetryable(600));
+        assertTrue(
+                "600 cannot succeed as sent, so it must be dropped rather than wedge the queue",
+                HttpStatusPolicy.shouldDrop(600));
+
+        // The lower edge of the band, for the same reason.
+        assertTrue("500 is the first server error", HttpStatusPolicy.isRetryable(500));
+        assertFalse("499 is a client error, not transient", HttpStatusPolicy.isRetryable(499));
     }
 }

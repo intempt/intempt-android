@@ -5,7 +5,9 @@ import androidx.test.core.app.ApplicationProvider
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -84,14 +86,60 @@ class IntemptFacadeTest {
         assertTrue("and the SDK then reports itself ready", Intempt.isInitialized)
     }
 
-    /** Initializing twice must be a no-op rather than rebuilding the object graph. */
+    /**
+     * Initializing twice must be a no-op rather than rebuilding the object graph.
+     *
+     * <p>Asserted by object identity. Checking the return value twice proves nothing: deleting the
+     * `if (isInitialized) return true` guard makes every call rebuild Dagger and still return true,
+     * so the old version of this test passed against exactly the regression it was named for.
+     * A rebuilt graph would also orphan the previous core's worker threads.
+     */
     @Test
     fun `initialize is safe to call more than once`() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
 
         assertTrue(Intempt.initialize(context))
+        val afterFirst = coreInstance()
+        assertNotNull("the SDK must hold a core after a successful initialize", afterFirst)
+
         assertTrue("a repeated call must not report a different state", Intempt.initialize(context))
-        assertTrue(Intempt.isInitialized)
+
+        assertSame(
+            "the second initialize rebuilt the object graph instead of returning early, which " +
+                "orphans the first core's worker threads",
+            afterFirst,
+            coreInstance(),
+        )
+    }
+
+    /** The core the facade is currently holding, or null. */
+    private fun coreInstance(): Any? {
+        val field = Intempt::class.java.getDeclaredField("intemptCore")
+        field.isAccessible = true
+        return field.get(Intempt)
+    }
+
+    /**
+     * The toggles must actually reach the core, not merely return a safe constant.
+     *
+     * <p>`assertFalse(isLoggingEnabled())` against an uninitialized SDK cannot tell the guard from
+     * a hardcoded `false` — replacing the whole delegation with `= false` passed it. Driving the
+     * value from an initialized SDK is what pins that the call is wired through.
+     */
+    @Test
+    fun `the toggles reflect real state once initialized`() {
+        Intempt.initialize(ApplicationProvider.getApplicationContext())
+        assertTrue("this test needs a live SDK to mean anything", Intempt.isInitialized)
+
+        Intempt.Logging.start()
+        assertTrue("start() must reach the core, not return a constant", Intempt.Logging.isLoggingEnabled())
+        Intempt.Logging.stop()
+        assertFalse("stop() must reach the core", Intempt.Logging.isLoggingEnabled())
+
+        Intempt.Tracking.start()
+        assertTrue("start() must reach the core", Intempt.Tracking.isTrackingEnabled())
+        Intempt.Tracking.stop()
+        assertFalse("stop() must reach the core", Intempt.Tracking.isTrackingEnabled())
     }
 
     // ------------------------------------------------- every entry point, unarmed
@@ -149,6 +197,9 @@ class IntemptFacadeTest {
      * A query against a dead SDK has to answer something. False is the safe answer for both: a
      * host app branching on these would otherwise be told a feature is on while nothing is
      * recording it.
+     *
+     * <p>On its own this cannot distinguish the guard from a hardcoded `false`; the initialized
+     * case above is what supplies that half.
      */
     @Test
     fun `the toggles report disabled rather than throwing when uninitialized`() {

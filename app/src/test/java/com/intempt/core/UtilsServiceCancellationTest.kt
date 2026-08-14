@@ -16,6 +16,7 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -85,6 +86,10 @@ class UtilsServiceCancellationTest {
                     "instead of unwinding, which is how a cancelled scope keeps working",
                 reachedAfterSuspension,
             )
+            // Not a discriminator on its own: a job that was cancel()'d finalizes to Cancelled
+            // using the recorded cause even when the body swallowed the exception and completed
+            // normally, so this is true either way. `reachedAfterSuspension` above is what
+            // actually distinguishes the two. Kept as a sanity check, not as evidence.
             assertTrue("the job should be cancelled", job.isCancelled)
         }
 
@@ -144,6 +149,14 @@ class UtilsServiceCancellationTest {
             }
         }
         verify(logger, never()).error(any())
+
+        // The assertion above passes for a guard with no try/catch at all, since the exception
+        // would simply propagate. This pins that the guard is still catching — cancellation is
+        // carved out of a live Throwable catch, not escaping because nothing catches anything.
+        assertNull(
+            "the guard must still contain ordinary failures while letting cancellation through",
+            utils.withTryCatch<String>("ordinary failure") { error("boom") },
+        )
     }
 
     /**

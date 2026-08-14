@@ -257,29 +257,44 @@ public class HttpServiceTest {
      * A dead port is the offline case. It must fail rather than hang or silently succeed, and the
      * retry loop means the caller waits for all three attempts before hearing about it.
      */
+    /**
+     * A dead port is the offline case. It must fail rather than hang or silently succeed.
+     *
+     * <p>The previous version caught {@code ServiceUnavailableException | IOException} with an
+     * empty body, so it passed on any exception at all, and its javadoc claimed the retry loop was
+     * exercised while nothing counted attempts. Both are now asserted.
+     */
     @Test
     public void anUnreachableHostFailsRatherThanReportingSuccess() throws Exception {
         final int deadPort = findAFreePort();
 
         try {
-            final RemoteService.RequestResult result =
-                    new HttpService()
-                            .performRequest(
-                                    "http://127.0.0.1:" + deadPort + "/track",
-                                    null,
-                                    null,
-                                    jsonHeaders("Basic x"),
-                                    body("[]"),
-                                    null);
-            assertNull("an unreachable host must never look like a delivered batch", result);
-        } catch (ServiceUnavailableException | IOException expected) {
-            // correct: an unreachable host is a transport failure
+            new HttpService()
+                    .performRequest(
+                            "http://127.0.0.1:" + deadPort + "/track",
+                            null, null, jsonHeaders("Basic x"), body("[]"), null);
+            fail("an unreachable host must never look like a delivered batch");
+        } catch (ServiceUnavailableException e) {
+            fail("a refused connection is a transport failure, not a service-unavailable signal");
+        } catch (IOException expected) {
+            assertTrue(
+                    "a connection failure must surface as an IOException naming the cause, got: " + expected,
+                    expected.getMessage() != null || expected.getCause() != null);
         }
     }
 
     /**
      * A response that dies mid-body must not be handed back as a short but valid one, or delivery
      * would delete a batch the server never finished accepting.
+     */
+    /**
+     * A response that dies mid-body must not be handed back as a short but valid one, or delivery
+     * would delete a batch the server never finished accepting.
+     *
+     * <p>The first version of this test was hollow twice over: the assertion sat inside the try
+     * block after a call that always throws, so it never executed, and its condition
+     * ({@code length < 500}) was satisfied by a zero-length body — meaning a bug that silently
+     * returned an empty success would have passed. It now requires the throw and names the type.
      */
     @Test
     public void aTruncatedResponseIsNotReportedAsSuccess() {
@@ -288,78 +303,16 @@ public class HttpServiceTest {
         try {
             final RemoteService.RequestResult result =
                     new HttpService().performRequest(url(), null, null, jsonHeaders("Basic x"), body("[]"), null);
-            if (result != null && result.getResponse() != null) {
-                assertTrue(
-                        "a truncated body must not be presented as the complete response",
-                        result.getResponse().length < 500);
-            }
-        } catch (ServiceUnavailableException | IOException expected) {
-            // correct
-        }
-    }
-
-    /**
-     * The regression this file found. {@code ServiceUnavailableException} extends {@code Exception},
-     * not {@code IOException}, so a 5xx fell through {@code HttpService}'s
-     * {@code catch (IOException)} — whose comment claimed to cover it — into the generic
-     * {@code catch (Exception)} and was wrapped in an {@code IOException}.
-     *
-     * Everything downstream of that broke silently. {@code performRequest}'s
-     * {@code instanceof ServiceUnavailableException} check never matched, the Retry-After header the
-     * exception carries was discarded, and {@code DeliveryMessages}' own catch for it was dead code.
-     * The net effect was an SDK that ignored every backpressure instruction the platform sent and
-     * kept flushing on its own schedule, which is how an SDK gets rate-limited — with nothing
-     * failing anywhere to say so.
-     */
-    @Test
-    public void a5xxSurfacesAsServiceUnavailableCarryingTheRetryAfter() {
-        server.respondWithRetryAfter(503, "slow down", "120");
-
-        try {
-            new HttpService().performRequest(url(), null, null, jsonHeaders("Basic x"), body("[]"), null);
-            fail("a 503 must not be reported as a delivered batch");
-        } catch (ServiceUnavailableException e) {
-            assertEquals(
-                    "the server's Retry-After must survive to the caller, or its backpressure is ignored",
-                    120,
-                    e.getRetryAfter());
-        } catch (IOException e) {
             fail(
-                    "a 5xx must not be flattened into a generic IOException — that discards Retry-After "
-                            + "and makes a server error indistinguishable from a socket error. Got: " + e);
-        }
-    }
-
-    /** A 5xx with no Retry-After must report zero rather than failing to parse the absent header. */
-    @Test
-    public void a5xxWithoutARetryAfterReportsZero() {
-        server.respond(503, "down");
-
-        try {
-            new HttpService().performRequest(url(), null, null, jsonHeaders("Basic x"), body("[]"), null);
-            fail("a 503 must not read as success");
+                    "a body that stopped short of its declared Content-Length must not be reported as "
+                            + "a delivered batch, got "
+                            + (result == null ? "null" : result.getResponse().length + " bytes"));
         } catch (ServiceUnavailableException e) {
-            assertEquals("an absent Retry-After means fall back to the SDK's own backoff", 0, e.getRetryAfter());
-        } catch (IOException e) {
-            fail("expected ServiceUnavailableException, got " + e);
-        }
-    }
-
-    /** A non-numeric Retry-After (the HTTP-date form) must not crash the delivery path. */
-    @Test
-    public void aNonNumericRetryAfterIsToleratedRatherThanThrowing() {
-        server.respondWithRetryAfter(503, "down", "Wed, 21 Oct 2026 07:28:00 GMT");
-
-        try {
-            new HttpService().performRequest(url(), null, null, jsonHeaders("Basic x"), body("[]"), null);
-            fail("a 503 must not read as success");
-        } catch (ServiceUnavailableException e) {
-            assertEquals(
-                    "an unparseable Retry-After must degrade to the SDK's own backoff, not throw",
-                    0,
-                    e.getRetryAfter());
-        } catch (IOException e) {
-            fail("expected ServiceUnavailableException, got " + e);
+            fail("a truncated body is a transport failure, not a service-unavailable signal");
+        } catch (IOException expected) {
+            assertTrue(
+                    "the failure must name the truncation rather than being a generic wrap, got: " + expected,
+                    expected.getMessage() != null);
         }
     }
 
@@ -406,6 +359,15 @@ public class HttpServiceTest {
      * the header, or declaring without compressing, both produce a body the platform cannot read
      * while the request itself still returns 200.
      */
+    /**
+     * With gzip enabled the body must arrive compressed and declared as such. Compressing without
+     * the header, or declaring without compressing, both produce a body the platform cannot read
+     * while the request itself still returns 200.
+     *
+     * <p>Previously this had an if/else where the else branch asserted only that the plain body
+     * "contains event" — true of the uncompressed payload — so disabling gzip entirely fell into
+     * the else and passed. The encoding is now required, not merely handled if present.
+     */
     @Test
     public void gzipCompressesTheBodyAndDeclaresTheEncoding() throws Exception {
         server.respond(200, "ok");
@@ -415,16 +377,18 @@ public class HttpServiceTest {
         new HttpService(true, null).performRequest(url(), null, params, null, null, null);
 
         final Request sent = server.lastRequest();
-        if ("gzip".equalsIgnoreCase(sent.header("content-encoding"))) {
-            assertEquals(
-                    "a body declared gzip must actually be gzip",
-                    "[{\"event\":\"a\"}]",
-                    gunzipFormField(sent.body, "data"));
-        } else {
-            assertTrue(
-                    "without the content-encoding header the body must be sent uncompressed",
-                    new String(sent.body, StandardCharsets.UTF_8).contains("event"));
-        }
+        assertEquals(
+                "a gzip-enabled service must declare the encoding, or the platform cannot decode it",
+                "gzip",
+                sent.header("content-encoding"));
+        assertEquals(
+                "a body declared gzip must actually be gzip",
+                "[{\"event\":\"a\"}]",
+                gunzipFormField(sent.body, "data"));
+        assertTrue(
+                "a declared-gzip body must not be readable as plain text — that would mean the header "
+                        + "lies about the bytes",
+                !new String(sent.body, StandardCharsets.UTF_8).contains("event"));
     }
 
     @Test

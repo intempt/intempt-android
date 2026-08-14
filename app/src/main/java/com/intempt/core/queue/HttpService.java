@@ -532,6 +532,22 @@ public class HttpService implements RemoteService {
                 if (responseCode >= 200 && responseCode < 300) { // Success
                     in = connection.getInputStream();
                     response = slurp(in);
+
+                    // A 2xx whose body stopped short of its declared Content-Length is a broken
+                    // connection, not an acknowledgement. Without this check the truncated read is
+                    // returned as a successful result, DeliveryMessages deletes the batch, and the
+                    // events are gone even though the platform never finished accepting them.
+                    //
+                    // Found by a test that expected a throw and got a 0-byte success instead. The
+                    // check is against the DECLARED length, so a legitimate bodyless 200
+                    // (Content-Length: 0, or no header at all) is still a success.
+                    final int declaredLength = connection.getContentLength();
+                    if (declaredLength > 0 && response.length < declaredLength) {
+                        throw new IOException(
+                                "Truncated response: declared " + declaredLength + " bytes, received "
+                                        + response.length + ". Treating as a transport failure so the"
+                                        + " batch is retried rather than dropped.");
+                    }
                 } else if (responseCode >= MIN_UNAVAILABLE_HTTP_RESPONSE_CODE
                         && responseCode <= MAX_UNAVAILABLE_HTTP_RESPONSE_CODE) { // Server Error 5xx
                     QueueLog.w(

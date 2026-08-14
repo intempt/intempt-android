@@ -115,7 +115,10 @@ class WireFormatTest {
             TIMESTAMP,
             event.getEventTime(),
         )
-        assertEquals(event.getEventTime(), event.toFormated()["timestamp"])
+        // getEventTime() and toFormated()["timestamp"] both return the same field with no
+        // transform, so comparing them to each other proves nothing. Both are compared to the
+        // constant instead.
+        assertEquals(TIMESTAMP, event.toFormated()["timestamp"])
     }
 
     // --------------------------------------------------------------- session
@@ -194,7 +197,13 @@ class WireFormatTest {
         assertEquals("android", event.source)
     }
 
-    /** Geo fields are optional and default to empty strings, not to null. */
+    /**
+     * Geo fields are optional and default to empty strings, not to null.
+     *
+     * <p>This pins a default rather than a transform, which is thin — but the default is what goes
+     * on the wire when the device has no geo data, and a null there is a different payload from an
+     * empty string.
+     */
     @Test
     fun `unset geo attributes are empty strings rather than nulls`() {
         val attrs = SessionUserAttributes(deviceType = "tablet", carrier = "", platform = "android")
@@ -276,8 +285,20 @@ class WireFormatTest {
             ).toString()
 
         assertTrue("the override must be in use", rendered.startsWith("{"))
-        assertTrue(rendered.contains("screenName: Home"))
         assertTrue("a shaped summary must not read as the generated one", !rendered.startsWith("ScreenViewEvent("))
+
+        // Every field is named. The previous version checked only `startsWith("{")` plus one
+        // field, which a toString that had dropped everything else would still have satisfied —
+        // and the point of a shaped summary is that it stays useful in logcat.
+        listOf(
+            "sessionId: $SESSION_ID",
+            "eventId: $EVENT_ID",
+            "pageId: $PAGE_ID",
+            "profileId: $PROFILE_ID",
+            "timestamp: $TIMESTAMP",
+            "activity: MainActivity",
+            "screenName: Home",
+        ).forEach { assertTrue("the rendering dropped `$it`: $rendered", rendered.contains(it)) }
     }
 
     /** The nullable field is omitted from the rendering rather than printed as the word "null". */
@@ -320,28 +341,10 @@ class WireFormatTest {
 
     // --------------------------------------------------------------- equality
 
-    /**
-     * Equality is by value, which the event pool depends on for de-duplication. Two events that
-     * differ only by eventId must not collapse into one.
-     */
-    @Test
-    fun `events with different ids are not equal`() {
-        fun screenView(id: String) =
-            ScreenViewEvent(
-                eventId = id,
-                sessionId = SESSION_ID,
-                pageId = PAGE_ID,
-                profileId = PROFILE_ID,
-                timestamp = TIMESTAMP,
-                activity = "A",
-                fullActivity = "a.A",
-                screenName = "S",
-                timeOnScreen = null,
-            )
-
-        assertEquals(screenView("same"), screenView("same"))
-        assertTrue(screenView("one") != screenView("two"))
-    }
+    // A test asserting that two ScreenViewEvents with different ids are unequal used to live here.
+    // It was removed rather than kept: ScreenViewEvent declares no equals, so the test exercised
+    // the Kotlin compiler's generated data-class equality and would have failed only if someone
+    // deleted the `data` keyword. Nothing in the SDK depends on that equality today.
 
     // ------------------------------------------------------------- visibility
 

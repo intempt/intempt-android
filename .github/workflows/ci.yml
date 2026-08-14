@@ -117,6 +117,14 @@ jobs:
       - name: Lint
         run: ./gradlew :app:lintDebug :sample:lintDebug --stacktrace
 
+      # API-compatibility gate against the android-api-level-23 signature, adopted from
+      # mixpanel-android. Lint's NewApi only reads our sources, so a dependency reaching for a
+      # class that does not exist at minSdk is invisible to it — that is how Jackson's
+      # BootstrapMethodError (API 26) shipped and killed every host app on Android 7.
+      # AnimalSniffer checks the compiled artifact, so it sees into dependencies.
+      - name: AnimalSniffer (API compatibility at minSdk)
+        run: ./gradlew :app:animalsnifferRelease --stacktrace
+
       # 1,119 pre-existing violations are frozen in app/config/ktlint/baseline.xml, so this
       # gates new Kotlin only. Reformatting the existing codebase would be a 200-file diff
       # with no behavioural change; it can happen incrementally.

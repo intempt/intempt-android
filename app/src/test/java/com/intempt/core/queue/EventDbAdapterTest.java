@@ -132,6 +132,10 @@ public class EventDbAdapterTest {
      */
     @Test
     public void theReadIsCappedAtTheBatchSizeWhileTheDepthIsNot() throws JSONException {
+        // Pinned against the inherited constant rather than only against getFlushBatchSize(). The
+        // expectation and the production code previously read the same method, so a wrong value
+        // there was self-confirming.
+        assertEquals("the inherited flush batch size changed", 50, config.getFlushBatchSize());
         final int cap = config.getFlushBatchSize();
         for (int i = 0; i < cap + 7; i++) {
             db.addJSON(event("e" + i), EVENTS);
@@ -145,8 +149,13 @@ public class EventDbAdapterTest {
 
     @Test
     public void eventsComeBackOldestFirst() throws JSONException {
+        // Distinct created_at values, forced. Three back-to-back inserts land on the same
+        // millisecond, and SQLite then returns them in rowid order anyway — so the ORDER BY clause
+        // could be deleted entirely and this test would not notice.
         db.addJSON(event("oldest"), EVENTS);
+        waitForTheClockToAdvancePast(System.currentTimeMillis());
         db.addJSON(event("middle"), EVENTS);
+        waitForTheClockToAdvancePast(System.currentTimeMillis());
         db.addJSON(event("newest"), EVENTS);
 
         final JSONArray out = queued();
@@ -186,6 +195,11 @@ public class EventDbAdapterTest {
         db.cleanupEvents("2", EVENTS);
 
         assertNull(db.generateDataString(EVENTS));
+        // Both cleanup methods catch SQLiteException by calling deleteDatabase(), so "empty" and
+        // "the delete threw and the file was wiped" are the same observation. The file surviving is
+        // what tells them apart.
+        assertTrue("cleanup must delete rows, not fall into the wipe-and-recreate error path",
+                context.getDatabasePath(DB).exists());
     }
 
     /** An id below everything present must delete nothing. */
@@ -235,6 +249,8 @@ public class EventDbAdapterTest {
 
         db.cleanupAllEvents(EVENTS);
         assertNull(db.generateDataString(EVENTS));
+        assertTrue("cleanupAll must empty the table, not destroy the database",
+                context.getDatabasePath(DB).exists());
 
         assertEquals("the table must still accept writes after being emptied", 1, db.addJSON(event("after"), EVENTS));
     }
@@ -248,7 +264,16 @@ public class EventDbAdapterTest {
     public void deleteDbRemovesTheFileAndTheNextWriteRecreatesIt() throws JSONException {
         db.addJSON(event("a"), EVENTS);
 
+        assertTrue("the file must exist before deleteDB, or this test proves nothing",
+                context.getDatabasePath(DB).exists());
+
         db.deleteDB();
+
+        // Asserted explicitly: clearing the rows produces the identical observable result below
+        // (count resets to 1, only "after" is queued), so without this the test would pass against
+        // a deleteDB that merely emptied the table.
+        assertFalse("deleteDB must remove the file, not just its rows",
+                context.getDatabasePath(DB).exists());
 
         assertEquals("the queue must recover after the file is dropped", 1, db.addJSON(event("after"), EVENTS));
         final JSONArray out = queued();
@@ -292,7 +317,10 @@ public class EventDbAdapterTest {
                 };
 
         assertEquals(EventDbAdapter.DB_OUT_OF_MEMORY_ERROR, full.addJSON(event("dropped"), EVENTS));
-        assertNull("nothing may be written when the threshold is exceeded", db.generateDataString(EVENTS));
+        // Read back through the same adapter that refused the write, not a sibling — a sibling's
+        // queue is empty in this test for unrelated reasons, so it proves nothing.
+        assertNull("nothing may be written when the threshold is exceeded", full.generateDataString(EVENTS));
+        assertNull(db.generateDataString(EVENTS));
     }
 
     /**
@@ -315,8 +343,13 @@ public class EventDbAdapterTest {
     }
 
     /**
-     * A quoted string is the classic place a hand-built SQL statement breaks. The adapter binds
-     * its values, and this pins that it stays that way.
+     * Round-trip integrity for a value full of SQL metacharacters.
+     *
+     * <p>Stated accurately rather than as an injection test: {@code addJSON} writes through
+     * ContentValues, which binds parameters, so this path was never exposed to injection and this
+     * test does not prove it is. What it does pin is that such a value survives the write/read
+     * cycle unaltered and does not corrupt the table — which is worth having, since
+     * {@code cleanupEvents(String, Table)} DOES interpolate its argument into SQL directly.
      */
     @Test
     public void quotesAndBackslashesInAValueDoNotCorruptTheRow() throws JSONException {
