@@ -68,6 +68,7 @@ public class QueueConfig {
     private final String mAuthorization;
     private final int mBulkUploadLimitOverride;
     private final int mFlushIntervalOverride;
+    private final SSLSocketFactory mSslSocketFactory;
 
     public QueueConfig(String eventsEndpoint) {
         this(eventsEndpoint, null, null, false);
@@ -99,12 +100,34 @@ public class QueueConfig {
             boolean gzipRequestPayload,
             int itemsInQueue,
             long timeBufferMs) {
+        this(eventsEndpoint, authorization, backupHost, gzipRequestPayload, itemsInQueue, timeBufferMs, null);
+    }
+
+    /**
+     * Adds optional, opt-in TLS certificate pinning for delivery requests.
+     *
+     * <p>{@code sslSocketFactory} is null-checked by {@code HttpService} exactly like the
+     * platform-default case below: null (the default via every other constructor) means
+     * unchanged platform-default TLS trust validation. A non-null factory -- built from
+     * {@code certificatePins} in {@code assets/intempt-config.json} via
+     * {@code CertificatePinning.sslSocketFactoryFor} -- is applied to the
+     * {@link javax.net.ssl.HttpsURLConnection} used for every delivery POST/GET.
+     */
+    public QueueConfig(
+            String eventsEndpoint,
+            String authorization,
+            String backupHost,
+            boolean gzipRequestPayload,
+            int itemsInQueue,
+            long timeBufferMs,
+            SSLSocketFactory sslSocketFactory) {
         mEventsEndpoint = eventsEndpoint;
         mAuthorization = authorization;
         mBackupHost = backupHost;
         mGzipRequestPayload = gzipRequestPayload;
         mBulkUploadLimitOverride = itemsInQueue > 0 ? itemsInQueue : 0;
         mFlushIntervalOverride = timeBufferMs > 0 ? (int) timeBufferMs : 0;
+        mSslSocketFactory = sslSocketFactory;
     }
 
     /**
@@ -176,9 +199,13 @@ public class QueueConfig {
         return null;
     }
 
-    /** Null means "platform default TLS". Null-checked by HttpService. */
+    /**
+     * Null means "platform default TLS" (the default for every constructor that does not take
+     * an explicit {@code SSLSocketFactory}). Null-checked by HttpService. Non-null only when a
+     * pinned factory was supplied -- see the seven-argument constructor above.
+     */
     public SSLSocketFactory getSSLSocketFactory() {
-        return null;
+        return mSslSocketFactory;
     }
 
     /** Null means "no proxy interception". Null-checked by HttpService. */

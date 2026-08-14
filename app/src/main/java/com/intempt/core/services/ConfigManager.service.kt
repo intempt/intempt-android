@@ -71,6 +71,16 @@ internal class ConfigManagerService
          */
         val apiUrl: String
 
+        /**
+         * Optional, opt-in TLS certificate pins ("sha256/BASE64" SPKI hashes, OkHttp
+         * CertificatePinner format) for the ingestion endpoint. Empty by default, meaning no
+         * pinning and unchanged platform-default TLS trust validation. Set via
+         * `certificatePins` in intempt-config.json; consumed by
+         * [com.intempt.core.services.CertificatePinning] to build the [javax.net.ssl.SSLSocketFactory]
+         * wired into [com.intempt.core.queue.QueueConfig] for delivery requests.
+         */
+        val certificatePins: List<String>
+
         val consentUrl: String
             get() = "$apiUrl/v1/${_organizationId}/projects/${_projectId}/consents/data"
 
@@ -124,6 +134,7 @@ internal class ConfigManagerService
             isLoggingEnabled = options?.isLoggingEnabled ?: DefaultConfigs.IsLoggingEnabled.value
             isQueueEnabled = options?.isQueueEnabled ?: DefaultConfigs.IsQueueEnabled.value
             apiUrl = options?.apiUrl?.takeIf { it.isNotBlank() } ?: Constants.API_URL
+            certificatePins = options?.certificatePins ?: DefaultConfigs.CertificatePins.value
         }
 
         /**
@@ -210,6 +221,10 @@ internal class ConfigManagerService
                         itemsInQueue = optionsObject.optInt(ConfigKeys.ItemsInQueue.key, 5),
                         timeBuffer = optionsObject.optLong(ConfigKeys.TimeBuffer.key, 5000),
                         apiUrl = optionsObject.optString(ConfigKeys.ApiUrl.key).takeIf { it.isNotBlank() },
+                        certificatePins =
+                            optionsObject.optJSONArray(ConfigKeys.CertificatePins.key)?.let { pins ->
+                                (0 until pins.length()).mapNotNull { index -> pins.optString(index, null) }
+                            } ?: emptyList(),
                     )
 
                 ConfigResult(configs, options)

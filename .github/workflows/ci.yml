@@ -18,6 +18,10 @@ on:
 # local.properties, and here from secrets, and the generated config asset is produced at build
 # time in both cases.
 env:
+  # Optional. Raises the OWASP Dependency-Check scan's NVD feed rate limit from ~5 to ~50
+  # requests/30s. Absent (e.g. on a fork without repo secrets), the scan still runs -- just
+  # slower -- rather than failing; see the dependencyCheck block in app/build.gradle.kts.
+  INTEMPT_NVD_API_KEY: ${{ secrets.INTEMPT_NVD_API_KEY }}
   INTEMPT_API_KEY: ${{ secrets.INTEMPT_API_KEY }}
   INTEMPT_ORGANIZATION_ID: ${{ secrets.INTEMPT_ORGANIZATION_ID }}
   INTEMPT_PROJECT_ID: ${{ secrets.INTEMPT_PROJECT_ID }}
@@ -114,6 +118,17 @@ jobs:
       - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407  # v3
       - uses: gradle/actions/setup-gradle@48b5f213c81028ace310571dc5ec0fbbca0b2947  # v4
 
+      # The NVD feed is large and rate-limited; caching it means every PR after the first does an
+      # incremental update instead of a full re-download, and a rate-limited run degrades to
+      # "slow" rather than "fails the job outright" on cache hit.
+      - name: Cache OWASP Dependency-Check NVD data
+        uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809  # v4
+        with:
+          path: ~/.gradle/dependency-check-data
+          key: dependency-check-nvd-${{ github.run_id }}
+          restore-keys: |
+            dependency-check-nvd-
+
       - name: Lint
         run: ./gradlew :app:lintDebug :sample:lintDebug --stacktrace
 
@@ -131,6 +146,21 @@ jobs:
       # with no behavioural change; it can happen incrementally.
       - name: ktlint
         run: ./gradlew :app:ktlintCheck :sample:ktlintCheck --stacktrace
+
+      # OWASP Dependency-Check against :app's resolved dependency graph specifically -- not
+      # :mutation, which is a sidecar that recompiles a handful of :app's own pure-JVM sources
+      # with no third-party dependency graph of its own to scan. Gated at CVSS >= 9 (critical);
+      # see the dependencyCheck block in app/build.gradle.kts for why the threshold is not "any
+      # known CVE".
+      - name: Dependency vulnerability scan
+        run: ./gradlew :app:dependencyCheckAnalyze --stacktrace
+
+      - name: Upload dependency-check report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
+        with:
+          name: dependency-check-report
+          path: app/build/reports/dependency-check/
 
       # Gated. This was continue-on-error while the measurement was broken — Robolectric's
       # classloader discarded JaCoCo's instrumentation, so the report read near-zero regardless
