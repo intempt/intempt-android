@@ -27,6 +27,7 @@ import com.intempt.core.services.LoggerManagerService
 import com.intempt.core.services.firebase.model.PushNotificationContent
 import com.intempt.core.services.firebase.model.PushNotificationMetadata
 import com.intempt.core.services.firebase.webhook.WebhookService
+import com.intempt.core.types.IntemptValue
 import kotlinx.coroutines.tasks.await
 
 internal class FirebaseService : FirebaseMessagingService() {
@@ -139,7 +140,7 @@ internal class FirebaseService : FirebaseMessagingService() {
             // and the token still reaches the backend on the next install/upgrade event.
             com.intempt.core.Intempt.track(
                 "App install/upgrade",
-                mapOf("deviceToken" to token),
+                IntemptValue.mapOf(mapOf("deviceToken" to token)),
             )
         } catch (e: Throwable) {
             // Never let a token report crash the messaging service.

@@ -5,10 +5,18 @@ import static org.junit.Assert.assertNull;
 
 import androidx.test.core.app.ApplicationProvider;
 
+import com.intempt.core.types.ConsentAction;
+import com.intempt.core.types.IntemptCredentials;
+import com.intempt.core.types.IntemptValue;
+import com.intempt.core.types.Product;
+
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.robolectric.RobolectricTestRunner;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -66,45 +74,115 @@ public class JavaInteropTest {
         Intempt.identify("user@example.com");
         Intempt.group("acct-1");
         Intempt.record("Custom");
-        Intempt.consent("granted", 1_800_000_000_000L);
+        Intempt.track("Viewed");
+        Intempt.consent(ConsentAction.ACCEPT, 1_800_000_000_000L);
+        Intempt.flush();
     }
 
     /** And at intermediate arities, which is the point of the generated overload set. */
     @Test
     public void defaultedMethodsAreCallableAtIntermediateArityFromJava() {
-        final Map<String, String> attrs = new HashMap<>();
-        attrs.put("plan", "pro");
+        final Map<String, IntemptValue> attrs = typedAttributes();
 
         Intempt.identify("user@example.com", "Signed up");
         Intempt.identify("user@example.com", "Signed up", attrs);
         Intempt.group("acct-1", "Joined");
-        Intempt.record("Custom", "acct-1");
-        Intempt.consent("granted", 1_800_000_000_000L, "user@example.com");
+        Intempt.record("Custom", "user@example.com");
+        Intempt.consent(ConsentAction.ACCEPT, 1_800_000_000_000L, "user@example.com");
     }
 
     /** And at full arity, so the generated set does not shadow the original signature. */
     @Test
     public void defaultedMethodsAreCallableAtFullArityFromJava() {
-        final Map<String, String> attrs = new HashMap<>();
-        attrs.put("k", "v");
+        final Map<String, IntemptValue> attrs = typedAttributes();
 
         Intempt.identify("user@example.com", "Signed up", attrs, attrs);
         Intempt.group("acct-1", "Joined", attrs);
-        Intempt.record("Custom", "acct-1", "user@example.com", attrs, attrs, attrs);
-        Intempt.consent("granted", 1_800_000_000_000L, "user@example.com", "why", "marketing");
+        Intempt.record("Custom", "user@example.com", "acct-1", attrs, attrs, attrs);
+        Intempt.consent(ConsentAction.ACCEPT, 1_800_000_000_000L, "user@example.com", "why", "marketing");
+    }
+
+    /**
+     * Typed attribute values, built the way a Java caller has to build them.
+     *
+     * <p>{@code IntemptValue.mapOf} carries {@code @JvmStatic} for exactly this: without it, a Java
+     * app wrapping a plain map would write {@code IntemptValue.Companion.mapOf(...)} at every call
+     * site, and the 3.0 typing change would read as a tax rather than a fix.
+     */
+    private static Map<String, IntemptValue> typedAttributes() {
+        final Map<String, Object> raw = new HashMap<>();
+        raw.put("plan", "pro");
+        raw.put("seats", 5);
+        raw.put("trial", false);
+        return IntemptValue.mapOf(raw);
+    }
+
+    /**
+     * The typing actually survives the Java call path.
+     *
+     * <p>The whole point of 3.0's typed attributes is that {@code 42} does not become {@code "42"}.
+     * Java is where that is most likely to be lost, because autoboxing makes {@code Object} the
+     * natural map value type and a stringly implementation would compile identically.
+     */
+    @Test
+    public void typedValuesKeepTheirTypeThroughTheJavaCallPath() {
+        final Map<String, IntemptValue> attrs = typedAttributes();
+
+        assertTrue(attrs.get("seats") instanceof IntemptValue.Num);
+        assertTrue(attrs.get("trial") instanceof IntemptValue.Bool);
+        assertTrue(attrs.get("plan") instanceof IntemptValue.Str);
+        assertEquals(5L, attrs.get("seats").raw());
+        assertEquals(Boolean.FALSE, attrs.get("trial").raw());
+    }
+
+    /** Runtime credentials, the path a bridge or a white-label host uses. */
+    @Test
+    public void runtimeCredentialsAreConstructibleAndValidatableFromJava() {
+        final IntemptCredentials good = new IntemptCredentials("id.secret", "org", "proj", "src");
+        assertTrue(good.isValid());
+        assertTrue(good.problems().isEmpty());
+
+        final IntemptCredentials bad = new IntemptCredentials("no-separator", "org", "proj", "src");
+        assertFalse(bad.isValid());
+        assertFalse(
+                "a rejection message must not quote the key",
+                bad.problems().get(0).contains("no-separator"));
+
+        assertFalse(Intempt.initialize(ApplicationProvider.getApplicationContext(), bad));
+    }
+
+    /** The 3.0 additions, at the static form a Java host app writes. */
+    @Test
+    public void the30SurfaceIsCallableStaticallyFromJava() {
+        assertEquals("", Intempt.getProfileId());
+        assertEquals("", Intempt.getSessionId());
+
+        Intempt.optIn();
+        Intempt.optOut();
+        assertFalse(Intempt.hasOptedOut());
+        assertFalse(Intempt.isOptedIn());
+
+        Intempt.reset();
+
+        // A settable property on a Kotlin object needs @JvmStatic on the property, not only on the
+        // methods around it, or Java reaches it through .INSTANCE.
+        Intempt.setFlushInterval(30);
+        assertEquals(0, Intempt.getFlushInterval());
     }
 
     /** The methods without default arguments, for completeness of the static-call surface. */
     @Test
     public void undefaultedMethodsAreCallableStaticallyFromJava() {
-        final Map<String, String> data = new HashMap<>();
-        data.put("screen", "home");
+        final Map<String, IntemptValue> data = typedAttributes();
 
         Intempt.track("Viewed", data);
         Intempt.alias("user@example.com", "user-2");
         Intempt.productAdd("21", 2);
         Intempt.productView("21");
-        Intempt.productOrdered(Collections.<Map<String, Object>>emptyList());
+        Intempt.productOrdered(Collections.singletonList(new Product("21", 1)));
+        // The @JvmOverloads-generated single-argument Product constructor, for a view with no
+        // quantity. A Java caller cannot use a Kotlin default argument without it.
+        Intempt.productOrdered(Collections.singletonList(new Product("21")));
         Intempt.logOut();
     }
 
@@ -119,9 +197,9 @@ public class JavaInteropTest {
         Intempt.Logging.stop();
         assertFalse(Intempt.Logging.isLoggingEnabled());
 
-        Intempt.Tracking.start();
-        Intempt.Tracking.stop();
-        assertFalse(Intempt.Tracking.isTrackingEnabled());
+        Intempt.optIn();
+        Intempt.optOut();
+        assertFalse(Intempt.isOptedIn());
     }
 
     /**
@@ -135,7 +213,7 @@ public class JavaInteropTest {
      */
     @Test
     public void theFacadeIsSafeToCallFromJavaBeforeInitialize() {
-        Intempt.track("Viewed", new HashMap<String, String>());
+        Intempt.track("Viewed", new HashMap<String, IntemptValue>());
         Intempt.identify("");
         Intempt.logOut();
 

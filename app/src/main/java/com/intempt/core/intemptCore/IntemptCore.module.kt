@@ -9,13 +9,13 @@ import com.intempt.core.queue.DeliveryMessages
 import com.intempt.core.queue.QueueConfig
 import com.intempt.core.services.CertificatePinning
 import com.intempt.core.services.ConfigManagerService
-import com.intempt.core.types.IntemptCredentials
 import com.intempt.core.services.HttpManagerService
 import com.intempt.core.services.IntemptEventManagerService
 import com.intempt.core.services.LoggerManagerService
 import com.intempt.core.services.StorageManagerService
 import com.intempt.core.services.UtilsService
 import com.intempt.core.services.eventPool.EventPoolManagerService
+import com.intempt.core.types.IntemptCredentials
 import dagger.Component
 import dagger.Module
 import dagger.Provides

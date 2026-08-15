@@ -2,8 +2,13 @@ package com.intempt.core
 
 import android.view.View
 import androidx.test.core.app.ApplicationProvider
+import com.intempt.core.types.ConsentAction
+import com.intempt.core.types.IntemptCredentials
+import com.intempt.core.types.IntemptValue
+import com.intempt.core.types.Product
 import kotlinx.coroutines.runBlocking
 import org.junit.After
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Before
@@ -109,21 +114,64 @@ class IntemptFacadeTest {
      */
     @Test
     fun `no entry point throws when the sdk was never initialized`() {
+        val attrs = IntemptValue.mapOf(mapOf("plan" to "pro", "seats" to 5, "trial" to false))
+
         Intempt.identify("user@example.com")
-        Intempt.identify("user@example.com", "Signed up", mapOf("plan" to "pro"), mapOf("k" to "v"))
+        Intempt.identify("user@example.com", "Signed up", attrs, attrs)
         Intempt.group("acct-1")
-        Intempt.group("acct-1", "Joined", mapOf("tier" to "enterprise"))
-        Intempt.track("Viewed", mapOf("screen" to "home"))
+        Intempt.group("acct-1", "Joined", attrs)
+        Intempt.track("Viewed")
+        Intempt.track("Viewed", attrs)
         Intempt.record("Custom")
-        Intempt.record("Custom", "acct-1", "user@example.com", mapOf("a" to "b"), mapOf("c" to "d"), mapOf("e" to "f"))
+        Intempt.record("Custom", "user@example.com", "acct-1", attrs, attrs, attrs)
         Intempt.alias("user@example.com", "user-2")
-        Intempt.consent("granted", 1_800_000_000_000L)
-        Intempt.consent("granted", 1_800_000_000_000L, "user@example.com", "why", "marketing")
+        Intempt.consent(ConsentAction.ACCEPT, 1_800_000_000_000L)
+        Intempt.consent(ConsentAction.REJECT, 1_800_000_000_000L, "user@example.com", "why", "marketing")
         Intempt.productAdd("21", 2)
-        Intempt.productOrdered(listOf(mapOf("productId" to "21", "quantity" to 1)))
+        Intempt.productOrdered(listOf(Product("21", 1)))
         Intempt.productView("21")
         Intempt.logOut()
+        Intempt.reset()
+        Intempt.optIn()
+        Intempt.optOut()
+        Intempt.flush()
+        Intempt.flush { }
         Intempt.doNotCaptureText(View(ApplicationProvider.getApplicationContext()))
+    }
+
+    /**
+     * The readers added in 3.0. Each has to answer something rather than throw, and the answer has
+     * to be the one a host app can branch on safely: "" for an identifier it does not have, false
+     * for a capability that is not running, 0 for a timer that is not scheduled.
+     */
+    @Test
+    fun `the 3_0 readers answer safely when the sdk was never initialized`() {
+        assertEquals("", Intempt.getProfileId())
+        assertEquals("", Intempt.getSessionId())
+        assertFalse("a dead SDK is not opted in", Intempt.isOptedIn())
+        assertFalse("hasOptedOut must not claim an opt-out that was never recorded", Intempt.hasOptedOut())
+        assertEquals(0, Intempt.flushInterval)
+
+        // The setter has the same obligation as the getter, and is the half most likely to have
+        // dereferenced the core without a guard.
+        Intempt.flushInterval = 30
+        assertEquals("a write against a dead SDK must not be reported as stored", 0, Intempt.flushInterval)
+    }
+
+    /**
+     * Runtime credentials are refused before Dagger is touched when they are malformed.
+     *
+     * A key without its `<id>.<secret>` separator used to reach the auth path and throw
+     * IndexOutOfBoundsException from inside it — a typo in a credential crashing the host app.
+     */
+    @Test
+    fun `initialize refuses malformed runtime credentials without throwing`() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+
+        assertFalse(Intempt.initialize(context, IntemptCredentials("no-separator", "org", "proj", "src")))
+        assertFalse(Intempt.initialize(context, IntemptCredentials("", "org", "proj", "src")))
+        assertFalse(Intempt.initialize(context, IntemptCredentials("id.secret", "", "proj", "src")))
+        assertFalse(Intempt.isInitialized)
     }
 
     /** The suspend entry point has the same obligation, and must return null rather than throw. */
@@ -144,8 +192,8 @@ class IntemptFacadeTest {
     fun `the logging and tracking toggles are no-ops when uninitialized`() {
         Intempt.Logging.start()
         Intempt.Logging.stop()
-        Intempt.Tracking.start()
-        Intempt.Tracking.stop()
+        Intempt.optIn()
+        Intempt.optOut()
     }
 
     /**
@@ -159,7 +207,7 @@ class IntemptFacadeTest {
     @Test
     fun `the toggles report disabled rather than throwing when uninitialized`() {
         assertFalse(Intempt.Logging.isLoggingEnabled())
-        assertFalse(Intempt.Tracking.isTrackingEnabled())
+        assertFalse(Intempt.isOptedIn())
     }
 
     // ------------------------------------------------------------- hostile input
@@ -175,7 +223,7 @@ class IntemptFacadeTest {
         Intempt.identify("")
         Intempt.identify(huge)
         Intempt.track("", emptyMap())
-        Intempt.track(huge, mapOf(huge to huge))
+        Intempt.track(huge, IntemptValue.mapOf(mapOf(huge to huge)))
         Intempt.group("")
         Intempt.alias("", "")
         Intempt.productAdd("", 0)
@@ -188,7 +236,7 @@ class IntemptFacadeTest {
     @Test
     fun `unicode arguments do not throw when uninitialized`() {
         Intempt.identify("ünïcødé@example.com")
-        Intempt.track("购买 🎉", mapOf("категория" to "тест"))
+        Intempt.track("购买 🎉", IntemptValue.mapOf(mapOf("категория" to "тест")))
         Intempt.group("مجموعة")
     }
 
@@ -198,7 +246,7 @@ class IntemptFacadeTest {
      */
     @Test
     fun `a past or zero consent expiry does not throw when uninitialized`() {
-        Intempt.consent("revoked", 0L)
-        Intempt.consent("revoked", -1L)
+        Intempt.consent(ConsentAction.REJECT, 0L)
+        Intempt.consent(ConsentAction.REJECT, -1L)
     }
 }

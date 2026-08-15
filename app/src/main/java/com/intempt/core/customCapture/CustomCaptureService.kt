@@ -7,6 +7,8 @@ import com.intempt.core.services.LoggerManagerService
 import com.intempt.core.services.StorageManagerService
 import com.intempt.core.types.Constants
 import com.intempt.core.types.DispatchEventProps
+import com.intempt.core.types.IntemptValue
+import com.intempt.core.types.Product
 import com.intempt.core.types.ScreenEventProps
 import com.intempt.core.types.UiEventProps
 import javax.inject.Inject
@@ -50,7 +52,7 @@ internal class CustomCaptureService
         fun isIdentifyValid(
             userId: String,
             eventTitle: String?,
-            userAttributes: Map<String, String>?,
+            userAttributes: Map<String, IntemptValue>?,
         ): Boolean {
             if (userId.isEmpty()) {
                 logger.error("Identify parameters are invalid: set 'userId' to use 'identify'.")
@@ -82,7 +84,7 @@ internal class CustomCaptureService
         fun isGroupValid(
             accountId: String,
             eventTitle: String?,
-            accountAttributes: Map<String, String>?,
+            accountAttributes: Map<String, IntemptValue>?,
         ): Boolean {
             if (accountId.isEmpty()) {
                 logger.error("Group parameters are invalid: 'accountId' is required.")
@@ -115,26 +117,26 @@ internal class CustomCaptureService
         }
 
         /**
-         * `!=`, not `!==`. The original used reference identity on Strings, so it only worked
-         * for interned literals — a value read from JSON, a network response or string
-         * concatenation compares unequal even when it reads "accept", and the consent was
-         * rejected. Kotlin's `!==` is identity; `!=` is equals. Found by an adversarial review,
-         * not by a test: all four consent tests asserted nothing that could see it.
+         * Validates a commerce line list.
+         *
+         * The predecessor took `List<Map<String, Any>>` and checked for a `"productId"` String and
+         * a positive `"quantity"` Int. Every way of getting that wrong — a misspelled key, a
+         * quantity arriving as a String from a bridge — produced a silent no-op on the most
+         * valuable event an ecommerce app sends. [Product] makes both fields unmissable at the
+         * call site, so what is left to check is only their values.
          */
-        fun isConsentValid(action: String): Boolean {
-            if (action.isNotEmpty() && action != "accept" && action != "reject") {
-                logger.error("Consent parameters are invalid: action should be either 'reject' or 'accept'.")
+        fun isProductListValid(products: List<Product>): Boolean {
+            if (products.isEmpty()) {
+                logger.error("productOrdered was called with an empty product list.")
+                return false
+            }
+
+            val problems = products.flatMapIndexed { index, product -> product.problems().map { "products[$index]: $it" } }
+            if (problems.isNotEmpty()) {
+                logger.error("Product parameters are invalid — ${problems.joinToString("; ")}")
                 return false
             }
             return true
-        }
-
-        fun isProductListValid(products: List<Map<String, Any>>): Boolean {
-            return products.all { product ->
-                val productId = product["productId"]
-                val quantity = product["quantity"]
-                productId is String && productId.isNotBlank() && quantity is Int && quantity > 0
-            }
         }
 
         fun onUiEventReceive(props: UiEventProps): DispatchEventProps {

@@ -13,6 +13,9 @@ import com.intempt.core.services.LoggerManagerService
 import com.intempt.core.services.StorageManagerService
 import com.intempt.core.services.UtilsService
 import com.intempt.core.services.eventPool.EventPoolManagerService
+import com.intempt.core.types.ConsentAction
+import com.intempt.core.types.IntemptValue
+import com.intempt.core.types.Product
 import com.intempt.core.types.StorageKeys
 import junit.framework.TestCase.assertNotNull
 import junit.framework.TestCase.assertTrue
@@ -147,6 +150,7 @@ class InstallationUnitTest {
                 eventPoolSrv,
                 intemptEvent,
                 utils,
+                storage,
             )
     }
 
@@ -193,8 +197,8 @@ class InstallationUnitTest {
         component.identify(
             "test_userID",
             "test_eventTitle",
-            mapOf("test" to "test"),
-            mapOf("test" to "test"),
+            IntemptValue.mapOf(mapOf("test" to "test")),
+            IntemptValue.mapOf(mapOf("test" to "test")),
         )
 
         verify(eventPoolSrv).emitEvent(any())
@@ -210,7 +214,7 @@ class InstallationUnitTest {
         component.group(
             "test_accountID",
             "test_eventTitle",
-            mapOf("key" to "value"),
+            IntemptValue.mapOf(mapOf("key" to "value")),
         )
 
         verify(eventPoolSrv).emitEvent(any())
@@ -224,7 +228,7 @@ class InstallationUnitTest {
 
         component.track(
             "test_eventTitle",
-            mapOf("key" to "value"),
+            IntemptValue.mapOf(mapOf("key" to "value")),
         )
 
         verify(eventPoolSrv).emitEvent(any())
@@ -238,11 +242,11 @@ class InstallationUnitTest {
 
         component.record(
             "test_eventTitle",
-            "test_accountID",
             "test_userID",
-            mapOf("accountKey" to "accountValue"),
-            mapOf("userKey" to "userValue"),
-            mapOf("dataKey" to "dataValue"),
+            "test_accountID",
+            IntemptValue.mapOf(mapOf("dataKey" to "dataValue")),
+            IntemptValue.mapOf(mapOf("userKey" to "userValue")),
+            IntemptValue.mapOf(mapOf("accountKey" to "accountValue")),
         )
 
         verify(eventPoolSrv).emitEvent(any())
@@ -269,7 +273,7 @@ class InstallationUnitTest {
             .`when`(eventPoolSrv).emitEvent(any())
 
         component.consent(
-            "accept",
+            ConsentAction.ACCEPT,
             1234567890L,
             "test@example.com",
             "test_message",
@@ -301,8 +305,8 @@ class InstallationUnitTest {
 
         component.productOrdered(
             listOf(
-                mapOf("productId" to "test_productID", "quantity" to 3),
-                mapOf("productId" to "another_productID", "quantity" to 2),
+                Product("test_productID", 3),
+                Product("another_productID", 2),
             ),
         )
 

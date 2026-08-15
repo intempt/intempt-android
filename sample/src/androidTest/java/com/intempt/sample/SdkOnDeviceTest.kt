@@ -8,6 +8,9 @@ import android.widget.EditText
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.intempt.core.types.ConsentAction
+import com.intempt.core.types.IntemptValue
+import com.intempt.core.types.Product
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -129,7 +132,10 @@ class SdkOnDeviceTest {
          */
         private fun awaitEvent(
             what: String,
-            reemit: (() -> Unit)? = null,
+            // `Any?`, not `Unit`: as of 3.0 every capture method returns Boolean, so a lambda
+            // wrapping one infers `() -> Boolean` and no longer satisfies `() -> Unit`. The
+            // helper only re-runs the emitter and ignores whatever it hands back.
+            reemit: (() -> Any?)? = null,
             predicate: (JSONObject) -> Boolean,
         ): JSONObject {
             val deadline = System.currentTimeMillis() + TIMEOUT_MS
@@ -152,7 +158,10 @@ class SdkOnDeviceTest {
 
         private fun awaitEventNamed(
             name: String,
-            reemit: (() -> Unit)? = null,
+            // `Any?`, not `Unit`: as of 3.0 every capture method returns Boolean, so a lambda
+            // wrapping one infers `() -> Boolean` and no longer satisfies `() -> Unit`. The
+            // helper only re-runs the emitter and ignores whatever it hands back.
+            reemit: (() -> Any?)? = null,
         ): JSONObject = awaitEvent("an event named '$name'", reemit) { it.optString("name") == name }
     }
 
@@ -220,13 +229,13 @@ class SdkOnDeviceTest {
         com.intempt.core.Intempt.Logging.stop()
         assertFalse("stop() must reach the core", com.intempt.core.Intempt.Logging.isLoggingEnabled())
 
-        com.intempt.core.Intempt.Tracking.start()
-        assertTrue("start() must reach the core", com.intempt.core.Intempt.Tracking.isTrackingEnabled())
-        com.intempt.core.Intempt.Tracking.stop()
-        assertFalse("stop() must reach the core", com.intempt.core.Intempt.Tracking.isTrackingEnabled())
+        com.intempt.core.Intempt.optIn()
+        assertTrue("optIn() must reach the core", com.intempt.core.Intempt.isOptedIn())
+        com.intempt.core.Intempt.optOut()
+        assertTrue("optOut() must reach the core", com.intempt.core.Intempt.hasOptedOut())
 
         // Left enabled, since other tests in this class rely on tracking being on.
-        com.intempt.core.Intempt.Tracking.start()
+        com.intempt.core.Intempt.optIn()
     }
 
     /** The core the facade holds. Reflection: there is no accessor, and there should not be one. */
@@ -266,7 +275,7 @@ class SdkOnDeviceTest {
     @Test
     fun trackQueuesTheEvent() {
         val name = "on-device track ${System.nanoTime()}"
-        val emit = { com.intempt.core.Intempt.track(name, mapOf("source" to "androidTest")) }
+        val emit = { com.intempt.core.Intempt.track(name, IntemptValue.mapOf(mapOf("source" to "androidTest"))) }
         emit()
         assertEquals("track", awaitEventNamed(name, reemit = emit).optString("type"))
     }
@@ -284,7 +293,7 @@ class SdkOnDeviceTest {
             com.intempt.core.Intempt.record(
                 eventTitle = name,
                 userId = "androidtest-record-user",
-                data = mapOf("step" to "checkout"),
+                data = IntemptValue.mapOf(mapOf("step" to "checkout")),
             )
         }
         emit()
@@ -329,7 +338,7 @@ class SdkOnDeviceTest {
         val emit = {
             com.intempt.core.Intempt.identify(
                 userId = "androidtest-user",
-                userAttributes = mapOf("plan" to "free"),
+                userAttributes = IntemptValue.mapOf(mapOf("plan" to "free")),
             )
         }
         emit()
@@ -352,7 +361,7 @@ class SdkOnDeviceTest {
         val emit = {
             com.intempt.core.Intempt.group(
                 accountId = "androidtest-account",
-                accountAttributes = mapOf("tier" to "smb"),
+                accountAttributes = IntemptValue.mapOf(mapOf("tier" to "smb")),
             )
         }
         emit()
@@ -457,21 +466,37 @@ class SdkOnDeviceTest {
      * `consent` is the one call that never reaches the durable queue: it posts immediately, so
      * there is no row to read back and no client-side signal of the response. What is
      * assertable is its validation contract — the action must be "accept" or "reject" — and
-     * that neither a valid nor an invalid action takes the host app down.
+     * that neither action takes the host app down.
+     *
+     * There is no longer an invalid-action case to cover: [ConsentAction] is an enum, so a typo
+     * is a compile error rather than a silent no-op. That was the point of typing it — a consent
+     * action that quietly did nothing is a compliance failure with no trace.
      */
     @Test
-    fun consentAcceptsOnlyValidActions() {
+    fun consentIsAcceptedInBothDirections() {
         val validUntil = System.currentTimeMillis() + 86_400_000
 
-        // Valid actions, and an invalid one the SDK must reject rather than send or throw.
-        com.intempt.core.Intempt.consent(action = "accept", validUntil = validUntil)
-        com.intempt.core.Intempt.consent(action = "reject", validUntil = validUntil)
-        com.intempt.core.Intempt.consent(action = "not-a-real-action", validUntil = validUntil)
-
         assertTrue(
-            "an invalid consent action must not take the SDK down with it",
-            com.intempt.core.Intempt.isInitialized,
+            "accept must be accepted for delivery",
+            com.intempt.core.Intempt.consent(action = ConsentAction.ACCEPT, validUntil = validUntil),
         )
+
+        // While opted out, which the reject below produces. A withdrawal has to reach the server
+        // even from a user who has already objected — the case the old opt-out guard suppressed.
+        assertTrue(
+            "reject must be accepted for delivery",
+            com.intempt.core.Intempt.consent(action = ConsentAction.REJECT, validUntil = validUntil),
+        )
+        assertTrue("reject must opt the user out", com.intempt.core.Intempt.hasOptedOut())
+        assertTrue(
+            "a withdrawal must be accepted while already opted out",
+            com.intempt.core.Intempt.consent(action = ConsentAction.REJECT, validUntil = validUntil),
+        )
+
+        // Left opted in: the assertions elsewhere in this class depend on capture being on, and
+        // JUnit gives no ordering guarantee between test methods.
+        com.intempt.core.Intempt.consent(action = ConsentAction.ACCEPT, validUntil = validUntil)
+        assertTrue("accept must opt the user back in", com.intempt.core.Intempt.isOptedIn())
     }
 
     /**
@@ -482,26 +507,34 @@ class SdkOnDeviceTest {
     @Test
     fun everyPublicCallSurvivesOnThisApiLevel() {
         with(com.intempt.core.Intempt) {
-            track("survival ${System.nanoTime()}", mapOf("k" to "v"))
-            identify(userId = "u-survive", userAttributes = mapOf("plan" to "free"))
-            group(accountId = "a-survive", accountAttributes = mapOf("tier" to "smb"))
+            val attrs = IntemptValue.mapOf(mapOf("plan" to "free", "seats" to 3, "trial" to false))
+
+            track("survival ${System.nanoTime()}", IntemptValue.mapOf(mapOf("k" to "v")))
+            identify(userId = "u-survive", userAttributes = attrs)
+            group(accountId = "a-survive", accountAttributes = attrs)
             record(eventTitle = "record ${System.nanoTime()}", userId = "u-survive")
             alias("u-survive", "u-survive-2")
             productView("sku-1")
             productAdd("sku-1", 2)
-            productOrdered(listOf(mapOf("productId" to "sku-1", "quantity" to 1)))
-            consent(action = "accept", validUntil = System.currentTimeMillis() + 86_400_000)
+            productOrdered(listOf(Product("sku-1", 1)))
+            consent(action = ConsentAction.ACCEPT, validUntil = System.currentTimeMillis() + 86_400_000)
+
+            getProfileId()
+            getSessionId()
+            flush()
+            flushInterval = 30
+            logOut()
         }
         with(com.intempt.core.Intempt.Logging) {
             start()
             stop()
         }
-        with(com.intempt.core.Intempt.Tracking) {
-            start()
-            stop()
-            // Left enabled: the assertions in this class depend on capture being on, and
+        with(com.intempt.core.Intempt) {
+            optIn()
+            optOut()
+            // Left opted in: the assertions in this class depend on capture being on, and
             // JUnit gives no ordering guarantee between test methods.
-            start()
+            optIn()
         }
         assertTrue(com.intempt.core.Intempt.isInitialized)
     }
@@ -557,7 +590,7 @@ class SdkOnDeviceTest {
 
         val tag = "e2e delivery ${System.nanoTime()}"
         repeat(45) { i ->
-            com.intempt.core.Intempt.track("$tag-$i", mapOf("source" to "android-sdk-e2e"))
+            com.intempt.core.Intempt.track("$tag-$i", IntemptValue.mapOf(mapOf("source" to "android-sdk-e2e")))
         }
 
         // No assertion that the queue grows first. 45 events exceed

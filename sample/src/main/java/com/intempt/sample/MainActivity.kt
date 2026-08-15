@@ -16,6 +16,9 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.intempt.core.Intempt
+import com.intempt.core.types.ConsentAction
+import com.intempt.core.types.IntemptValue
+import com.intempt.core.types.Product
 
 /**
  * Exercises the public API by hand. Built with plain views rather than Compose so this
@@ -80,7 +83,12 @@ class MainActivity : AppCompatActivity() {
         )
 
         button(root, "track") {
-            Intempt.track("Sample button tapped", mapOf("source" to "sample-app"))
+            // Typed values, so the sample demonstrates the 3.0 shape a customer copies. `seats`
+            // reaching the platform as a number rather than "3" is the point of the change.
+            Intempt.track(
+                "Sample button tapped",
+                IntemptValue.mapOf(mapOf("source" to "sample-app", "seats" to 3, "trial" to false)),
+            )
         }
         button(root, "identify") {
             // Deliberately the obvious call, with no eventTitle. This used to be rejected
@@ -88,25 +96,42 @@ class MainActivity : AppCompatActivity() {
             // this shape means the sample fails visibly if that regresses.
             Intempt.identify(
                 userId = "sample-user-1",
-                userAttributes = mapOf("plan" to "free"),
+                userAttributes = IntemptValue.mapOf(mapOf("plan" to "free")),
             )
         }
         button(root, "group") {
             // Also titleless, to cover the sibling bug: this arrived named "Identify".
             Intempt.group(
                 accountId = "sample-account-1",
-                accountAttributes = mapOf("tier" to "smb"),
+                accountAttributes = IntemptValue.mapOf(mapOf("tier" to "smb")),
             )
         }
         button(root, "record") {
             Intempt.record(
                 eventTitle = "Sample record",
                 userId = "sample-user-1",
-                data = mapOf("step" to "checkout"),
+                data = IntemptValue.mapOf(mapOf("step" to "checkout")),
             )
         }
         button(root, "productView") { Intempt.productView("sku-123") }
-        button(root, "logOut (rotates profileId)") { Intempt.logOut() }
+        button(root, "productOrdered") {
+            Intempt.productOrdered(listOf(Product("sku-123", 2), Product("sku-456", 1)))
+        }
+        button(root, "consent accept (opts in)") {
+            Intempt.consent(ConsentAction.ACCEPT, System.currentTimeMillis() + 86_400_000)
+        }
+        button(root, "consent reject (opts out + clears queue)") {
+            Intempt.consent(ConsentAction.REJECT, System.currentTimeMillis() + 86_400_000)
+        }
+        button(root, "flush") {
+            Intempt.flush { delivered -> runOnUiThread { log.append("  flush delivered $delivered\n") } }
+        }
+        button(root, "logOut (rotates profileId, keeps queue)") { Intempt.logOut() }
+        button(root, "reset (rotates profileId, empties queue)") { Intempt.reset() }
+        button(root, "show ids") {
+            log.append("  profileId=${Intempt.getProfileId()} sessionId=${Intempt.getSessionId()}\n")
+            log.append("  optedIn=${Intempt.isOptedIn()} flushInterval=${Intempt.flushInterval}s\n")
+        }
 
         log =
             TextView(this).apply {

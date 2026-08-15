@@ -11,6 +11,11 @@ package com.intempt.core.types
  * Matches Swift's `ConsentAction`, which has the same two cases. The wire values are what
  * `/consents/data` expects; [wireValue] is what goes on the wire and the enum name is what a caller
  * writes, so renaming the constant cannot silently change the payload.
+ *
+ * This file briefly also carried an `OptimizationType` for `experiments(optimizationType:)`. It is
+ * gone: experiment and personalization assignment is an intemptjs capability and does not belong in
+ * a mobile client SDK — decided 2026-08-15, and Swift drops its version too. Recommendation feeds
+ * (`/feeds/{id}/data`, `Intempt.recommendation`) are a different capability and are unaffected.
  */
 enum class ConsentAction(val wireValue: String) {
     /** The subject granted permission. */
@@ -29,27 +34,9 @@ enum class ConsentAction(val wireValue: String) {
          * call, whereas a stored value read back from disk may reasonably be treated as unknown.
          */
         @JvmStatic
-        fun fromWireValue(value: String): ConsentAction? =
-            entries.firstOrNull { it.wireValue.equals(value.trim(), ignoreCase = true) }
-    }
-}
-
-/**
- * Which kind of optimization an experiments query is asking for.
- *
- * Swift carries this on `experiments(optimizationType:)`, and it is what distinguishes an
- * experiment from a personalization — the two used to be separate methods on Android
- * (`Intempt.experiment` / `Intempt.personalization`, each with `getByGroup`/`getByName`) and are one
- * query with a discriminator here.
- */
-enum class OptimizationType(val wireValue: String) {
-    EXPERIMENT("experiment"),
-    PERSONALIZATION("personalization"),
-    ;
-
-    companion object {
-        @JvmStatic
-        fun fromWireValue(value: String): OptimizationType? =
-            entries.firstOrNull { it.wireValue.equals(value.trim(), ignoreCase = true) }
+        fun fromWireValue(value: String): ConsentAction? {
+            val normalized = value.trim()
+            return entries.firstOrNull { it.wireValue.equals(normalized, ignoreCase = true) }
+        }
     }
 }

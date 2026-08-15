@@ -1,6 +1,7 @@
 package com.intempt.core.eventModels
 
 import com.intempt.core.types.IntemptEventProvider
+import com.intempt.core.types.IntemptValue
 
 internal open class GroupEvent(
     override val eventId: String,
@@ -9,7 +10,7 @@ internal open class GroupEvent(
     override val profileId: String,
     override val timestamp: Long = System.currentTimeMillis(),
     private val accountId: String,
-    private val accountAttributes: Map<String, Any>?,
+    private val accountAttributes: Map<String, IntemptValue>?,
 ) : IntemptEventProvider {
     override fun getEventTime(): Long {
         return timestamp
@@ -23,7 +24,7 @@ internal open class GroupEvent(
         map["profileId"] = profileId
         map["timestamp"] = timestamp
         map["accountId"] = accountId
-        accountAttributes?.let { map["accountAttributes"] = it }
+        accountAttributes?.let { map["accountAttributes"] = IntemptValue.rawMap(it) }
 
         return map
     }

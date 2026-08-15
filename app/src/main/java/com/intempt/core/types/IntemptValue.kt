@@ -126,5 +126,17 @@ sealed class IntemptValue {
          */
         @JvmStatic
         fun mapOf(values: Map<String, Any?>): Map<String, IntemptValue> = values.mapValues { of(it.value) }
+
+        /**
+         * The inverse of [mapOf]: unwraps back to plain values for serialization.
+         *
+         * Every attribute map has to be unwrapped before it reaches `org.json`. `JSONObject`'s
+         * `wrap()` understands String, the boxed primitives, Map, Collection and array, and
+         * **returns null for anything else** — so handing it an `IntemptValue` directly does not
+         * fail, it silently writes `null` for that attribute. Typed values that vanish on the wire
+         * would be worse than the stringly-typed maps they replace.
+         */
+        @JvmStatic
+        fun rawMap(values: Map<String, IntemptValue>): Map<String, Any?> = values.mapValues { it.value.raw() }
     }
 }
