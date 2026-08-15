@@ -5,6 +5,7 @@ import com.intempt.core.intemptCore.IntemptCoreService
 import com.intempt.core.types.AutocaptureOptions
 import com.intempt.core.types.AutomaticEventsOptions
 import com.intempt.core.types.ConsentAction
+import com.intempt.core.types.FeedFields
 import com.intempt.core.types.IntemptError
 import com.intempt.core.types.IntemptValue
 import com.intempt.core.types.Product
@@ -193,18 +194,27 @@ class IntemptInstance internal constructor(
     // ------------------------------------------------------------------------- everything else
 
     /**
-     * Up to [quantity] recommendations from feed [id], returning only [fields].
+     * Up to [count] product recommendations from feed [feedId], returning only [fields].
      *
-     * Never widen [fields] by omission — an unfielded request returns every catalog column
-     * including raw ML embedding vectors, measured at 222,919 bytes against 503 for the same
-     * 10 products.
+     * Named `products` rather than `recommendation` as of 3.0. The capability is unchanged — the
+     * same `/feeds/{feedId}/data` call — and the contract picked one name for it across every SDK,
+     * because a bridge cannot be thin while the same request is spelled two ways.
+     *
+     * Never widen [fields] by omission. [FeedFields.DEFAULT] exists because an unfielded request
+     * returns every catalog column including raw ML embedding vectors: 222,919 bytes against 503
+     * for the same 10 products.
+     *
+     * Returns null when the request fails. The feed answers only for a profile the platform has
+     * already ingested, and it returns the same "USER … is not found" for a wrong feed id and a
+     * wrong profile — so a null here means one of the two, not "the feed is broken".
      */
-    suspend fun recommendation(
-        id: String,
-        quantity: Int,
-        fields: List<String>,
-        productId: String?,
-    ): JsonObject? = core.capture.recommendation(id, quantity, fields, productId)
+    @JvmOverloads
+    suspend fun products(
+        feedId: String,
+        count: Int = 10,
+        fields: List<String> = FeedFields.DEFAULT,
+        productId: String? = null,
+    ): JsonObject? = core.capture.products(feedId, count, fields, productId)
 
     /** Excludes [view] from autocapture so its text is never recorded. Android-only. */
     fun doNotCaptureText(view: View) = core.capture.doNotCaptureText(view)

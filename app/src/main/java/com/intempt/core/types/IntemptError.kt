@@ -28,11 +28,21 @@ package com.intempt.core.types
  * app hears about the decision.
  */
 sealed class IntemptError {
+    /**
+     * Plain classes, not data classes, and that is a size decision rather than a style one.
+     *
+     * `data` generates `copy`, `copy$default`, `componentN`, `equals`, `hashCode` and `toString`
+     * per subclass. Across twelve cases that was 74 members in the declared surface, and the CI
+     * method-count gate caught it: nobody copies an error with a different status, and nobody
+     * destructures one. Consumers match with `is` and read the fields.
+     *
+     * [toString] is defined once on this class instead, so every case still prints usefully.
+     */
     /** A one-line description safe to log. Never contains a credential. */
     abstract val message: String
 
     /** The API key was not `<id>.<secret>`. Reports [length] only — never the key itself. */
-    data class MalformedApiKey(val length: Int) : IntemptError() {
+    class MalformedApiKey(val length: Int) : IntemptError() {
         override val message: String
             get() = "The API key is not in \"<id>.<secret>\" form (length $length). No Authorization header can be built."
     }
@@ -46,7 +56,7 @@ sealed class IntemptError {
      * be initialized". A parameter name that silently changes meaning inside an accessor is worth
      * not having.
      */
-    data class MissingConfiguration(val fieldName: String) : IntemptError() {
+    class MissingConfiguration(val fieldName: String) : IntemptError() {
         override val message: String get() = "Missing configuration: $fieldName is blank."
     }
 
@@ -57,27 +67,27 @@ sealed class IntemptError {
      * JSON, and the gateway rejects the **whole batch**, so one bad value would lose every event
      * queued alongside it.
      */
-    data class InvalidPropertyValue(val key: String) : IntemptError() {
+    class InvalidPropertyValue(val key: String) : IntemptError() {
         override val message: String get() = "Attribute \"$key\" is not representable (NaN or infinity)."
     }
 
     /** An identifier the event type requires was absent or blank. */
-    data class MissingIdentity(val what: String) : IntemptError() {
+    class MissingIdentity(val what: String) : IntemptError() {
         override val message: String get() = "Missing identifier: $what."
     }
 
     /** The payload could not be serialized. */
-    data class EncodingFailed(val reason: String) : IntemptError() {
+    class EncodingFailed(val reason: String) : IntemptError() {
         override val message: String get() = "Could not encode the payload: $reason."
     }
 
     /** The server rejected the batch with a status that will never succeed on retry. */
-    data class Terminal(val status: Int) : IntemptError() {
+    class Terminal(val status: Int) : IntemptError() {
         override val message: String get() = "Terminal HTTP $status; this batch will not be retried."
     }
 
     /** A transient failure. [retryAfterMillis] is the server's `Retry-After` when it sent one. */
-    data class Retryable(val status: Int, val retryAfterMillis: Long? = null) : IntemptError() {
+    class Retryable(val status: Int, val retryAfterMillis: Long? = null) : IntemptError() {
         override val message: String
             get() =
                 "Retryable HTTP $status" +
@@ -85,17 +95,17 @@ sealed class IntemptError {
     }
 
     /** The network layer failed before a status was available. */
-    data class Transport(val description: String) : IntemptError() {
+    class Transport(val description: String) : IntemptError() {
         override val message: String get() = "Transport failure: $description."
     }
 
     /** The durable queue could not persist the event, so it is lost rather than delayed. */
-    data class StorageUnavailable(val reason: String) : IntemptError() {
+    class StorageUnavailable(val reason: String) : IntemptError() {
         override val message: String get() = "Queue storage unavailable: $reason."
     }
 
     /** The server rejected the request and said why. */
-    data class Server(val status: Int, val messages: List<String>) : IntemptError() {
+    class Server(val status: Int, val messages: List<String>) : IntemptError() {
         override val message: String get() = "Server rejected with HTTP $status: ${messages.joinToString("; ")}."
     }
 
@@ -108,12 +118,12 @@ sealed class IntemptError {
      * capture method returns false, so leaving it unnamed would make the listener useless in
      * exactly the case people reach for it.
      */
-    data class OptedOut(val caller: String) : IntemptError() {
+    class OptedOut(val caller: String) : IntemptError() {
         override val message: String get() = "$caller was refused: the user has opted out."
     }
 
     /** The event name is one the platform reserves for its own events. */
-    data class ForbiddenEventName(val eventTitle: String) : IntemptError() {
+    class ForbiddenEventName(val eventTitle: String) : IntemptError() {
         override val message: String get() = "The event title \"$eventTitle\" is reserved by the platform."
     }
 

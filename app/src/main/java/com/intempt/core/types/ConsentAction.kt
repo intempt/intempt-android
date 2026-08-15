@@ -15,7 +15,7 @@ package com.intempt.core.types
  * This file briefly also carried an `OptimizationType` for `experiments(optimizationType:)`. It is
  * gone: experiment and personalization assignment is an intemptjs capability and does not belong in
  * a mobile client SDK — decided 2026-08-15, and Swift drops its version too. Recommendation feeds
- * (`/feeds/{id}/data`, `Intempt.recommendation`) are a different capability and are unaffected.
+ * (`/feeds/{feedId}/data`, `Intempt.products`) are a different capability and are unaffected.
  */
 enum class ConsentAction(val wireValue: String) {
     /** The subject granted permission. */

@@ -240,7 +240,8 @@ class SdkOnDeviceTest {
 
     /** The core the facade holds. Reflection: there is no accessor, and there should not be one. */
     private fun coreInstance(): Any? {
-        val field = com.intempt.core.Intempt::class.java.getDeclaredField("intemptCore")
+        // "instances", not "intemptCore": the facade holds a registry of named instances as of 3.0.
+        val field = com.intempt.core.Intempt::class.java.getDeclaredField("instances")
         field.isAccessible = true
         return field.get(com.intempt.core.Intempt)
     }

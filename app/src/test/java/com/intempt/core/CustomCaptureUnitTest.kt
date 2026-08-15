@@ -544,9 +544,9 @@ class CustomCaptureUnitTest {
             val productId = "26701"
 
             val res =
-                component.recommendation(
-                    id = id,
-                    quantity = quantity,
+                component.products(
+                    feedId = id,
+                    count = quantity,
                     fields = fields,
                     productId = productId,
                 )

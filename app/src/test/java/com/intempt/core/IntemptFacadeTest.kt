@@ -3,6 +3,7 @@ package com.intempt.core
 import android.view.View
 import androidx.test.core.app.ApplicationProvider
 import com.intempt.core.types.ConsentAction
+import com.intempt.core.types.FeedFields
 import com.intempt.core.types.IntemptCredentials
 import com.intempt.core.types.IntemptValue
 import com.intempt.core.types.Product
@@ -11,6 +12,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -181,13 +183,31 @@ class IntemptFacadeTest {
 
     /** The suspend entry point has the same obligation, and must return null rather than throw. */
     @Test
-    fun `recommendation returns null rather than throwing when uninitialized`() =
+    fun `products returns null rather than throwing when uninitialized`() =
         runBlocking {
             assertNull(
-                "a recommendation with no SDK behind it is absent, not an error",
-                Intempt.recommendation("feed-5292", 4, listOf("id"), null),
+                "a feed lookup with no SDK behind it is absent, not an error",
+                Intempt.products("feed-5292", 4, listOf("id"), null),
             )
+
+            // The defaulted arities too — @JvmOverloads generates them, and each is a separate
+            // entry point that has its own chance to have missed the null-core guard.
+            assertNull(Intempt.products("feed-5292"))
+            assertNull(Intempt.products("feed-5292", 4))
         }
+
+    /**
+     * The default field set is compact, and that is load-bearing rather than tidy.
+     *
+     * An unfielded feed request returns every catalog column including raw ML embedding vectors —
+     * 222,919 bytes against 503 for the same 10 products. A default that grew to "everything"
+     * would be a 443x payload nobody asked for, so the contract forbids it and this pins it.
+     */
+    @Test
+    fun `the default feed field set is not everything`() {
+        assertTrue("a default of no fields means the server picks, which is 'all'", FeedFields.DEFAULT.isNotEmpty())
+        assertTrue("the default must stay compact", FeedFields.DEFAULT.size <= 5)
+    }
 
     /**
      * The nested toggles are a separate object each, so they have their own guard and their own

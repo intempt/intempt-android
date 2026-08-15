@@ -158,7 +158,21 @@ jobs:
           METHOD_COUNT=$("$BUILD_TOOLS_DIR/dexdump" -f "$WORKDIR/classes.dex" \
             | grep "method_ids_size" | awk '{print $NF}')
 
-          CEILING=2700
+          # Raised from 2700 for the 3.0 API. Measured at 2898 with the same d8 + dexdump
+          # commands above; the ceiling is that number plus ~50 of headroom, deliberately tight so
+          # the gate keeps biting.
+          #
+          # The growth is the contract surface, not slack. IntemptInstance is a full delegating
+          # class (named instances are contractual — a singleton is not conformant), and every
+          # defaulted method carries an @JvmOverloads set on both it and Intempt so Java callers
+          # can use them. IntemptError is 12 cases, IntemptValue 6, plus the options and
+          # credential types.
+          #
+          # The gate already earned its keep on this change: it caught 74 generated members from
+          # declaring IntemptError's cases as `data` classes. Nobody copies an error with a
+          # different status or destructures one, so they are plain classes and that is 55 methods
+          # back. Check for that kind of waste before raising this again.
+          CEILING=2950
           echo "SDK's own method count: $METHOD_COUNT (ceiling: $CEILING, baseline: ~2,409)"
           if [ "$METHOD_COUNT" -gt "$CEILING" ]; then
             echo "::error::SDK method count $METHOD_COUNT exceeds ceiling $CEILING. If this growth is intentional, raise CEILING in .github/workflows/ci.yml with a note on why."

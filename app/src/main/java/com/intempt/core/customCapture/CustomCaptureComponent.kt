@@ -347,13 +347,13 @@ internal class CustomCaptureComponent
 
         fun productView(productId: String): Boolean = productEvent("productView", "Product viewed", listOf(Product(productId)))
 
-        suspend fun recommendation(
-            id: String,
-            quantity: Int,
+        suspend fun products(
+            feedId: String,
+            count: Int,
             fields: List<String>,
             productId: String?,
         ): JsonObject? {
-            return eventPool.getFeedData(id, quantity, fields, productId)
+            return eventPool.getFeedData(feedId, count, fields, productId)
         }
 
         private fun productEvent(

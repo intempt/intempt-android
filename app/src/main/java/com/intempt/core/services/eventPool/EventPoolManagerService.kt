@@ -60,7 +60,24 @@ internal open class EventPoolManagerService
         // IO pool no matter what a test injected into this class.
         private val eventHandlers = EventHandlers(logger, intemptEvent, dispatcher)
         private var eventReceiverJob: Job? = null
-        private val _eventReceiver = MutableSharedFlow<IntemptEvent>(replay = 10)
+        // extraBufferCapacity, not replay alone.
+        //
+        // With `replay = 10` and no extra buffer, `tryEmit` returns false — and DROPS the event —
+        // as soon as a subscriber has not drained the 10 slots. There are two subscribers, and a
+        // burst of 45 events is a normal thing for a host app to do, so the buffer filled in
+        // practice. The comment further down already warned that a full buffer means "silent drops
+        // upstream of the durable queue, reintroducing the exact loss this work exists to
+        // eliminate"; nothing had ever measured whether it filled.
+        //
+        // Caught on a real device by the first assertion that ever read a capture method's return
+        // value: consent() reported false while the SDK was working correctly. Making the returns
+        // meaningful is what made this visible — before 3.0 every one of these drops was silent.
+        //
+        // 256 is chosen against the queue's own bulk-upload limit of 40: the collector hands off to
+        // DeliveryMessages without blocking on disk or network, so the buffer only has to absorb a
+        // burst, not a backlog.
+        private val _eventReceiver =
+            MutableSharedFlow<IntemptEvent>(replay = 10, extraBufferCapacity = 256)
 
         val eventReceiver: SharedFlow<IntemptEvent> = _eventReceiver
 
