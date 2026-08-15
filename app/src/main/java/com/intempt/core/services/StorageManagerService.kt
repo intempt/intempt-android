@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import com.intempt.core.types.AppVisibilityState
 import com.intempt.core.types.IdTypeKeys
+import com.intempt.core.types.InstanceId
 import com.intempt.core.types.StorageKeys
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -20,9 +21,20 @@ internal class StorageManagerService
         private val context: Context,
         private val utils: UtilsService,
         private val dispatcher: CoroutineDispatcher = Dispatchers.IO,
+        /**
+         * Which instance's storage this is.
+         *
+         * Every `SharedPreferences` name goes through [InstanceId.scope]. Without it two named
+         * instances share one set of prefs, so the second inherits the first's `profileId` — the
+         * identity leak named instances exist to prevent, reproduced one layer down.
+         */
+        private val instance: InstanceId = InstanceId.Default,
     ) {
         private val coroutineScope = CoroutineScope(dispatcher)
         private val localStore = mutableMapOf<String, Any?>()
+
+        /** The instance-scoped name for a `SharedPreferences` file. */
+        private fun scopedPrefs(base: String): String = instance.scope(base)
 
         fun setLocalProp(
             key: String,
@@ -38,7 +50,7 @@ internal class StorageManagerService
             applyToPrefs: SharedPreferences.Editor.(String, T) -> Unit,
         ) {
             coroutineScope.launch {
-                val sharedPreferences = context.getSharedPreferences(prefs, Context.MODE_PRIVATE)
+                val sharedPreferences = context.getSharedPreferences(scopedPrefs(prefs), Context.MODE_PRIVATE)
                 val editor = sharedPreferences.edit()
                 editor.applyToPrefs(key, value)
                 editor.apply()
@@ -145,18 +157,18 @@ internal class StorageManagerService
         fun clearAllStorage() {
             coroutineScope.launch {
                 // Clear all entries in SessionPrefs
-                val sessionPrefs = context.getSharedPreferences(StorageKeys.SessionPrefs.key, Context.MODE_PRIVATE)
+                val sessionPrefs = context.getSharedPreferences(scopedPrefs(StorageKeys.SessionPrefs.key), Context.MODE_PRIVATE)
                 sessionPrefs.edit().clear().apply()
 
                 // Clear all entries in AppPrefs
-                val appPrefs = context.getSharedPreferences(StorageKeys.AppPrefs.key, Context.MODE_PRIVATE)
+                val appPrefs = context.getSharedPreferences(scopedPrefs(StorageKeys.AppPrefs.key), Context.MODE_PRIVATE)
                 appPrefs.edit().clear().apply()
 
                 // Clear all entries in FragmentPrefs
-                val fragmentPrefs = context.getSharedPreferences(StorageKeys.FragmentPrefs.key, Context.MODE_PRIVATE)
+                val fragmentPrefs = context.getSharedPreferences(scopedPrefs(StorageKeys.FragmentPrefs.key), Context.MODE_PRIVATE)
                 fragmentPrefs.edit().clear().apply()
 
-                val userPrefs = context.getSharedPreferences(StorageKeys.UserPrefs.key, Context.MODE_PRIVATE)
+                val userPrefs = context.getSharedPreferences(scopedPrefs(StorageKeys.UserPrefs.key), Context.MODE_PRIVATE)
                 userPrefs.edit().clear().apply()
 
                 localStore.clear()
@@ -180,7 +192,7 @@ internal class StorageManagerService
         suspend fun validateProfileId() =
             withContext(dispatcher) {
                 val profKey = StorageKeys.ProfileId.key
-                val sharedPreferences = context.getSharedPreferences(StorageKeys.UserPrefs.key, Context.MODE_PRIVATE)
+                val sharedPreferences = context.getSharedPreferences(scopedPrefs(StorageKeys.UserPrefs.key), Context.MODE_PRIVATE)
                 val profId = sharedPreferences.getString(profKey, null)
 
                 if (!profId.isNullOrEmpty()) {

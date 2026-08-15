@@ -5,103 +5,149 @@ import android.util.Log
 import android.view.View
 import com.google.firebase.FirebaseApp
 import com.intempt.core.intemptCore.DaggerIntemptCoreComponent
-import com.intempt.core.intemptCore.IntemptCoreComponent
 import com.intempt.core.intemptCore.IntemptCoreModule
-import com.intempt.core.intemptCore.IntemptCoreService
+import com.intempt.core.types.AutocaptureOptions
+import com.intempt.core.types.AutomaticEventsOptions
 import com.intempt.core.types.ConsentAction
+import com.intempt.core.types.InstanceId
 import com.intempt.core.types.IntemptCredentials
+import com.intempt.core.types.IntemptError
 import com.intempt.core.types.IntemptValue
 import com.intempt.core.types.Product
 import kotlinx.serialization.json.JsonObject
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * The SDK's whole public surface.
  *
  * Shaped by the cross-SDK API contract in `intempt-swift@docs/SDK-API-CONTRACT.md`, which every
- * Intempt client SDK conforms to so that a React Native or Flutter bridge is thin and the same
- * call means the same thing on both platforms. 3.0 is a clean break to reach it; there are no
+ * Intempt client SDK conforms to so a React Native or Flutter bridge stays thin and the same call
+ * means the same thing on both platforms. 3.0 is a clean break to reach it; there are no
  * deprecated aliases because there are no Android integrations to keep working.
  *
- * Three contract properties are worth stating here because they change how you call this:
+ * Four properties are worth stating here because they change how you call this:
  *
- * - **Every capture method returns `Boolean`** — was the event accepted into the queue. It is not
- *   a delivery receipt. False means it will never be sent. These used to return `Unit`, so a
- *   refused call and a working one were indistinguishable.
+ * - **Instances are named, and more than one can run.** Every static below addresses the
+ *   `"default"` instance. A single-project app never needs to know that; an app talking to two
+ *   Intempt projects gets an [IntemptInstance] from [initialize] and calls it directly. A
+ *   singleton is not conformant — it makes two projects impossible and makes tests share state.
+ * - **Every capture method returns `Boolean`** — was the event accepted into the queue. Not a
+ *   delivery receipt. [setErrorListener] is how you learn *why* a `false` happened.
  * - **Attribute maps are typed.** [IntemptValue] instead of `String`, so `42` and `"42"` stay
- *   different all the way to the platform. Use [IntemptValue.mapOf] to wrap a plain map.
+ *   different all the way to the platform. [IntemptValue.mapOf] wraps a plain map.
  * - **Every entry point is safe to call when the SDK is not running.** Each one used to
- *   dereference a `lateinit` field, so a failed or absent `initialize()` turned the first
- *   `track()` into `UninitializedPropertyAccessException` inside the host app. Analytics is not
- *   worth a crash; a call made while disabled logs once and does nothing.
+ *   dereference a `lateinit` field, so a failed or absent `initialize()` turned the first `track()`
+ *   into `UninitializedPropertyAccessException` inside the host app. Analytics is not worth a
+ *   crash; a call made while disabled logs once and does nothing.
  */
 object Intempt {
     private const val TAG = "Intempt"
 
-    private lateinit var component: IntemptCoreComponent
+    /**
+     * Live instances by name.
+     *
+     * Concurrent because `initialize()` can be called from any thread and every capture call reads
+     * this. A plain map would make a background `initialize()` racing a `track()` a
+     * ConcurrentModificationException inside a host app — the crash class this facade exists to
+     * avoid.
+     */
+    private val instances = ConcurrentHashMap<String, IntemptInstance>()
 
-    // Nullable rather than lateinit: `null` is a state the facade can check, whereas an
-    // unassigned lateinit can only be discovered by throwing.
-    @Volatile
-    private var intemptCore: IntemptCoreService? = null
-
-    /** True once [initialize] has completed successfully. */
+    /** True once the `"default"` instance is running. */
     @JvmStatic
     val isInitialized: Boolean
-        get() = intemptCore != null
+        get() = instances.containsKey(InstanceId.DEFAULT)
+
+    // ---------------------------------------------------------------------- initialization
 
     /**
-     * Starts the SDK, reading credentials from `assets/intempt-config.json`.
+     * Starts the `"default"` instance, reading credentials from `assets/intempt-config.json`.
      *
      * @return true when the SDK is running.
      */
     @JvmStatic
-    fun initialize(context: Context): Boolean = initialize(context, null)
+    fun initialize(context: Context): Boolean = start(context, null, InstanceId.DEFAULT) != null
 
     /**
-     * Starts the SDK with credentials supplied at runtime.
+     * Starts the `"default"` instance with credentials supplied at runtime.
      *
      * The asset file remains supported and is still the documented path for a plain Android app,
      * but it must not be the only way in: a React Native or Flutter bridge receives credentials
      * from JavaScript and cannot ship native asset files on its users' behalf, and a white-label
-     * app resolves a different project per tenant. [credentials] wins per field when supplied;
-     * the file is the fallback.
+     * app resolves a different project per tenant. [credentials] wins per field when supplied; the
+     * file is the fallback.
      *
-     * @return true when the SDK is running. False, never an exception, on bad credentials —
-     *   read [IntemptCredentials.problems] first if you want to know what is wrong before calling.
+     * @return true when the SDK is running. False, never an exception, on bad credentials — read
+     *   [IntemptCredentials.problems] first if you want to know what is wrong before calling.
      */
     @JvmStatic
     fun initialize(
         context: Context,
         credentials: IntemptCredentials?,
-    ): Boolean {
-        if (isInitialized) {
-            Log.i(TAG, "Already initialized; ignoring this call")
-            return true
+    ): Boolean = start(context, credentials, InstanceId.DEFAULT) != null
+
+    /**
+     * Starts a **named** instance and returns it, or null on failure.
+     *
+     * Instances are isolated on disk as well as in memory — separate `SharedPreferences`, event
+     * queue and consent audit log — so a second instance cannot inherit the first's `profileId`
+     * or send its events under the wrong credentials.
+     *
+     * Calling this twice with the same [instanceName] returns the existing instance rather than
+     * building a second graph over the same storage.
+     */
+    @JvmStatic
+    fun initialize(
+        context: Context,
+        credentials: IntemptCredentials?,
+        instanceName: String,
+    ): IntemptInstance? = start(context, credentials, instanceName)
+
+    /** The `"default"` instance, or null when it is not running. */
+    @JvmStatic
+    fun mainInstance(): IntemptInstance? = instances[InstanceId.DEFAULT]
+
+    /** The instance named [name], or null when it is not running. */
+    @JvmStatic
+    fun instance(name: String): IntemptInstance? = instances[name]
+
+    private fun start(
+        context: Context,
+        credentials: IntemptCredentials?,
+        instanceName: String,
+    ): IntemptInstance? {
+        instances[instanceName]?.let {
+            Log.i(TAG, "Instance \"$instanceName\" is already initialized; returning it")
+            return it
+        }
+
+        if (instanceName.isBlank()) {
+            Log.e(TAG, "Initialization failed: instanceName is blank.")
+            return null
         }
 
         if (credentials != null) {
             val problems = credentials.problems()
             if (problems.isNotEmpty()) {
                 Log.e(TAG, "Initialization failed: ${problems.joinToString("; ")}. The SDK is disabled.")
-                return false
+                return null
             }
         }
 
+        val instance: IntemptInstance
         try {
-            component =
+            val component =
                 DaggerIntemptCoreComponent.factory()
-                    .create(IntemptCoreModule(context, credentials))
+                    .create(IntemptCoreModule(context, credentials, InstanceId(instanceName)))
 
-            component.inject(this)
-
-            // Credentials are read lazily, so Dagger wires up perfectly against a config asset
-            // that does not exist. Before this check, initialize() returned true for an app with
-            // no intempt-config.json at all: the SDK reported itself healthy, queued events, and
+            // Credentials are read lazily, so Dagger wires up perfectly against a config asset that
+            // does not exist. Before this check, initialize() returned true for an app with no
+            // intempt-config.json at all: the SDK reported itself healthy, queued events, and
             // posted them with no Authorization header, so every batch 401'd and was dropped.
             //
-            // The whole reason this function returns a Boolean is that it used to return Unit and
-            // a host app had no way to tell a working SDK from a dead one. Returning true here
-            // made that signal a lie.
+            // The whole reason this returns a Boolean is that it used to return Unit and a host app
+            // had no way to tell a working SDK from a dead one. Returning true here made that
+            // signal a lie.
             val config = component.config()
             if (!config.isConfigured) {
                 Log.e(
@@ -110,22 +156,34 @@ object Intempt {
                         "Pass IntemptCredentials to initialize(), or add intempt-config.json to " +
                         "src/main/assets. The SDK is disabled and all calls are no-ops.",
                 )
-                return false
+                return null
             }
 
-            intemptCore = component.initService()
+            instance = IntemptInstance(instanceName, component.initService())
         } catch (e: Throwable) {
-            // Throwable, not Exception. An analytics SDK must never take the host app down,
-            // and the failures that actually do are Errors rather than Exceptions: a
+            // Throwable, not Exception. An analytics SDK must never take the host app down, and
+            // the failures that actually do are Errors rather than Exceptions: a
             // NoClassDefFoundError from a dependency that is invalid on this API level went
             // straight through `catch (e: Exception)` and killed the app on launch.
             Log.e(TAG, "Initialization failed; the SDK is disabled and all calls are no-ops", e)
-            return false
+            return null
         }
 
-        // Push notifications are OPTIONAL. They only work when the host app has configured
-        // Firebase (google-services plugin + google-services.json). If it hasn't, skip
-        // gracefully — never fail core analytics init over a missing push setup.
+        // putIfAbsent, not put: two threads calling initialize() concurrently would otherwise both
+        // build a graph and the loser's would be dropped on the floor still holding an open SQLite
+        // handle and a live HandlerThread. The winner is whichever registered first.
+        val winner = instances.putIfAbsent(instanceName, instance)
+        if (winner != null) {
+            Log.i(TAG, "Instance \"$instanceName\" was initialized concurrently; using the first")
+            return winner
+        }
+
+        // Only after registration, so a screen view emitted by the hooks finds its instance.
+        instance.core.startAutocaptureIfConfigured()
+
+        // Push notifications are OPTIONAL. They only work when the host app has configured Firebase
+        // (google-services plugin + google-services.json). If it hasn't, skip gracefully — never
+        // fail core analytics init over a missing push setup.
         try {
             if (FirebaseApp.getApps(context).isEmpty()) {
                 FirebaseApp.initializeApp(context)
@@ -134,19 +192,21 @@ object Intempt {
             Log.i("FCM", "Firebase not configured; push notifications are disabled.")
         }
 
-        return true
+        return instance
     }
 
     /**
-     * The single guard every entry point goes through. Returns null and logs when the SDK
-     * is not running, so callers become no-ops instead of throwing.
+     * The `"default"` instance, or null with one log line when it is not running.
+     *
+     * The single guard every static below goes through, so a call made before `initialize()` is a
+     * no-op rather than a crash in someone's Activity.
      */
-    private fun core(caller: String): IntemptCoreService? {
-        val core = intemptCore
-        if (core == null) {
+    private fun main(caller: String): IntemptInstance? {
+        val instance = instances[InstanceId.DEFAULT]
+        if (instance == null) {
             Log.w(TAG, "$caller ignored: the SDK is not initialized. Call Intempt.initialize(context) first.")
         }
-        return core
+        return instance
     }
 
     // ------------------------------------------------------------------------ capture
@@ -157,11 +217,11 @@ object Intempt {
     fun track(
         eventTitle: String,
         data: Map<String, IntemptValue> = emptyMap(),
-    ): Boolean = core("track")?.capture?.track(eventTitle, data) ?: false
+    ): Boolean = main("track")?.track(eventTitle, data) ?: false
 
     /**
-     * Associates the current session with [userId], optionally logging [eventTitle] and
-     * merging [userAttributes]/[data] onto the user's profile.
+     * Associates the current session with [userId], optionally logging [eventTitle] and merging
+     * [userAttributes]/[data] onto the user's profile.
      */
     @JvmStatic
     @JvmOverloads
@@ -170,11 +230,11 @@ object Intempt {
         eventTitle: String? = null,
         userAttributes: Map<String, IntemptValue>? = null,
         data: Map<String, IntemptValue>? = null,
-    ): Boolean = core("identify")?.capture?.identify(userId, eventTitle, userAttributes, data) ?: false
+    ): Boolean = main("identify")?.identify(userId, eventTitle, userAttributes, data) ?: false
 
     /**
-     * Associates the current session with an account/organization [accountId], optionally
-     * logging [eventTitle] and merging [accountAttributes] onto the account's profile.
+     * Associates the current session with an account/organization [accountId], optionally logging
+     * [eventTitle] and merging [accountAttributes] onto the account's profile.
      */
     @JvmStatic
     @JvmOverloads
@@ -182,25 +242,24 @@ object Intempt {
         accountId: String,
         eventTitle: String? = null,
         accountAttributes: Map<String, IntemptValue>? = null,
-    ): Boolean = core("group")?.capture?.group(accountId, eventTitle, accountAttributes) ?: false
+    ): Boolean = main("group")?.group(accountId, eventTitle, accountAttributes) ?: false
 
     /** Merges the profile previously known as [userId] into [anotherUserId]. */
     @JvmStatic
     fun alias(
         userId: String,
         anotherUserId: String,
-    ): Boolean = core("alias")?.capture?.alias(userId, anotherUserId) ?: false
+    ): Boolean = main("alias")?.alias(userId, anotherUserId) ?: false
 
     /**
-     * Records [eventTitle] and, unlike [track], can attribute it to [userId]/[accountId] and
-     * merge [userAttributes]/[accountAttributes] onto their profiles in the same call.
+     * Records [eventTitle] and, unlike [track], can attribute it to [userId]/[accountId] and merge
+     * [userAttributes]/[accountAttributes] onto their profiles in the same call.
      *
      * The argument order is frozen by the contract. Android used to order it
      * `(eventTitle, accountId, userId, accountAttributes, userAttributes, data)` — identifiers
      * swapped and attributes reversed relative to Swift. Both orders are defensible; having two
-     * is not, and two positional orders that differ only by a swap is the kind of divergence a
-     * bridge author discovers in production. `userId` precedes `accountId` here because that is
-     * the order every other method on this object uses.
+     * positional orders that differ only by a swap is what a bridge author discovers in production.
+     * `userId` precedes `accountId` here because that is the order every other method uses.
      */
     @JvmStatic
     @JvmOverloads
@@ -211,26 +270,18 @@ object Intempt {
         data: Map<String, IntemptValue>? = null,
         userAttributes: Map<String, IntemptValue>? = null,
         accountAttributes: Map<String, IntemptValue>? = null,
-    ): Boolean =
-        core("record")?.capture?.record(
-            eventTitle,
-            userId,
-            accountId,
-            data,
-            userAttributes,
-            accountAttributes,
-        ) ?: false
+    ): Boolean = main("record")?.record(eventTitle, userId, accountId, data, userAttributes, accountAttributes) ?: false
 
     /** Records that [quantity] units of [productId] were added to the cart. */
     @JvmStatic
     fun productAdd(
         productId: String,
         quantity: Int,
-    ): Boolean = core("productAdd")?.capture?.productAdd(productId, quantity) ?: false
+    ): Boolean = main("productAdd")?.productAdd(productId, quantity) ?: false
 
     /** Records that [productId] was viewed. */
     @JvmStatic
-    fun productView(productId: String): Boolean = core("productView")?.capture?.productView(productId) ?: false
+    fun productView(productId: String): Boolean = main("productView")?.productView(productId) ?: false
 
     /**
      * Records a completed order.
@@ -240,7 +291,7 @@ object Intempt {
      * ecommerce app sends on nothing worse than a misspelled map key.
      */
     @JvmStatic
-    fun productOrdered(products: List<Product>): Boolean = core("productOrdered")?.capture?.productOrdered(products) ?: false
+    fun productOrdered(products: List<Product>): Boolean = main("productOrdered")?.productOrdered(products) ?: false
 
     /**
      * Records a consent decision for [action], valid until [validUntil] (epoch millis), with
@@ -252,11 +303,11 @@ object Intempt {
      *   previous implementation suppressed exactly the call a user who had objected would make.
      * - **[ConsentAction.REJECT] opts out and [ConsentAction.ACCEPT] opts in.** These were
      *   independent settings, so an app could record a rejection and keep collecting.
-     * - **It bypasses the event queue**, posting to `/consents/data` outside the `/track`
-     *   envelope, and writes a local audit record before the network attempt.
+     * - **It bypasses the event queue**, posting to `/consents/data` outside the `/track` envelope,
+     *   and writes a local audit record before the network attempt.
      *
-     * [action] is an enum, not a string. A typo in a string consent action is a silent
-     * compliance failure, which is the worst class of bug this SDK can have.
+     * [action] is an enum, not a string. A typo in a string consent action is a silent compliance
+     * failure, which is the worst class of bug this SDK can have.
      */
     @JvmStatic
     @JvmOverloads
@@ -266,34 +317,34 @@ object Intempt {
         email: String? = null,
         message: String? = null,
         category: String? = null,
-    ): Boolean = core("consent")?.capture?.consent(action, validUntil, email, message, category) ?: false
+    ): Boolean = main("consent")?.consent(action, validUntil, email, message, category) ?: false
 
     // ------------------------------------------------------------- identity and lifecycle
 
     /** The device-minted anonymous profile id, or "" when the SDK is not running. */
     @JvmStatic
-    fun getProfileId(): String = core("getProfileId")?.capture?.getProfileId() ?: ""
+    fun getProfileId(): String = main("getProfileId")?.getProfileId() ?: ""
 
     /** The current session id, or "" when the SDK is not running or no session has started. */
     @JvmStatic
-    fun getSessionId(): String = core("getSessionId")?.capture?.getSessionId() ?: ""
+    fun getSessionId(): String = main("getSessionId")?.getSessionId() ?: ""
 
     /**
      * Rotates the anonymous identity, **keeping** whatever is queued.
      *
-     * Distinct from [reset], and both are required. This exists so the next user of a shared
-     * device cannot inherit the previous one's profile; the queued events belong to the user who
-     * generated them and are still theirs to send.
+     * Distinct from [reset], and both are required. This exists so the next user of a shared device
+     * cannot inherit the previous one's profile; the queued events belong to the user who generated
+     * them and are still theirs to send.
      */
     @JvmStatic
     fun logOut() {
-        core("logOut")?.capture?.logOut()
+        main("logOut")?.logOut()
     }
 
     /** Rotates the anonymous identity **and discards** queued events. */
     @JvmStatic
     fun reset() {
-        core("reset")?.capture?.reset()
+        main("reset")?.reset()
     }
 
     // ----------------------------------------------------------------------- opt in / out
@@ -301,35 +352,35 @@ object Intempt {
     /** Resumes event capture after [optOut]. */
     @JvmStatic
     fun optIn() {
-        core("optIn")?.capture?.optIn()
+        main("optIn")?.optIn()
     }
 
     /**
      * Stops event capture **and discards what is already queued.**
      *
-     * Setting a flag alone is not enough: events captured before the objection would sit in the
-     * durable queue and upload after it. Queued consent records are deliberately preserved —
+     * Setting a flag alone is not enough: events captured before the objection would otherwise sit
+     * in the durable queue and upload after it. Queued consent records are deliberately preserved —
      * they are the evidence of the user's decision.
      */
     @JvmStatic
     fun optOut() {
-        core("optOut")?.capture?.optOut()
+        main("optOut")?.optOut()
     }
 
     /** True when the user has opted out. False when the SDK is not initialized. */
     @JvmStatic
-    fun hasOptedOut(): Boolean = core("hasOptedOut")?.capture?.hasOptedOut() ?: false
+    fun hasOptedOut(): Boolean = main("hasOptedOut")?.hasOptedOut() ?: false
 
     /**
      * The inverse of [hasOptedOut]. False when the SDK is not initialized.
      *
      * `isOptedIn`, not `isUserOptIn` — the name the canonical Swift SDK shipped. The contract
-     * changed against its own canonical implementation here: three of the five SDKs already
-     * spelled it `isOptedIn`, none of the three had published, and a past participle reads as a
-     * state where `isUserOptIn` reads as a noun phrase. Swift moves too.
+     * changed against its own canonical implementation here: three of the five SDKs already spelled
+     * it `isOptedIn`, none of the three had published, and a past participle reads as a state where
+     * `isUserOptIn` reads as a noun phrase. Swift moves too.
      */
     @JvmStatic
-    fun isOptedIn(): Boolean = core("isOptedIn")?.capture?.isOptedIn() ?: false
+    fun isOptedIn(): Boolean = main("isOptedIn")?.isOptedIn() ?: false
 
     // --------------------------------------------------------------------------- delivery
 
@@ -344,7 +395,7 @@ object Intempt {
     @JvmStatic
     @JvmOverloads
     fun flush(completion: ((Int) -> Unit)? = null) {
-        core("flush")?.capture?.flush(completion)
+        main("flush")?.flush(completion)
     }
 
     /**
@@ -353,20 +404,88 @@ object Intempt {
      */
     @JvmStatic
     var flushInterval: Int
-        get() = core("flushInterval")?.capture?.flushInterval ?: 0
+        get() = main("flushInterval")?.flushInterval ?: 0
         set(value) {
-            core("flushInterval")?.capture?.let { it.flushInterval = value }
+            main("flushInterval")?.flushInterval = value
         }
+
+    // ------------------------------------------------------------------ errors and options
+
+    /**
+     * Called with an [IntemptError] whenever the SDK refuses or fails something.
+     *
+     * The `Boolean` a capture method returns says *whether*; this says *why*. Without it a `false`
+     * from `track()` is equally an opt-out, a reserved event name, a NaN in the attributes and a
+     * full disk. Runs on the thread the failure happened on. Pass null to clear.
+     */
+    @JvmStatic
+    fun setErrorListener(listener: ((IntemptError) -> Unit)?) {
+        main("setErrorListener")?.setErrorListener(listener)
+    }
+
+    /**
+     * Lifecycle facts the SDK emits without instrumentation.
+     *
+     * Defaults are sessions on, version changes off, app-state changes off. The SDK used to emit
+     * all three unconditionally, so an app that wanted sessions also got an event on every single
+     * foreground/background transition — which is how an event-volume bill surprises someone.
+     */
+    @JvmStatic
+    var automaticEvents: AutomaticEventsOptions
+        get() = main("automaticEvents")?.automaticEvents ?: AutomaticEventsOptions()
+        set(value) {
+            main("automaticEvents")?.automaticEvents = value
+        }
+
+    /**
+     * UI instrumentation for the `"default"` instance.
+     *
+     * **Nothing is installed until `start()`.** An SDK may not instrument a host app's view layer
+     * as a side effect of being initialised. `initialize()` calls `start()` for you only when
+     * `assets/intempt-config.json` sets `isAutoCaptureEnabled` — an explicit request written by the
+     * host app rather than a default the SDK assumed.
+     *
+     * A no-op shim when the SDK is not running, so `Intempt.autocapture.start()` before
+     * `initialize()` logs rather than throws.
+     */
+    @JvmStatic
+    val autocapture: AutocaptureFacade = AutocaptureFacade
+
+    /** @see autocapture */
+    object AutocaptureFacade {
+        /** Sets options without starting. */
+        @JvmStatic
+        fun configure(options: AutocaptureOptions) {
+            main("autocapture.configure")?.autocapture?.configure(options)
+        }
+
+        /** Current options, or the defaults when the SDK is not running. */
+        @JvmStatic
+        fun options(): AutocaptureOptions = main("autocapture.options")?.autocapture?.options ?: AutocaptureOptions()
+
+        /** Installs the hooks. Idempotent; false when already running or the SDK is not. */
+        @JvmStatic
+        @JvmOverloads
+        fun start(options: AutocaptureOptions? = null): Boolean = main("autocapture.start")?.autocapture?.start(options) ?: false
+
+        /** Uninstalls the hooks. Idempotent; false when already stopped or the SDK is not running. */
+        @JvmStatic
+        fun stop(): Boolean = main("autocapture.stop")?.autocapture?.stop() ?: false
+
+        /** Whether the hooks are installed. False when the SDK is not running. */
+        @JvmStatic
+        fun isRunning(): Boolean = main("autocapture.isRunning")?.autocapture?.isRunning ?: false
+    }
 
     // ------------------------------------------------------------------------- everything else
 
     /**
-     * Fetches up to [quantity] product recommendations for recommender [id], scoped to
-     * [productId] when given, returning only the requested [fields]. Returns null when the
-     * SDK is not initialized or the request fails.
+     * Fetches up to [quantity] product recommendations for recommender [id], scoped to [productId]
+     * when given, returning only the requested [fields]. Returns null when the SDK is not
+     * initialized or the request fails.
      *
-     * Never widen [fields] by omission. An unfielded request returns every catalog column
-     * including raw ML embedding vectors — 222,919 bytes against 503 for the same 10 products.
+     * Never widen [fields] by omission. An unfielded request returns every catalog column including
+     * raw ML embedding vectors — 222,919 bytes against 503 for the same 10 products.
      */
     @JvmStatic
     suspend fun recommendation(
@@ -374,7 +493,7 @@ object Intempt {
         quantity: Int,
         fields: List<String>,
         productId: String?,
-    ): JsonObject? = core("recommendation")?.capture?.recommendation(id, quantity, fields, productId)
+    ): JsonObject? = main("recommendation")?.recommendation(id, quantity, fields, productId)
 
     /**
      * Excludes [view] from autocapture so its text is never recorded.
@@ -384,31 +503,31 @@ object Intempt {
      */
     @JvmStatic
     fun doNotCaptureText(view: View) {
-        core("doNotCaptureText")?.capture?.doNotCaptureText(view)
+        main("doNotCaptureText")?.doNotCaptureText(view)
     }
 
     /**
      * Controls the SDK's own diagnostic logging, separate from event capture.
      *
      * Not part of the cross-SDK contract — logging verbosity is a platform concern — so the
-     * start/stop naming is kept rather than renamed to match [optIn]/[optOut], which mean
-     * something entirely different.
+     * start/stop naming is kept rather than renamed to match [optIn]/[optOut], which mean something
+     * entirely different.
      */
     object Logging {
         /** Enables the SDK's diagnostic log output. */
         @JvmStatic
         fun start() {
-            core("Logging.start")?.capture?.enableLogging()
+            main("Logging.start")?.startLogging()
         }
 
         /** Disables the SDK's diagnostic log output. */
         @JvmStatic
         fun stop() {
-            core("Logging.stop")?.capture?.disableLogging()
+            main("Logging.stop")?.stopLogging()
         }
 
         /** False when the SDK is not initialized. */
         @JvmStatic
-        fun isLoggingEnabled(): Boolean = core("Logging.isLoggingEnabled")?.capture?.isLoggingEnabled() ?: false
+        fun isLoggingEnabled(): Boolean = main("Logging.isLoggingEnabled")?.isLoggingEnabled() ?: false
     }
 }

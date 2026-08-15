@@ -1,7 +1,6 @@
 package com.intempt.core;
 
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNull;
 
 import androidx.test.core.app.ApplicationProvider;
 
@@ -47,9 +46,10 @@ public class JavaInteropTest {
     public void setUp() throws Exception {
         // The facade is a singleton whose state outlives a test. Cleared so these calls exercise
         // the uninitialized guard rather than another test's leftover core.
-        final java.lang.reflect.Field field = Intempt.class.getDeclaredField("intemptCore");
+        // The facade holds a registry of named instances as of 3.0, not a single core reference.
+        final java.lang.reflect.Field field = Intempt.class.getDeclaredField("instances");
         field.setAccessible(true);
-        field.set(Intempt.INSTANCE, null);
+        ((java.util.Map<?, ?>) field.get(Intempt.INSTANCE)).clear();
     }
 
     /** Static-form access to the state accessor. Without @JvmStatic this needs .INSTANCE. */
@@ -217,19 +217,19 @@ public class JavaInteropTest {
         Intempt.identify("");
         Intempt.logOut();
 
-        assertNull(
-                "an uninitialized SDK holds no core, and reaching it from Java must not differ from "
-                        + "reaching it from Kotlin",
-                readCore());
+        assertTrue(
+                "an uninitialized SDK holds no instances, and reaching it from Java must not differ "
+                        + "from reaching it from Kotlin",
+                readInstances().isEmpty());
     }
 
-    private static Object readCore() {
+    private static java.util.Map<?, ?> readInstances() {
         try {
-            final java.lang.reflect.Field field = Intempt.class.getDeclaredField("intemptCore");
+            final java.lang.reflect.Field field = Intempt.class.getDeclaredField("instances");
             field.setAccessible(true);
-            return field.get(Intempt.INSTANCE);
+            return (java.util.Map<?, ?>) field.get(Intempt.INSTANCE);
         } catch (final ReflectiveOperationException e) {
-            throw new AssertionError("the facade's core field was renamed", e);
+            throw new AssertionError("the facade's instance registry was renamed", e);
         }
     }
 }

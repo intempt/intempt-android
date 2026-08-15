@@ -49,8 +49,25 @@ public class DeliveryMessages {
 
 
     public DeliveryMessages(final Context context, QueueConfig config) {
+        this(context, config, null);
+    }
+
+    /**
+     * Modification: an instance-scoped queue database name.
+     *
+     * <p>Upstream partitioned one shared queue by project token; the Intempt port replaced that
+     * with a Dagger {@code @Singleton} on the assumption of one SDK instance per app. Named
+     * instances break that assumption — two instances would open, write to and close the same
+     * {@code intempt_events} file, which is two writers on one SQLite database. That raises
+     * SQLiteDatabaseLockedException, which {@link EventDbAdapter} answers by deleting the
+     * database. A second instance could therefore destroy the first's undelivered queue.
+     *
+     * @param dbName the queue database file, or null for the default {@code intempt_events}
+     */
+    public DeliveryMessages(final Context context, QueueConfig config, final String dbName) {
         mContext = context;
         mConfig = config;
+        mDbName = dbName;
         mWorker = createWorker();
         getPoster().checkIsServerBlocked();
     }
@@ -65,6 +82,84 @@ public class DeliveryMessages {
         if (mHttpService != null) {
             mHttpService.setNetworkErrorListener(errorListener);
         }
+    }
+
+    /**
+     * A delivery failure, already classified. Not an upstream type.
+     *
+     * <p>Carries plain values rather than the SDK's {@code IntemptError} on purpose. This package
+     * is vendored Java, and a Java file here that imports a Kotlin sealed class breaks kapt's stub
+     * generation — which then reports every Dagger binding in the module as unresolvable and never
+     * names the real cause. Keeping the queue package Kotlin-free costs one small interface and
+     * saves the next person that afternoon.
+     *
+     * <p>It also keeps {@link HttpStatusPolicy} package-private. {@code terminal} is that class's
+     * verdict, passed out rather than re-derived by the caller: two places deciding what is
+     * retryable is how they drift, and this one would drift silently, because it only changes what
+     * a host app is told while the other decides whether a batch survives.
+     */
+    public interface DeliveryFailureListener {
+        /**
+         * @param status HTTP status, or <= 0 when the request never got an answer
+         * @param description the exception or response message; never null
+         * @param retryAfterMillis the server's Retry-After in milliseconds, or 0 when it sent none
+         * @param terminal true when this batch will never succeed on retry
+         */
+        void onFailure(int status, String description, long retryAfterMillis, boolean terminal);
+    }
+
+    /**
+     * Installs {@code listener}, invoked on the delivery worker thread.
+     *
+     * <p>This is the half of the error taxonomy that happens <b>after</b> an event was accepted
+     * into the queue — the half where events are actually lost — as opposed to the refusals the
+     * capture components report at the call site.
+     */
+    public void setDeliveryFailureListener(final DeliveryFailureListener listener) {
+        if (listener == null) {
+            setNetworkErrorListener(null);
+            return;
+        }
+        setNetworkErrorListener(
+                new NetworkErrorListener() {
+                    @Override
+                    public void onNetworkError(
+                            String endpointUrl,
+                            String ipAddress,
+                            long durationMillis,
+                            long uncompressedBodySize,
+                            long compressedBodySize,
+                            int responseCode,
+                            String responseMessage,
+                            Exception exception) {
+                        String description = exception == null ? null : exception.getMessage();
+                        if (description == null || description.isEmpty()) {
+                            description = responseMessage;
+                        }
+                        if (description == null || description.isEmpty()) {
+                            description = "no response";
+                        }
+
+                        long retryAfterMillis = 0L;
+                        if (exception instanceof RemoteService.ServiceUnavailableException) {
+                            final int seconds =
+                                    ((RemoteService.ServiceUnavailableException) exception)
+                                            .getRetryAfter();
+                            if (seconds > 0) {
+                                // Seconds on the wire, milliseconds here — the unit the retry
+                                // scheduler already uses, so nothing comparing the two is off by a
+                                // factor of a thousand.
+                                retryAfterMillis = seconds * 1000L;
+                            }
+                        }
+
+                        listener.onFailure(
+                                responseCode,
+                                description,
+                                retryAfterMillis,
+                                responseCode > 0 && HttpStatusPolicy.shouldDrop(responseCode));
+                    }
+                });
     }
 
     /**
@@ -193,7 +288,9 @@ public class DeliveryMessages {
     }
 
     protected EventDbAdapter makeDbAdapter(Context context) {
-        return new EventDbAdapter(context, mConfig);
+        return mDbName == null
+                ? new EventDbAdapter(context, mConfig)
+                : new EventDbAdapter(context, mDbName, mConfig);
     }
 
     private volatile HttpService mHttpService;
@@ -790,6 +887,9 @@ public class DeliveryMessages {
             }
         }
     }
+
+    /** Instance-scoped queue database, or null for the default. Not an upstream field. */
+    private final String mDbName;
 
     // Used across thread boundaries
     private final Worker mWorker;

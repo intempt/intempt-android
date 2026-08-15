@@ -19,6 +19,7 @@ import com.intempt.core.customCapture.CustomCaptureComponent
 import com.intempt.core.customCapture.CustomCaptureService
 import com.intempt.core.queue.DeliveryMessages
 import com.intempt.core.services.ConfigManagerService
+import com.intempt.core.services.ErrorReporter
 import com.intempt.core.services.HttpManagerService
 import com.intempt.core.services.IntemptEventManagerService
 import com.intempt.core.services.LoggerManagerService
@@ -81,6 +82,7 @@ class CustomCaptureUnitTest {
     private lateinit var httpSrv: HttpManagerService
     private lateinit var context: Context
     private lateinit var storage: StorageManagerService
+    private lateinit var errors: ErrorReporter
     private lateinit var component: CustomCaptureComponent
     private lateinit var eventPoolSrv: EventPoolManagerService
     private lateinit var delivery: DeliveryMessages
@@ -154,7 +156,8 @@ class CustomCaptureUnitTest {
         doReturn(mockProfId).`when`(storage).getProfileId()
 
         httpSrv = spy(HttpManagerService(config, logger))
-        customCaptureSrv = CustomCaptureService(storage, logger)
+        errors = ErrorReporter(logger)
+        customCaptureSrv = CustomCaptureService(storage, logger, errors)
 
         intemptEvent = spy(IntemptEventManagerService(context, storage, utils, config))
         testDispatcher = UnconfinedTestDispatcher(testScheduler)
@@ -181,6 +184,7 @@ class CustomCaptureUnitTest {
                 intemptEvent,
                 utils,
                 storage,
+                errors,
             )
 
         testScheduler.advanceUntilIdle()

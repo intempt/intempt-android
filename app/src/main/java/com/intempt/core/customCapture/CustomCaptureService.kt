@@ -3,10 +3,12 @@ package com.intempt.core.customCapture
 import android.view.View
 import com.intempt.core.R
 import com.intempt.core.autocapture.BaseComponent
+import com.intempt.core.services.ErrorReporter
 import com.intempt.core.services.LoggerManagerService
 import com.intempt.core.services.StorageManagerService
 import com.intempt.core.types.Constants
 import com.intempt.core.types.DispatchEventProps
+import com.intempt.core.types.IntemptError
 import com.intempt.core.types.IntemptValue
 import com.intempt.core.types.Product
 import com.intempt.core.types.ScreenEventProps
@@ -20,6 +22,7 @@ internal class CustomCaptureService
     constructor(
         private val storage: StorageManagerService,
         val logger: LoggerManagerService,
+        private val errors: ErrorReporter,
     ) : BaseComponent(logger) {
         private val forbiddenEventNames: Array<String> =
             arrayOf(
@@ -55,7 +58,7 @@ internal class CustomCaptureService
             userAttributes: Map<String, IntemptValue>?,
         ): Boolean {
             if (userId.isEmpty()) {
-                logger.error("Identify parameters are invalid: set 'userId' to use 'identify'.")
+                errors.report(IntemptError.MissingIdentity("identify requires a non-blank userId"))
                 return false
             }
 
@@ -74,7 +77,7 @@ internal class CustomCaptureService
             // in the on-device queue.
 
             if (eventTitle != null && isForbidden(eventTitle)) {
-                logger.error("The '$eventTitle' event title is forbidden")
+                errors.report(IntemptError.ForbiddenEventName(eventTitle))
                 return false
             }
 
@@ -87,12 +90,12 @@ internal class CustomCaptureService
             accountAttributes: Map<String, IntemptValue>?,
         ): Boolean {
             if (accountId.isEmpty()) {
-                logger.error("Group parameters are invalid: 'accountId' is required.")
+                errors.report(IntemptError.MissingIdentity("group requires a non-blank accountId"))
                 return false
             }
 
             if (eventTitle != null && isForbidden(eventTitle)) {
-                logger.error("The '$eventTitle' event title is forbidden")
+                errors.report(IntemptError.ForbiddenEventName(eventTitle))
                 return false
             }
 
@@ -105,12 +108,12 @@ internal class CustomCaptureService
 
         fun isTrackValid(eventTitle: String?): Boolean {
             if (eventTitle.isNullOrEmpty()) {
-                logger.error("Track parameters are invalid: eventTitle is required.")
+                errors.report(IntemptError.MissingIdentity("an event requires a non-blank eventTitle"))
                 return false
             }
 
             if (isForbidden(eventTitle)) {
-                logger.error("The '$eventTitle' event title is forbidden")
+                errors.report(IntemptError.ForbiddenEventName(eventTitle))
                 return false
             }
             return true
@@ -127,16 +130,13 @@ internal class CustomCaptureService
          */
         fun isProductListValid(products: List<Product>): Boolean {
             if (products.isEmpty()) {
-                logger.error("productOrdered was called with an empty product list.")
+                errors.report(IntemptError.MissingIdentity("productOrdered requires at least one product"))
                 return false
             }
 
             val problems = products.flatMapIndexed { index, product -> product.problems().map { "products[$index]: $it" } }
-            if (problems.isNotEmpty()) {
-                logger.error("Product parameters are invalid — ${problems.joinToString("; ")}")
-                return false
-            }
-            return true
+            problems.forEach { errors.report(IntemptError.InvalidPropertyValue(it)) }
+            return problems.isEmpty()
         }
 
         fun onUiEventReceive(props: UiEventProps): DispatchEventProps {

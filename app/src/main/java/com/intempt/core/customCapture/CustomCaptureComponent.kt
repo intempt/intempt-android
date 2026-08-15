@@ -15,6 +15,7 @@ import android.widget.TimePicker
 import android.widget.ToggleButton
 import com.intempt.core.eventModels.IntemptEvent
 import com.intempt.core.services.ConfigManagerService
+import com.intempt.core.services.ErrorReporter
 import com.intempt.core.services.IntemptEventManagerService
 import com.intempt.core.services.StorageManagerService
 import com.intempt.core.services.UtilsService
@@ -22,6 +23,7 @@ import com.intempt.core.services.eventPool.EventPoolManagerService
 import com.intempt.core.types.ConsentAction
 import com.intempt.core.types.DefaultConfigs
 import com.intempt.core.types.EventType
+import com.intempt.core.types.IntemptError
 import com.intempt.core.types.IntemptValue
 import com.intempt.core.types.Product
 import kotlinx.serialization.json.JsonObject
@@ -50,6 +52,7 @@ internal class CustomCaptureComponent
         private val intemptEvent: IntemptEventManagerService,
         private val utils: UtilsService,
         private val storage: StorageManagerService,
+        private val errors: ErrorReporter,
     ) {
         fun isLoggingEnabled(): Boolean {
             return utils.withTryCatch("isLoggingEnabled fails") {
@@ -383,7 +386,7 @@ internal class CustomCaptureComponent
         ): Boolean =
             utils.withTryCatch("$caller fails") {
                 if (!config.isUserOptIn) {
-                    srv.logger.log("$caller ignored: opted out")
+                    errors.report(IntemptError.OptedOut(caller))
                     return@withTryCatch false
                 }
 
@@ -408,13 +411,7 @@ internal class CustomCaptureComponent
                     map.filterValues { !it.isValid() }.keys
                 }
 
-            if (invalid.isNotEmpty()) {
-                srv.logger.error(
-                    "$caller refused: ${invalid.joinToString(", ")} " +
-                        "${if (invalid.size == 1) "is" else "are"} not representable (NaN or infinity).",
-                )
-                return false
-            }
-            return true
+            invalid.forEach { errors.report(IntemptError.InvalidPropertyValue(it)) }
+            return invalid.isEmpty()
         }
     }

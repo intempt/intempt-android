@@ -1,6 +1,7 @@
 package com.intempt.core.customCapture
 
 import com.intempt.core.services.ConfigManagerService
+import com.intempt.core.services.ErrorReporter
 import com.intempt.core.services.IntemptEventManagerService
 import com.intempt.core.services.StorageManagerService
 import com.intempt.core.services.UtilsService
@@ -20,6 +21,7 @@ internal class CustomCaptureModule {
         intemptEvent: IntemptEventManagerService,
         utils: UtilsService,
         storage: StorageManagerService,
+        errors: ErrorReporter,
     ): CustomCaptureComponent {
         return CustomCaptureComponent(
             service,
@@ -28,6 +30,7 @@ internal class CustomCaptureModule {
             intemptEvent,
             utils,
             storage,
+            errors,
         )
     }
 }

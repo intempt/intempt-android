@@ -16,7 +16,9 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.intempt.core.Intempt
+import com.intempt.core.types.AutocaptureOptions
 import com.intempt.core.types.ConsentAction
+import com.intempt.core.types.IntemptCredentials
 import com.intempt.core.types.IntemptValue
 import com.intempt.core.types.Product
 
@@ -128,6 +130,35 @@ class MainActivity : AppCompatActivity() {
         }
         button(root, "logOut (rotates profileId, keeps queue)") { Intempt.logOut() }
         button(root, "reset (rotates profileId, empties queue)") { Intempt.reset() }
+        button(root, "autocapture stop") {
+            log.append("  autocapture.stop() -> ${Intempt.autocapture.stop()}\n")
+        }
+        button(root, "autocapture start (screen views only)") {
+            val started =
+                Intempt.autocapture.start(
+                    AutocaptureOptions(screenViews = true, controlInteractions = false, captureText = false),
+                )
+            log.append("  autocapture.start() -> $started, running=${Intempt.autocapture.isRunning()}\n")
+        }
+        button(root, "second instance (isolated storage)") {
+            // Two Intempt projects in one app. The point of the assertion below is that the two
+            // instances do NOT share a profileId — they used to, because prefs and the SQLite
+            // queue were global, so a second instance inherited the first's identity and sent its
+            // events under the wrong credentials.
+            val second =
+                Intempt.initialize(
+                    applicationContext,
+                    IntemptCredentials("demo.secret", "demo-org", "demo-project", "demo-source"),
+                    "secondary",
+                )
+            if (second == null) {
+                log.append("  second instance refused (expected: demo credentials are not real)\n")
+            } else {
+                second.track("Second instance event")
+                log.append("  main profileId=${Intempt.getProfileId()}\n")
+                log.append("  secondary profileId=${second.getProfileId()}\n")
+            }
+        }
         button(root, "show ids") {
             log.append("  profileId=${Intempt.getProfileId()} sessionId=${Intempt.getSessionId()}\n")
             log.append("  optedIn=${Intempt.isOptedIn()} flushInterval=${Intempt.flushInterval}s\n")

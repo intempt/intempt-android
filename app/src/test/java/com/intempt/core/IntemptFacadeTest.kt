@@ -46,9 +46,14 @@ class IntemptFacadeTest {
      * on a public SDK facade, and there should not be one just to satisfy a test.
      */
     private fun resetCore() {
-        val field = Intempt::class.java.getDeclaredField("intemptCore")
+        // `instances`, not `intemptCore`: the facade holds a registry of named instances as of
+        // 3.0, not a single core reference. Reflection is still unavoidable — there is no reset on
+        // a public SDK facade and there should not be one just to satisfy a test — but the field
+        // name is now load-bearing, so it is asserted rather than assumed. A silently missing
+        // field would make every test in this class fail in setUp, which is what it did.
+        val field = Intempt::class.java.getDeclaredField("instances")
         field.isAccessible = true
-        field.set(Intempt, null)
+        (field.get(Intempt) as MutableMap<*, *>).clear()
     }
 
     // ------------------------------------------------------------------- state

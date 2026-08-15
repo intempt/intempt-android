@@ -7,6 +7,7 @@ import com.intempt.core.customCapture.CustomCaptureComponent
 import com.intempt.core.customCapture.CustomCaptureService
 import com.intempt.core.queue.DeliveryMessages
 import com.intempt.core.services.ConfigManagerService
+import com.intempt.core.services.ErrorReporter
 import com.intempt.core.services.HttpManagerService
 import com.intempt.core.services.IntemptEventManagerService
 import com.intempt.core.services.LoggerManagerService
@@ -60,6 +61,7 @@ class InstallationUnitTest {
     private lateinit var logger: LoggerManagerService
     private lateinit var httpSrv: HttpManagerService
     private lateinit var storage: StorageManagerService
+    private lateinit var errors: ErrorReporter
     private lateinit var component: CustomCaptureComponent
     private lateinit var eventPoolSrv: EventPoolManagerService
     private lateinit var intemptEvent: IntemptEventManagerService
@@ -126,7 +128,8 @@ class InstallationUnitTest {
 
         storage = spy(StorageManagerService(context, utils))
         httpSrv = spy(HttpManagerService(config, logger))
-        customCaptureSrv = spy(CustomCaptureService(storage, logger))
+        errors = ErrorReporter(logger)
+        customCaptureSrv = spy(CustomCaptureService(storage, logger, errors))
 
         intemptEvent = spy(IntemptEventManagerService(context, storage, utils, config))
         testDispatcher = UnconfinedTestDispatcher(testScheduler)
@@ -151,6 +154,7 @@ class InstallationUnitTest {
                 intemptEvent,
                 utils,
                 storage,
+                errors,
             )
     }
 

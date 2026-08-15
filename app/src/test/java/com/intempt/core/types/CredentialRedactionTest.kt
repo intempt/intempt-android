@@ -126,8 +126,24 @@ class CredentialRedactionTest {
                 return@forEach
             }
             if (!line.contains("public")) return@forEach
-            if (listOf("ApiKey", "Token", "Authorization", "Secret").none { line.contains(it) }) return@forEach
             if (enclosing.contains(allowed)) return@forEach
+
+            // Match the MEMBER NAME, not the whole line, and require it to hand back a String.
+            //
+            // The first version matched anywhere in the line, which made
+            // `IntemptError.MalformedApiKey.copy(I)` an offender — it takes the key's *length* and
+            // leaks nothing, and matched only because its own return type's class name contains
+            // "ApiKey". A guard that cries wolf on a type it was written to bless is a guard
+            // someone deletes. Narrowing to name-plus-return-type keeps
+            // `getAuthorization()Ljava/lang/String;` caught, which is the one that was real.
+            val member = line.trim().substringAfter("fun ", "").substringBefore(" ")
+            val field = line.trim().substringAfter("field ", "").substringBefore(" ")
+            val name = member.ifEmpty { field }
+            if (name.isEmpty()) return@forEach
+            if (listOf("ApiKey", "Token", "Authorization", "Secret", "Credential").none { name.contains(it) }) {
+                return@forEach
+            }
+            if (!line.contains("Ljava/lang/String;")) return@forEach
 
             offenders += "${enclosing.substringAfter("class ").substringBefore(" ")} ${line.trim()}"
         }

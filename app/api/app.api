@@ -18,6 +18,8 @@ public final class com/intempt/core/Intempt {
 	public static final fun flush ()V
 	public static final fun flush (Lkotlin/jvm/functions/Function1;)V
 	public static synthetic fun flush$default (Lkotlin/jvm/functions/Function1;ILjava/lang/Object;)V
+	public static final fun getAutocapture ()Lcom/intempt/core/Intempt$AutocaptureFacade;
+	public static final fun getAutomaticEvents ()Lcom/intempt/core/types/AutomaticEventsOptions;
 	public static final fun getFlushInterval ()I
 	public static final fun getProfileId ()Ljava/lang/String;
 	public static final fun getSessionId ()Ljava/lang/String;
@@ -33,9 +35,12 @@ public final class com/intempt/core/Intempt {
 	public static synthetic fun identify$default (Ljava/lang/String;Ljava/lang/String;Ljava/util/Map;Ljava/util/Map;ILjava/lang/Object;)Z
 	public static final fun initialize (Landroid/content/Context;)Z
 	public static final fun initialize (Landroid/content/Context;Lcom/intempt/core/types/IntemptCredentials;)Z
+	public static final fun initialize (Landroid/content/Context;Lcom/intempt/core/types/IntemptCredentials;Ljava/lang/String;)Lcom/intempt/core/IntemptInstance;
+	public static final fun instance (Ljava/lang/String;)Lcom/intempt/core/IntemptInstance;
 	public static final fun isInitialized ()Z
 	public static final fun isOptedIn ()Z
 	public static final fun logOut ()V
+	public static final fun mainInstance ()Lcom/intempt/core/IntemptInstance;
 	public static final fun optIn ()V
 	public static final fun optOut ()V
 	public static final fun productAdd (Ljava/lang/String;I)Z
@@ -50,10 +55,23 @@ public final class com/intempt/core/Intempt {
 	public static final fun record (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/Map;Ljava/util/Map;Ljava/util/Map;)Z
 	public static synthetic fun record$default (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/Map;Ljava/util/Map;Ljava/util/Map;ILjava/lang/Object;)Z
 	public static final fun reset ()V
+	public static final fun setAutomaticEvents (Lcom/intempt/core/types/AutomaticEventsOptions;)V
+	public static final fun setErrorListener (Lkotlin/jvm/functions/Function1;)V
 	public static final fun setFlushInterval (I)V
 	public static final fun track (Ljava/lang/String;)Z
 	public static final fun track (Ljava/lang/String;Ljava/util/Map;)Z
 	public static synthetic fun track$default (Ljava/lang/String;Ljava/util/Map;ILjava/lang/Object;)Z
+}
+
+public final class com/intempt/core/Intempt$AutocaptureFacade {
+	public static final field INSTANCE Lcom/intempt/core/Intempt$AutocaptureFacade;
+	public static final fun configure (Lcom/intempt/core/types/AutocaptureOptions;)V
+	public static final fun isRunning ()Z
+	public static final fun options ()Lcom/intempt/core/types/AutocaptureOptions;
+	public static final fun start ()Z
+	public static final fun start (Lcom/intempt/core/types/AutocaptureOptions;)Z
+	public static synthetic fun start$default (Lcom/intempt/core/types/AutocaptureOptions;ILjava/lang/Object;)Z
+	public static final fun stop ()Z
 }
 
 public final class com/intempt/core/Intempt$Logging {
@@ -63,232 +81,69 @@ public final class com/intempt/core/Intempt$Logging {
 	public static final fun stop ()V
 }
 
-public final class com/intempt/core/autocapture/AutoCaptureComponent_Factory : dagger/internal/Factory {
-	public fun <init> (Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;)V
-	public static fun create (Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;)Lcom/intempt/core/autocapture/AutoCaptureComponent_Factory;
-	public fun get ()Lcom/intempt/core/autocapture/AutoCaptureComponent;
-	public synthetic fun get ()Ljava/lang/Object;
-	public static fun newInstance (Lcom/intempt/core/services/LoggerManagerService;Landroid/content/Context;Lcom/intempt/core/services/StorageManagerService;Lcom/intempt/core/services/ConfigManagerService;Lcom/intempt/core/autocapture/sessionTracker/SessionTrackerComponent;Lcom/intempt/core/autocapture/installUpgradeTracker/InstallUpgradeTrackerComponent;Lcom/intempt/core/autocapture/lifecycleCallbacksTracker/LifecycleCallBacksComponent;Lkotlinx/coroutines/CoroutineDispatcher;)Lcom/intempt/core/autocapture/AutoCaptureComponent;
+public final class com/intempt/core/IntemptInstance {
+	public final fun alias (Ljava/lang/String;Ljava/lang/String;)Z
+	public final fun consent (Lcom/intempt/core/types/ConsentAction;J)Z
+	public final fun consent (Lcom/intempt/core/types/ConsentAction;JLjava/lang/String;)Z
+	public final fun consent (Lcom/intempt/core/types/ConsentAction;JLjava/lang/String;Ljava/lang/String;)Z
+	public final fun consent (Lcom/intempt/core/types/ConsentAction;JLjava/lang/String;Ljava/lang/String;Ljava/lang/String;)Z
+	public static synthetic fun consent$default (Lcom/intempt/core/IntemptInstance;Lcom/intempt/core/types/ConsentAction;JLjava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Z
+	public final fun doNotCaptureText (Landroid/view/View;)V
+	public final fun flush ()V
+	public final fun flush (Lkotlin/jvm/functions/Function1;)V
+	public static synthetic fun flush$default (Lcom/intempt/core/IntemptInstance;Lkotlin/jvm/functions/Function1;ILjava/lang/Object;)V
+	public final fun getAutocapture ()Lcom/intempt/core/IntemptInstance$Autocapture;
+	public final fun getAutomaticEvents ()Lcom/intempt/core/types/AutomaticEventsOptions;
+	public final fun getFlushInterval ()I
+	public final fun getName ()Ljava/lang/String;
+	public final fun getProfileId ()Ljava/lang/String;
+	public final fun getSessionId ()Ljava/lang/String;
+	public final fun group (Ljava/lang/String;)Z
+	public final fun group (Ljava/lang/String;Ljava/lang/String;)Z
+	public final fun group (Ljava/lang/String;Ljava/lang/String;Ljava/util/Map;)Z
+	public static synthetic fun group$default (Lcom/intempt/core/IntemptInstance;Ljava/lang/String;Ljava/lang/String;Ljava/util/Map;ILjava/lang/Object;)Z
+	public final fun hasOptedOut ()Z
+	public final fun identify (Ljava/lang/String;)Z
+	public final fun identify (Ljava/lang/String;Ljava/lang/String;)Z
+	public final fun identify (Ljava/lang/String;Ljava/lang/String;Ljava/util/Map;)Z
+	public final fun identify (Ljava/lang/String;Ljava/lang/String;Ljava/util/Map;Ljava/util/Map;)Z
+	public static synthetic fun identify$default (Lcom/intempt/core/IntemptInstance;Ljava/lang/String;Ljava/lang/String;Ljava/util/Map;Ljava/util/Map;ILjava/lang/Object;)Z
+	public final fun isLoggingEnabled ()Z
+	public final fun isOptedIn ()Z
+	public final fun logOut ()V
+	public final fun optIn ()V
+	public final fun optOut ()V
+	public final fun productAdd (Ljava/lang/String;I)Z
+	public final fun productOrdered (Ljava/util/List;)Z
+	public final fun productView (Ljava/lang/String;)Z
+	public final fun recommendation (Ljava/lang/String;ILjava/util/List;Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun record (Ljava/lang/String;)Z
+	public final fun record (Ljava/lang/String;Ljava/lang/String;)Z
+	public final fun record (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Z
+	public final fun record (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/Map;)Z
+	public final fun record (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/Map;Ljava/util/Map;)Z
+	public final fun record (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/Map;Ljava/util/Map;Ljava/util/Map;)Z
+	public static synthetic fun record$default (Lcom/intempt/core/IntemptInstance;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/Map;Ljava/util/Map;Ljava/util/Map;ILjava/lang/Object;)Z
+	public final fun reset ()V
+	public final fun setAutomaticEvents (Lcom/intempt/core/types/AutomaticEventsOptions;)V
+	public final fun setErrorListener (Lkotlin/jvm/functions/Function1;)V
+	public final fun setFlushInterval (I)V
+	public final fun startLogging ()V
+	public final fun stopLogging ()V
+	public fun toString ()Ljava/lang/String;
+	public final fun track (Ljava/lang/String;)Z
+	public final fun track (Ljava/lang/String;Ljava/util/Map;)Z
+	public static synthetic fun track$default (Lcom/intempt/core/IntemptInstance;Ljava/lang/String;Ljava/util/Map;ILjava/lang/Object;)Z
 }
 
-public final class com/intempt/core/autocapture/AutoCaptureModule_ProvideAutoCaptureFactory : dagger/internal/Factory {
-	public fun <init> (Lcom/intempt/core/autocapture/AutoCaptureModule;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;)V
-	public static fun create (Lcom/intempt/core/autocapture/AutoCaptureModule;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;)Lcom/intempt/core/autocapture/AutoCaptureModule_ProvideAutoCaptureFactory;
-	public fun get ()Lcom/intempt/core/autocapture/AutoCaptureComponent;
-	public synthetic fun get ()Ljava/lang/Object;
-	public static fun provideAutoCapture (Lcom/intempt/core/autocapture/AutoCaptureModule;Landroid/content/Context;Lcom/intempt/core/services/StorageManagerService;Lcom/intempt/core/services/ConfigManagerService;Lcom/intempt/core/services/LoggerManagerService;Lcom/intempt/core/autocapture/sessionTracker/SessionTrackerComponent;Lcom/intempt/core/autocapture/installUpgradeTracker/InstallUpgradeTrackerComponent;Lcom/intempt/core/autocapture/lifecycleCallbacksTracker/LifecycleCallBacksComponent;)Lcom/intempt/core/autocapture/AutoCaptureComponent;
-}
-
-public final class com/intempt/core/autocapture/installUpgradeTracker/InstallUpgradeTrackerComponent_Factory : dagger/internal/Factory {
-	public fun <init> (Ljavax/inject/Provider;Ljavax/inject/Provider;)V
-	public static fun create (Ljavax/inject/Provider;Ljavax/inject/Provider;)Lcom/intempt/core/autocapture/installUpgradeTracker/InstallUpgradeTrackerComponent_Factory;
-	public fun get ()Lcom/intempt/core/autocapture/installUpgradeTracker/InstallUpgradeTrackerComponent;
-	public synthetic fun get ()Ljava/lang/Object;
-	public static fun newInstance (Lcom/intempt/core/autocapture/installUpgradeTracker/InstallUpgradeTrackerService;Lkotlinx/coroutines/CoroutineDispatcher;)Lcom/intempt/core/autocapture/installUpgradeTracker/InstallUpgradeTrackerComponent;
-}
-
-public final class com/intempt/core/autocapture/installUpgradeTracker/InstallUpgradeTrackerModule_ComponentFactory : dagger/internal/Factory {
-	public fun <init> (Lcom/intempt/core/autocapture/installUpgradeTracker/InstallUpgradeTrackerModule;Ljavax/inject/Provider;)V
-	public static fun component (Lcom/intempt/core/autocapture/installUpgradeTracker/InstallUpgradeTrackerModule;Lcom/intempt/core/autocapture/installUpgradeTracker/InstallUpgradeTrackerService;)Lcom/intempt/core/autocapture/installUpgradeTracker/InstallUpgradeTrackerComponent;
-	public static fun create (Lcom/intempt/core/autocapture/installUpgradeTracker/InstallUpgradeTrackerModule;Ljavax/inject/Provider;)Lcom/intempt/core/autocapture/installUpgradeTracker/InstallUpgradeTrackerModule_ComponentFactory;
-	public fun get ()Lcom/intempt/core/autocapture/installUpgradeTracker/InstallUpgradeTrackerComponent;
-	public synthetic fun get ()Ljava/lang/Object;
-}
-
-public final class com/intempt/core/autocapture/installUpgradeTracker/InstallUpgradeTrackerService_Factory : dagger/internal/Factory {
-	public fun <init> (Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;)V
-	public static fun create (Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;)Lcom/intempt/core/autocapture/installUpgradeTracker/InstallUpgradeTrackerService_Factory;
-	public fun get ()Lcom/intempt/core/autocapture/installUpgradeTracker/InstallUpgradeTrackerService;
-	public synthetic fun get ()Ljava/lang/Object;
-	public static fun newInstance (Landroid/content/Context;Lcom/intempt/core/services/eventPool/EventPoolManagerService;Lcom/intempt/core/services/StorageManagerService;Lcom/intempt/core/services/LoggerManagerService;Lcom/intempt/core/services/UtilsService;)Lcom/intempt/core/autocapture/installUpgradeTracker/InstallUpgradeTrackerService;
-}
-
-public final class com/intempt/core/autocapture/lifecycleCallbacksTracker/ChangeTrackerService_Factory : dagger/internal/Factory {
-	public fun <init> (Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;)V
-	public static fun create (Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;)Lcom/intempt/core/autocapture/lifecycleCallbacksTracker/ChangeTrackerService_Factory;
-	public fun get ()Lcom/intempt/core/autocapture/lifecycleCallbacksTracker/ChangeTrackerService;
-	public synthetic fun get ()Ljava/lang/Object;
-	public static fun newInstance (Lcom/intempt/core/services/eventPool/EventPoolManagerService;Lcom/intempt/core/services/LoggerManagerService;Lcom/intempt/core/services/UtilsService;)Lcom/intempt/core/autocapture/lifecycleCallbacksTracker/ChangeTrackerService;
-}
-
-public final class com/intempt/core/autocapture/lifecycleCallbacksTracker/LifecycleCallbackModule_ComponentFactory : dagger/internal/Factory {
-	public fun <init> (Lcom/intempt/core/autocapture/lifecycleCallbacksTracker/LifecycleCallbackModule;Ljavax/inject/Provider;Ljavax/inject/Provider;)V
-	public static fun component (Lcom/intempt/core/autocapture/lifecycleCallbacksTracker/LifecycleCallbackModule;Lcom/intempt/core/autocapture/lifecycleCallbacksTracker/LifecycleCallbackService;Lcom/intempt/core/queue/DeliveryMessages;)Lcom/intempt/core/autocapture/lifecycleCallbacksTracker/LifecycleCallBacksComponent;
-	public static fun create (Lcom/intempt/core/autocapture/lifecycleCallbacksTracker/LifecycleCallbackModule;Ljavax/inject/Provider;Ljavax/inject/Provider;)Lcom/intempt/core/autocapture/lifecycleCallbacksTracker/LifecycleCallbackModule_ComponentFactory;
-	public fun get ()Lcom/intempt/core/autocapture/lifecycleCallbacksTracker/LifecycleCallBacksComponent;
-	public synthetic fun get ()Ljava/lang/Object;
-}
-
-public final class com/intempt/core/autocapture/lifecycleCallbacksTracker/LifecycleCallbackService_Factory : dagger/internal/Factory {
-	public fun <init> (Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;)V
-	public static fun create (Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;)Lcom/intempt/core/autocapture/lifecycleCallbacksTracker/LifecycleCallbackService_Factory;
-	public fun get ()Lcom/intempt/core/autocapture/lifecycleCallbacksTracker/LifecycleCallbackService;
-	public synthetic fun get ()Ljava/lang/Object;
-	public static fun newInstance (Lcom/intempt/core/autocapture/lifecycleCallbacksTracker/ScreenTrackerService;Lcom/intempt/core/autocapture/lifecycleCallbacksTracker/TouchTrackerService;Lcom/intempt/core/autocapture/lifecycleCallbacksTracker/ChangeTrackerService;)Lcom/intempt/core/autocapture/lifecycleCallbacksTracker/LifecycleCallbackService;
-}
-
-public final class com/intempt/core/autocapture/lifecycleCallbacksTracker/ScreenTrackerService_Factory : dagger/internal/Factory {
-	public fun <init> (Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;)V
-	public static fun create (Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;)Lcom/intempt/core/autocapture/lifecycleCallbacksTracker/ScreenTrackerService_Factory;
-	public fun get ()Lcom/intempt/core/autocapture/lifecycleCallbacksTracker/ScreenTrackerService;
-	public synthetic fun get ()Ljava/lang/Object;
-	public static fun newInstance (Lcom/intempt/core/services/eventPool/EventPoolManagerService;Lcom/intempt/core/services/LoggerManagerService;Lcom/intempt/core/services/UtilsService;Lcom/intempt/core/services/StorageManagerService;)Lcom/intempt/core/autocapture/lifecycleCallbacksTracker/ScreenTrackerService;
-}
-
-public final class com/intempt/core/autocapture/lifecycleCallbacksTracker/TouchTrackerService_Factory : dagger/internal/Factory {
-	public fun <init> (Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;)V
-	public static fun create (Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;)Lcom/intempt/core/autocapture/lifecycleCallbacksTracker/TouchTrackerService_Factory;
-	public fun get ()Lcom/intempt/core/autocapture/lifecycleCallbacksTracker/TouchTrackerService;
-	public synthetic fun get ()Ljava/lang/Object;
-	public static fun newInstance (Lcom/intempt/core/services/eventPool/EventPoolManagerService;Lcom/intempt/core/services/ConfigManagerService;Lcom/intempt/core/services/UtilsService;)Lcom/intempt/core/autocapture/lifecycleCallbacksTracker/TouchTrackerService;
-}
-
-public final class com/intempt/core/autocapture/sessionTracker/SessionTrackerComponent_Factory : dagger/internal/Factory {
-	public fun <init> (Ljavax/inject/Provider;)V
-	public static fun create (Ljavax/inject/Provider;)Lcom/intempt/core/autocapture/sessionTracker/SessionTrackerComponent_Factory;
-	public fun get ()Lcom/intempt/core/autocapture/sessionTracker/SessionTrackerComponent;
-	public synthetic fun get ()Ljava/lang/Object;
-	public static fun newInstance (Lcom/intempt/core/autocapture/sessionTracker/SessionTrackerService;)Lcom/intempt/core/autocapture/sessionTracker/SessionTrackerComponent;
-}
-
-public final class com/intempt/core/autocapture/sessionTracker/SessionTrackerModule_ComponentFactory : dagger/internal/Factory {
-	public fun <init> (Lcom/intempt/core/autocapture/sessionTracker/SessionTrackerModule;Ljavax/inject/Provider;)V
-	public static fun component (Lcom/intempt/core/autocapture/sessionTracker/SessionTrackerModule;Lcom/intempt/core/autocapture/sessionTracker/SessionTrackerService;)Lcom/intempt/core/autocapture/sessionTracker/SessionTrackerComponent;
-	public static fun create (Lcom/intempt/core/autocapture/sessionTracker/SessionTrackerModule;Ljavax/inject/Provider;)Lcom/intempt/core/autocapture/sessionTracker/SessionTrackerModule_ComponentFactory;
-	public fun get ()Lcom/intempt/core/autocapture/sessionTracker/SessionTrackerComponent;
-	public synthetic fun get ()Ljava/lang/Object;
-}
-
-public final class com/intempt/core/autocapture/sessionTracker/SessionTrackerModule_ProvideCoroutineDispatcherFactory : dagger/internal/Factory {
-	public fun <init> (Lcom/intempt/core/autocapture/sessionTracker/SessionTrackerModule;)V
-	public static fun create (Lcom/intempt/core/autocapture/sessionTracker/SessionTrackerModule;)Lcom/intempt/core/autocapture/sessionTracker/SessionTrackerModule_ProvideCoroutineDispatcherFactory;
-	public synthetic fun get ()Ljava/lang/Object;
-	public fun get ()Lkotlinx/coroutines/CoroutineDispatcher;
-	public static fun provideCoroutineDispatcher (Lcom/intempt/core/autocapture/sessionTracker/SessionTrackerModule;)Lkotlinx/coroutines/CoroutineDispatcher;
-}
-
-public final class com/intempt/core/autocapture/sessionTracker/SessionTrackerService_Factory : dagger/internal/Factory {
-	public fun <init> (Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;)V
-	public static fun create (Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;)Lcom/intempt/core/autocapture/sessionTracker/SessionTrackerService_Factory;
-	public fun get ()Lcom/intempt/core/autocapture/sessionTracker/SessionTrackerService;
-	public synthetic fun get ()Ljava/lang/Object;
-	public static fun newInstance (Landroid/content/Context;Lcom/intempt/core/services/LoggerManagerService;Lcom/intempt/core/services/StorageManagerService;Lcom/intempt/core/services/eventPool/EventPoolManagerService;Lcom/intempt/core/services/HttpManagerService;Lcom/intempt/core/services/UtilsService;Lcom/intempt/core/services/IntemptEventManagerService;Lkotlinx/coroutines/CoroutineDispatcher;)Lcom/intempt/core/autocapture/sessionTracker/SessionTrackerService;
-}
-
-public final class com/intempt/core/customCapture/CustomCaptureComponent_Factory : dagger/internal/Factory {
-	public fun <init> (Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;)V
-	public static fun create (Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;)Lcom/intempt/core/customCapture/CustomCaptureComponent_Factory;
-	public fun get ()Lcom/intempt/core/customCapture/CustomCaptureComponent;
-	public synthetic fun get ()Ljava/lang/Object;
-	public static fun newInstance (Lcom/intempt/core/customCapture/CustomCaptureService;Lcom/intempt/core/services/ConfigManagerService;Lcom/intempt/core/services/eventPool/EventPoolManagerService;Lcom/intempt/core/services/IntemptEventManagerService;Lcom/intempt/core/services/UtilsService;Lcom/intempt/core/services/StorageManagerService;)Lcom/intempt/core/customCapture/CustomCaptureComponent;
-}
-
-public final class com/intempt/core/customCapture/CustomCaptureModule_ComponentFactory : dagger/internal/Factory {
-	public fun <init> (Lcom/intempt/core/customCapture/CustomCaptureModule;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;)V
-	public static fun component (Lcom/intempt/core/customCapture/CustomCaptureModule;Lcom/intempt/core/customCapture/CustomCaptureService;Lcom/intempt/core/services/ConfigManagerService;Lcom/intempt/core/services/eventPool/EventPoolManagerService;Lcom/intempt/core/services/IntemptEventManagerService;Lcom/intempt/core/services/UtilsService;Lcom/intempt/core/services/StorageManagerService;)Lcom/intempt/core/customCapture/CustomCaptureComponent;
-	public static fun create (Lcom/intempt/core/customCapture/CustomCaptureModule;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;)Lcom/intempt/core/customCapture/CustomCaptureModule_ComponentFactory;
-	public fun get ()Lcom/intempt/core/customCapture/CustomCaptureComponent;
-	public synthetic fun get ()Ljava/lang/Object;
-}
-
-public final class com/intempt/core/customCapture/CustomCaptureService_Factory : dagger/internal/Factory {
-	public fun <init> (Ljavax/inject/Provider;Ljavax/inject/Provider;)V
-	public static fun create (Ljavax/inject/Provider;Ljavax/inject/Provider;)Lcom/intempt/core/customCapture/CustomCaptureService_Factory;
-	public fun get ()Lcom/intempt/core/customCapture/CustomCaptureService;
-	public synthetic fun get ()Ljava/lang/Object;
-	public static fun newInstance (Lcom/intempt/core/services/StorageManagerService;Lcom/intempt/core/services/LoggerManagerService;)Lcom/intempt/core/customCapture/CustomCaptureService;
-}
-
-public final class com/intempt/core/intemptCore/DaggerIntemptCoreComponent {
-	public static fun factory ()Lcom/intempt/core/intemptCore/IntemptCoreComponent$Factory;
-}
-
-public final class com/intempt/core/intemptCore/IntemptCoreModule_ProvideContextFactory : dagger/internal/Factory {
-	public fun <init> (Lcom/intempt/core/intemptCore/IntemptCoreModule;)V
-	public static fun create (Lcom/intempt/core/intemptCore/IntemptCoreModule;)Lcom/intempt/core/intemptCore/IntemptCoreModule_ProvideContextFactory;
-	public fun get ()Landroid/content/Context;
-	public synthetic fun get ()Ljava/lang/Object;
-	public static fun provideContext (Lcom/intempt/core/intemptCore/IntemptCoreModule;)Landroid/content/Context;
-}
-
-public final class com/intempt/core/intemptCore/IntemptCoreModule_ProvideDeliveryMessagesFactory : dagger/internal/Factory {
-	public fun <init> (Lcom/intempt/core/intemptCore/IntemptCoreModule;Ljavax/inject/Provider;)V
-	public static fun create (Lcom/intempt/core/intemptCore/IntemptCoreModule;Ljavax/inject/Provider;)Lcom/intempt/core/intemptCore/IntemptCoreModule_ProvideDeliveryMessagesFactory;
-	public fun get ()Lcom/intempt/core/queue/DeliveryMessages;
-	public synthetic fun get ()Ljava/lang/Object;
-	public static fun provideDeliveryMessages (Lcom/intempt/core/intemptCore/IntemptCoreModule;Lcom/intempt/core/queue/QueueConfig;)Lcom/intempt/core/queue/DeliveryMessages;
-}
-
-public final class com/intempt/core/intemptCore/IntemptCoreModule_ProvideEventPoolManagerServiceFactory : dagger/internal/Factory {
-	public fun <init> (Lcom/intempt/core/intemptCore/IntemptCoreModule;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;)V
-	public static fun create (Lcom/intempt/core/intemptCore/IntemptCoreModule;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;)Lcom/intempt/core/intemptCore/IntemptCoreModule_ProvideEventPoolManagerServiceFactory;
-	public fun get ()Lcom/intempt/core/services/eventPool/EventPoolManagerService;
-	public synthetic fun get ()Ljava/lang/Object;
-	public static fun provideEventPoolManagerService (Lcom/intempt/core/intemptCore/IntemptCoreModule;Lcom/intempt/core/services/ConfigManagerService;Lcom/intempt/core/services/LoggerManagerService;Lcom/intempt/core/services/HttpManagerService;Lcom/intempt/core/services/IntemptEventManagerService;Lcom/intempt/core/queue/DeliveryMessages;)Lcom/intempt/core/services/eventPool/EventPoolManagerService;
-}
-
-public final class com/intempt/core/intemptCore/IntemptCoreModule_ProvideHttpServiceFactory : dagger/internal/Factory {
-	public fun <init> (Lcom/intempt/core/intemptCore/IntemptCoreModule;Ljavax/inject/Provider;Ljavax/inject/Provider;)V
-	public static fun create (Lcom/intempt/core/intemptCore/IntemptCoreModule;Ljavax/inject/Provider;Ljavax/inject/Provider;)Lcom/intempt/core/intemptCore/IntemptCoreModule_ProvideHttpServiceFactory;
-	public fun get ()Lcom/intempt/core/services/HttpManagerService;
-	public synthetic fun get ()Ljava/lang/Object;
-	public static fun provideHttpService (Lcom/intempt/core/intemptCore/IntemptCoreModule;Lcom/intempt/core/services/ConfigManagerService;Lcom/intempt/core/services/LoggerManagerService;)Lcom/intempt/core/services/HttpManagerService;
-}
-
-public final class com/intempt/core/intemptCore/IntemptCoreModule_ProvideIntemptEventManagerServiceFactory : dagger/internal/Factory {
-	public fun <init> (Lcom/intempt/core/intemptCore/IntemptCoreModule;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;)V
-	public static fun create (Lcom/intempt/core/intemptCore/IntemptCoreModule;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;)Lcom/intempt/core/intemptCore/IntemptCoreModule_ProvideIntemptEventManagerServiceFactory;
-	public fun get ()Lcom/intempt/core/services/IntemptEventManagerService;
-	public synthetic fun get ()Ljava/lang/Object;
-	public static fun provideIntemptEventManagerService (Lcom/intempt/core/intemptCore/IntemptCoreModule;Lcom/intempt/core/services/StorageManagerService;Lcom/intempt/core/services/UtilsService;Lcom/intempt/core/services/ConfigManagerService;)Lcom/intempt/core/services/IntemptEventManagerService;
-}
-
-public final class com/intempt/core/intemptCore/IntemptCoreModule_ProvideLoggerServiceFactory : dagger/internal/Factory {
-	public fun <init> (Lcom/intempt/core/intemptCore/IntemptCoreModule;Ljavax/inject/Provider;)V
-	public static fun create (Lcom/intempt/core/intemptCore/IntemptCoreModule;Ljavax/inject/Provider;)Lcom/intempt/core/intemptCore/IntemptCoreModule_ProvideLoggerServiceFactory;
-	public fun get ()Lcom/intempt/core/services/LoggerManagerService;
-	public synthetic fun get ()Ljava/lang/Object;
-	public static fun provideLoggerService (Lcom/intempt/core/intemptCore/IntemptCoreModule;Lcom/intempt/core/services/ConfigManagerService;)Lcom/intempt/core/services/LoggerManagerService;
-}
-
-public final class com/intempt/core/intemptCore/IntemptCoreModule_ProvideQueueConfigFactory : dagger/internal/Factory {
-	public fun <init> (Lcom/intempt/core/intemptCore/IntemptCoreModule;Ljavax/inject/Provider;Ljavax/inject/Provider;)V
-	public static fun create (Lcom/intempt/core/intemptCore/IntemptCoreModule;Ljavax/inject/Provider;Ljavax/inject/Provider;)Lcom/intempt/core/intemptCore/IntemptCoreModule_ProvideQueueConfigFactory;
-	public fun get ()Lcom/intempt/core/queue/QueueConfig;
-	public synthetic fun get ()Ljava/lang/Object;
-	public static fun provideQueueConfig (Lcom/intempt/core/intemptCore/IntemptCoreModule;Lcom/intempt/core/services/ConfigManagerService;Lcom/intempt/core/services/LoggerManagerService;)Lcom/intempt/core/queue/QueueConfig;
-}
-
-public final class com/intempt/core/intemptCore/IntemptCoreModule_ProvideRuntimeCredentialsFactory : dagger/internal/Factory {
-	public fun <init> (Lcom/intempt/core/intemptCore/IntemptCoreModule;)V
-	public static fun create (Lcom/intempt/core/intemptCore/IntemptCoreModule;)Lcom/intempt/core/intemptCore/IntemptCoreModule_ProvideRuntimeCredentialsFactory;
-	public fun get ()Lcom/intempt/core/types/IntemptCredentials;
-	public synthetic fun get ()Ljava/lang/Object;
-	public static fun provideRuntimeCredentials (Lcom/intempt/core/intemptCore/IntemptCoreModule;)Lcom/intempt/core/types/IntemptCredentials;
-}
-
-public final class com/intempt/core/intemptCore/IntemptCoreModule_ProvideStorageManagerServiceFactory : dagger/internal/Factory {
-	public fun <init> (Lcom/intempt/core/intemptCore/IntemptCoreModule;Ljavax/inject/Provider;)V
-	public static fun create (Lcom/intempt/core/intemptCore/IntemptCoreModule;Ljavax/inject/Provider;)Lcom/intempt/core/intemptCore/IntemptCoreModule_ProvideStorageManagerServiceFactory;
-	public fun get ()Lcom/intempt/core/services/StorageManagerService;
-	public synthetic fun get ()Ljava/lang/Object;
-	public static fun provideStorageManagerService (Lcom/intempt/core/intemptCore/IntemptCoreModule;Lcom/intempt/core/services/UtilsService;)Lcom/intempt/core/services/StorageManagerService;
-}
-
-public final class com/intempt/core/intemptCore/IntemptCoreModule_ProvideUtilsServiceFactory : dagger/internal/Factory {
-	public fun <init> (Lcom/intempt/core/intemptCore/IntemptCoreModule;Ljavax/inject/Provider;)V
-	public static fun create (Lcom/intempt/core/intemptCore/IntemptCoreModule;Ljavax/inject/Provider;)Lcom/intempt/core/intemptCore/IntemptCoreModule_ProvideUtilsServiceFactory;
-	public fun get ()Lcom/intempt/core/services/UtilsService;
-	public synthetic fun get ()Ljava/lang/Object;
-	public static fun provideUtilsService (Lcom/intempt/core/intemptCore/IntemptCoreModule;Lcom/intempt/core/services/LoggerManagerService;)Lcom/intempt/core/services/UtilsService;
-}
-
-public final class com/intempt/core/intemptCore/IntemptCoreService_Factory : dagger/internal/Factory {
-	public fun <init> (Ljavax/inject/Provider;Ljavax/inject/Provider;)V
-	public static fun create (Ljavax/inject/Provider;Ljavax/inject/Provider;)Lcom/intempt/core/intemptCore/IntemptCoreService_Factory;
-	public fun get ()Lcom/intempt/core/intemptCore/IntemptCoreService;
-	public synthetic fun get ()Ljava/lang/Object;
-	public static fun newInstance (Lcom/intempt/core/autocapture/AutoCaptureComponent;Lcom/intempt/core/customCapture/CustomCaptureComponent;)Lcom/intempt/core/intemptCore/IntemptCoreService;
+public final class com/intempt/core/IntemptInstance$Autocapture {
+	public final fun configure (Lcom/intempt/core/types/AutocaptureOptions;)V
+	public final fun getOptions ()Lcom/intempt/core/types/AutocaptureOptions;
+	public final fun isRunning ()Z
+	public final fun start ()Z
+	public final fun start (Lcom/intempt/core/types/AutocaptureOptions;)Z
+	public static synthetic fun start$default (Lcom/intempt/core/IntemptInstance$Autocapture;Lcom/intempt/core/types/AutocaptureOptions;ILjava/lang/Object;)Z
+	public final fun stop ()Z
 }
 
 public class com/intempt/core/queue/DeliveryMessages {
@@ -296,6 +151,7 @@ public class com/intempt/core/queue/DeliveryMessages {
 	protected final field mContext Landroid/content/Context;
 	protected field mNetworkErrorListener Lcom/intempt/core/queue/NetworkErrorListener;
 	public fun <init> (Landroid/content/Context;Lcom/intempt/core/queue/QueueConfig;)V
+	public fun <init> (Landroid/content/Context;Lcom/intempt/core/queue/QueueConfig;Ljava/lang/String;)V
 	protected fun createWorker ()Lcom/intempt/core/queue/DeliveryMessages$Worker;
 	public fun emptyQueue ()V
 	public fun emptyTrackingQueues (Lcom/intempt/core/queue/DeliveryMessages$QueueDescription;)V
@@ -309,8 +165,13 @@ public class com/intempt/core/queue/DeliveryMessages {
 	public fun hardKill ()V
 	protected fun makeDbAdapter (Landroid/content/Context;)Lcom/intempt/core/queue/EventDbAdapter;
 	public fun postToServer (Lcom/intempt/core/queue/DeliveryMessages$QueueDescription;)V
+	public fun setDeliveryFailureListener (Lcom/intempt/core/queue/DeliveryMessages$DeliveryFailureListener;)V
 	public fun setFlushInterval (I)V
 	public fun setNetworkErrorListener (Lcom/intempt/core/queue/NetworkErrorListener;)V
+}
+
+public abstract interface class com/intempt/core/queue/DeliveryMessages$DeliveryFailureListener {
+	public abstract fun onFailure (ILjava/lang/String;JZ)V
 }
 
 public abstract interface class com/intempt/core/queue/DeliveryMessages$FlushCompletion {
@@ -406,68 +267,50 @@ public class com/intempt/core/queue/RemoteService$ServiceUnavailableException : 
 	public fun getRetryAfter ()I
 }
 
-public final class com/intempt/core/services/ConfigManagerService_Factory : dagger/internal/Factory {
-	public fun <init> (Ljavax/inject/Provider;Ljavax/inject/Provider;)V
-	public static fun create (Ljavax/inject/Provider;Ljavax/inject/Provider;)Lcom/intempt/core/services/ConfigManagerService_Factory;
-	public fun get ()Lcom/intempt/core/services/ConfigManagerService;
-	public synthetic fun get ()Ljava/lang/Object;
-	public static fun newInstance (Landroid/content/Context;Lcom/intempt/core/types/IntemptCredentials;)Lcom/intempt/core/services/ConfigManagerService;
-}
-
-public final class com/intempt/core/services/HttpManagerService_Factory : dagger/internal/Factory {
-	public fun <init> (Ljavax/inject/Provider;Ljavax/inject/Provider;)V
-	public static fun create (Ljavax/inject/Provider;Ljavax/inject/Provider;)Lcom/intempt/core/services/HttpManagerService_Factory;
-	public fun get ()Lcom/intempt/core/services/HttpManagerService;
-	public synthetic fun get ()Ljava/lang/Object;
-	public static fun newInstance (Lcom/intempt/core/services/ConfigManagerService;Lcom/intempt/core/services/LoggerManagerService;)Lcom/intempt/core/services/HttpManagerService;
-}
-
-public final class com/intempt/core/services/IntemptEventManagerService_Factory : dagger/internal/Factory {
-	public fun <init> (Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;)V
-	public static fun create (Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;)Lcom/intempt/core/services/IntemptEventManagerService_Factory;
-	public fun get ()Lcom/intempt/core/services/IntemptEventManagerService;
-	public synthetic fun get ()Ljava/lang/Object;
-	public static fun newInstance (Landroid/content/Context;Lcom/intempt/core/services/StorageManagerService;Lcom/intempt/core/services/UtilsService;Lcom/intempt/core/services/ConfigManagerService;)Lcom/intempt/core/services/IntemptEventManagerService;
-}
-
-public final class com/intempt/core/services/LoggerManagerService_Factory : dagger/internal/Factory {
-	public fun <init> (Ljavax/inject/Provider;)V
-	public static fun create (Ljavax/inject/Provider;)Lcom/intempt/core/services/LoggerManagerService_Factory;
-	public fun get ()Lcom/intempt/core/services/LoggerManagerService;
-	public synthetic fun get ()Ljava/lang/Object;
-	public static fun newInstance (Lcom/intempt/core/services/ConfigManagerService;)Lcom/intempt/core/services/LoggerManagerService;
-}
-
-public final class com/intempt/core/services/StorageManagerService_Factory : dagger/internal/Factory {
-	public fun <init> (Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;)V
-	public static fun create (Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;)Lcom/intempt/core/services/StorageManagerService_Factory;
-	public fun get ()Lcom/intempt/core/services/StorageManagerService;
-	public synthetic fun get ()Ljava/lang/Object;
-	public static fun newInstance (Landroid/content/Context;Lcom/intempt/core/services/UtilsService;Lkotlinx/coroutines/CoroutineDispatcher;)Lcom/intempt/core/services/StorageManagerService;
-}
-
-public final class com/intempt/core/services/UtilsService_Factory : dagger/internal/Factory {
-	public fun <init> (Ljavax/inject/Provider;)V
-	public static fun create (Ljavax/inject/Provider;)Lcom/intempt/core/services/UtilsService_Factory;
-	public fun get ()Lcom/intempt/core/services/UtilsService;
-	public synthetic fun get ()Ljava/lang/Object;
-	public static fun newInstance (Lcom/intempt/core/services/LoggerManagerService;)Lcom/intempt/core/services/UtilsService;
-}
-
-public final class com/intempt/core/services/eventPool/EventPoolManagerService_Factory : dagger/internal/Factory {
-	public fun <init> (Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;)V
-	public static fun create (Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;Ljavax/inject/Provider;)Lcom/intempt/core/services/eventPool/EventPoolManagerService_Factory;
-	public fun get ()Lcom/intempt/core/services/eventPool/EventPoolManagerService;
-	public synthetic fun get ()Ljava/lang/Object;
-	public static fun newInstance (Lcom/intempt/core/services/ConfigManagerService;Lcom/intempt/core/services/LoggerManagerService;Lcom/intempt/core/services/HttpManagerService;Lcom/intempt/core/services/IntemptEventManagerService;Lcom/intempt/core/queue/DeliveryMessages;Lkotlinx/coroutines/CoroutineDispatcher;Lcom/intempt/core/queue/ConsentAuditLog;)Lcom/intempt/core/services/eventPool/EventPoolManagerService;
-}
-
 public final class com/intempt/core/services/firebase/model/PushNotificationMetadata$Creator : android/os/Parcelable$Creator {
 	public fun <init> ()V
 	public final fun createFromParcel (Landroid/os/Parcel;)Lcom/intempt/core/services/firebase/model/PushNotificationMetadata;
 	public synthetic fun createFromParcel (Landroid/os/Parcel;)Ljava/lang/Object;
 	public final fun newArray (I)[Lcom/intempt/core/services/firebase/model/PushNotificationMetadata;
 	public synthetic fun newArray (I)[Ljava/lang/Object;
+}
+
+public final class com/intempt/core/types/AutocaptureOptions {
+	public fun <init> ()V
+	public fun <init> (Z)V
+	public fun <init> (ZZ)V
+	public fun <init> (ZZZ)V
+	public synthetic fun <init> (ZZZILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Z
+	public final fun component2 ()Z
+	public final fun component3 ()Z
+	public final fun copy (ZZZ)Lcom/intempt/core/types/AutocaptureOptions;
+	public static synthetic fun copy$default (Lcom/intempt/core/types/AutocaptureOptions;ZZZILjava/lang/Object;)Lcom/intempt/core/types/AutocaptureOptions;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCaptureText ()Z
+	public final fun getControlInteractions ()Z
+	public final fun getScreenViews ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/intempt/core/types/AutomaticEventsOptions {
+	public fun <init> ()V
+	public fun <init> (Z)V
+	public fun <init> (ZZ)V
+	public fun <init> (ZZZ)V
+	public synthetic fun <init> (ZZZILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Z
+	public final fun component2 ()Z
+	public final fun component3 ()Z
+	public final fun copy (ZZZ)Lcom/intempt/core/types/AutomaticEventsOptions;
+	public static synthetic fun copy$default (Lcom/intempt/core/types/AutomaticEventsOptions;ZZZILjava/lang/Object;)Lcom/intempt/core/types/AutomaticEventsOptions;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAppStateChanges ()Z
+	public final fun getSessions ()Z
+	public final fun getVersionChanges ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
 }
 
 public final class com/intempt/core/types/ConsentAction : java/lang/Enum {
@@ -501,6 +344,160 @@ public final class com/intempt/core/types/IntemptCredentials {
 	public fun hashCode ()I
 	public final fun isValid ()Z
 	public final fun problems ()Ljava/util/List;
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract class com/intempt/core/types/IntemptError {
+	public abstract fun getMessage ()Ljava/lang/String;
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/intempt/core/types/IntemptError$EncodingFailed : com/intempt/core/types/IntemptError {
+	public fun <init> (Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;)Lcom/intempt/core/types/IntemptError$EncodingFailed;
+	public static synthetic fun copy$default (Lcom/intempt/core/types/IntemptError$EncodingFailed;Ljava/lang/String;ILjava/lang/Object;)Lcom/intempt/core/types/IntemptError$EncodingFailed;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getMessage ()Ljava/lang/String;
+	public final fun getReason ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/intempt/core/types/IntemptError$ForbiddenEventName : com/intempt/core/types/IntemptError {
+	public fun <init> (Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;)Lcom/intempt/core/types/IntemptError$ForbiddenEventName;
+	public static synthetic fun copy$default (Lcom/intempt/core/types/IntemptError$ForbiddenEventName;Ljava/lang/String;ILjava/lang/Object;)Lcom/intempt/core/types/IntemptError$ForbiddenEventName;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getEventTitle ()Ljava/lang/String;
+	public fun getMessage ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/intempt/core/types/IntemptError$InvalidPropertyValue : com/intempt/core/types/IntemptError {
+	public fun <init> (Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;)Lcom/intempt/core/types/IntemptError$InvalidPropertyValue;
+	public static synthetic fun copy$default (Lcom/intempt/core/types/IntemptError$InvalidPropertyValue;Ljava/lang/String;ILjava/lang/Object;)Lcom/intempt/core/types/IntemptError$InvalidPropertyValue;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getKey ()Ljava/lang/String;
+	public fun getMessage ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/intempt/core/types/IntemptError$MalformedApiKey : com/intempt/core/types/IntemptError {
+	public fun <init> (I)V
+	public final fun component1 ()I
+	public final fun copy (I)Lcom/intempt/core/types/IntemptError$MalformedApiKey;
+	public static synthetic fun copy$default (Lcom/intempt/core/types/IntemptError$MalformedApiKey;IILjava/lang/Object;)Lcom/intempt/core/types/IntemptError$MalformedApiKey;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getLength ()I
+	public fun getMessage ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/intempt/core/types/IntemptError$MissingConfiguration : com/intempt/core/types/IntemptError {
+	public fun <init> (Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;)Lcom/intempt/core/types/IntemptError$MissingConfiguration;
+	public static synthetic fun copy$default (Lcom/intempt/core/types/IntemptError$MissingConfiguration;Ljava/lang/String;ILjava/lang/Object;)Lcom/intempt/core/types/IntemptError$MissingConfiguration;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getFieldName ()Ljava/lang/String;
+	public fun getMessage ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/intempt/core/types/IntemptError$MissingIdentity : com/intempt/core/types/IntemptError {
+	public fun <init> (Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;)Lcom/intempt/core/types/IntemptError$MissingIdentity;
+	public static synthetic fun copy$default (Lcom/intempt/core/types/IntemptError$MissingIdentity;Ljava/lang/String;ILjava/lang/Object;)Lcom/intempt/core/types/IntemptError$MissingIdentity;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getMessage ()Ljava/lang/String;
+	public final fun getWhat ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/intempt/core/types/IntemptError$OptedOut : com/intempt/core/types/IntemptError {
+	public fun <init> (Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;)Lcom/intempt/core/types/IntemptError$OptedOut;
+	public static synthetic fun copy$default (Lcom/intempt/core/types/IntemptError$OptedOut;Ljava/lang/String;ILjava/lang/Object;)Lcom/intempt/core/types/IntemptError$OptedOut;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCaller ()Ljava/lang/String;
+	public fun getMessage ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/intempt/core/types/IntemptError$Retryable : com/intempt/core/types/IntemptError {
+	public fun <init> (ILjava/lang/Long;)V
+	public synthetic fun <init> (ILjava/lang/Long;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()I
+	public final fun component2 ()Ljava/lang/Long;
+	public final fun copy (ILjava/lang/Long;)Lcom/intempt/core/types/IntemptError$Retryable;
+	public static synthetic fun copy$default (Lcom/intempt/core/types/IntemptError$Retryable;ILjava/lang/Long;ILjava/lang/Object;)Lcom/intempt/core/types/IntemptError$Retryable;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getMessage ()Ljava/lang/String;
+	public final fun getRetryAfterMillis ()Ljava/lang/Long;
+	public final fun getStatus ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/intempt/core/types/IntemptError$Server : com/intempt/core/types/IntemptError {
+	public fun <init> (ILjava/util/List;)V
+	public final fun component1 ()I
+	public final fun component2 ()Ljava/util/List;
+	public final fun copy (ILjava/util/List;)Lcom/intempt/core/types/IntemptError$Server;
+	public static synthetic fun copy$default (Lcom/intempt/core/types/IntemptError$Server;ILjava/util/List;ILjava/lang/Object;)Lcom/intempt/core/types/IntemptError$Server;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getMessage ()Ljava/lang/String;
+	public final fun getMessages ()Ljava/util/List;
+	public final fun getStatus ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/intempt/core/types/IntemptError$StorageUnavailable : com/intempt/core/types/IntemptError {
+	public fun <init> (Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;)Lcom/intempt/core/types/IntemptError$StorageUnavailable;
+	public static synthetic fun copy$default (Lcom/intempt/core/types/IntemptError$StorageUnavailable;Ljava/lang/String;ILjava/lang/Object;)Lcom/intempt/core/types/IntemptError$StorageUnavailable;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getMessage ()Ljava/lang/String;
+	public final fun getReason ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/intempt/core/types/IntemptError$Terminal : com/intempt/core/types/IntemptError {
+	public fun <init> (I)V
+	public final fun component1 ()I
+	public final fun copy (I)Lcom/intempt/core/types/IntemptError$Terminal;
+	public static synthetic fun copy$default (Lcom/intempt/core/types/IntemptError$Terminal;IILjava/lang/Object;)Lcom/intempt/core/types/IntemptError$Terminal;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getMessage ()Ljava/lang/String;
+	public final fun getStatus ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/intempt/core/types/IntemptError$Transport : com/intempt/core/types/IntemptError {
+	public fun <init> (Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;)Lcom/intempt/core/types/IntemptError$Transport;
+	public static synthetic fun copy$default (Lcom/intempt/core/types/IntemptError$Transport;Ljava/lang/String;ILjava/lang/Object;)Lcom/intempt/core/types/IntemptError$Transport;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getDescription ()Ljava/lang/String;
+	public fun getMessage ()Ljava/lang/String;
+	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
 }
 
