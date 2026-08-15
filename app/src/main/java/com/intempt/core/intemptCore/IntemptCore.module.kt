@@ -9,6 +9,7 @@ import com.intempt.core.queue.DeliveryMessages
 import com.intempt.core.queue.QueueConfig
 import com.intempt.core.services.CertificatePinning
 import com.intempt.core.services.ConfigManagerService
+import com.intempt.core.types.IntemptCredentials
 import com.intempt.core.services.HttpManagerService
 import com.intempt.core.services.IntemptEventManagerService
 import com.intempt.core.services.LoggerManagerService
@@ -28,7 +29,17 @@ import javax.inject.Singleton
 )
 internal class IntemptCoreModule(
     private val consumerContext: Context,
+    /** Null means "read assets/intempt-config.json", which is the pre-3.0 behaviour. */
+    private val runtimeCredentials: IntemptCredentials? = null,
 ) {
+    /**
+     * Provided as nullable so ConfigManagerService can be constructed either way without two
+     * graphs. Dagger needs the binding to exist even when the value is absent.
+     */
+    @Provides
+    @Singleton
+    fun provideRuntimeCredentials(): IntemptCredentials? = runtimeCredentials
+
     @Provides
     fun provideContext(): Context {
         return consumerContext.applicationContext

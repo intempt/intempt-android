@@ -9,6 +9,7 @@ import com.intempt.core.types.ConfigResult
 import com.intempt.core.types.Constants
 import com.intempt.core.types.DefaultConfigs
 import com.intempt.core.types.IntemptConfigs
+import com.intempt.core.types.IntemptCredentials
 import com.intempt.core.types.IntemptOptions
 import org.json.JSONObject
 import java.io.InputStream
@@ -20,6 +21,15 @@ internal class ConfigManagerService
     @Inject
     constructor(
         private val context: Context,
+        /**
+         * Credentials supplied to `Intempt.initialize(...)` at runtime, or null to read
+         * `assets/intempt-config.json` as before.
+         *
+         * Runtime wins when present. The asset path is retained rather than replaced: it is the
+         * documented setup for a plain Android app, and removing it would break every existing
+         * integration for the benefit of the bridges alone.
+         */
+        private val runtimeCredentials: IntemptCredentials? = null,
     ) : BaseComponent() {
         // Leading underscores: backing fields for the public read-only accessors below. Suppressed
         // at the declaration rather than left to the ktlint baseline, which pins violations by line
@@ -117,10 +127,13 @@ internal class ConfigManagerService
         init {
             val (configs, options) = getConfigs()
 
-            _apiKey = configs?.apiKey ?: ""
-            _sourceId = configs?.sourceId ?: ""
-            _organizationId = configs?.organizationId ?: ""
-            _projectId = configs?.projectId ?: ""
+            // Runtime credentials take precedence over the asset file, per field rather than
+            // wholesale — a bridge supplying credentials should not also have to supply the
+            // options, which stay in the asset file where a host app can edit them.
+            _apiKey = runtimeCredentials?.apiKey ?: configs?.apiKey ?: ""
+            _sourceId = runtimeCredentials?.sourceId ?: configs?.sourceId ?: ""
+            _organizationId = runtimeCredentials?.organizationId ?: configs?.organizationId ?: ""
+            _projectId = runtimeCredentials?.projectId ?: configs?.projectId ?: ""
 
             _isTouchEnabled = options?.isTouchEnabled ?: DefaultConfigs.IsTouchEnabled.value
             _isTextCaptureEnabled = options?.isTextCaptureEnabled ?: DefaultConfigs.IsTextCaptureEnabled.value
