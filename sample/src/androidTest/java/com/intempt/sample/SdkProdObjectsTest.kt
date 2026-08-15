@@ -206,7 +206,7 @@ class SdkProdObjectsTest {
     }
 
     /**
-     * `recommendation`'s first argument is the feed id: it goes straight into
+     * `products`' first argument is the feed id: it goes straight into
      * `/v1/{org}/projects/{project}/feeds/{feedId}/data`. Unlike the tracking calls this is a
      * synchronous read, so a null result means the request genuinely failed rather than being
      * queued for later.
@@ -228,7 +228,7 @@ class SdkProdObjectsTest {
      * "one of the two", not "the feed is broken".
      */
     @Test
-    fun recommendationReturnsFromTheFeed() {
+    fun productsReturnFromTheFeed() {
         // Opt-in. Delivery to the gateway is not the same as ingested-and-queryable: the feed
         // only answers for a profile the platform already knows, and there is lag after the
         // 201 that no client-side wait can bound. Verified by hand that the mechanism works —
@@ -260,7 +260,7 @@ class SdkProdObjectsTest {
             delivered,
         )
 
-        val result = runBlocking { Intempt.recommendation(feedId, 3, fields, null) }
+        val result = runBlocking { Intempt.products(feedId, 3, fields, null) }
 
         assertNotNull(
             "feed $feedId returned nothing. Either the feed id is wrong or this device's " +

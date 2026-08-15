@@ -60,6 +60,7 @@ internal open class EventPoolManagerService
         // IO pool no matter what a test injected into this class.
         private val eventHandlers = EventHandlers(logger, intemptEvent, dispatcher)
         private var eventReceiverJob: Job? = null
+
         // extraBufferCapacity, not replay alone.
         //
         // With `replay = 10` and no extra buffer, `tryEmit` returns false — and DROPS the event —

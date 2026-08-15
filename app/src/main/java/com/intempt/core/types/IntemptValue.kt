@@ -50,6 +50,27 @@ sealed class IntemptValue {
         override fun isValid() = !value.isNaN() && !value.isInfinite()
 
         override fun raw(): Any = if (value % 1.0 == 0.0 && !value.isInfinite()) value.toLong() else value
+
+        /**
+         * Explicit, because the one Kotlin generates for a `data class` with a `Double` property
+         * calls the **static** `Double.hashCode(double)`, which is absent from the API 23
+         * signature. It compiles, passes lint, and throws `NoSuchMethodError` the first time one of
+         * these lands in a HashMap on an API 23 device. AnimalSniffer caught it; lint cannot,
+         * because lint does not read the compiled artifact.
+         *
+         * **`Double` is the only one.** The static `Boolean.hashCode(boolean)`,
+         * `Long.hashCode(long)` and `Integer.hashCode(int)` overloads ARE in API 23 — verified by
+         * disassembling `IntemptOptions`, `SessionEvent` and `RecommendationBody`, which emit them
+         * and pass the same gate. A first pass here "fixed" `Bool` and the options classes too, on
+         * the assumption that all four Java 8 statics landed together. They did not, and a comment
+         * asserting otherwise would have been a plausible falsehood sitting next to a real one.
+         *
+         * This is `Double.valueOf(v).hashCode()` written out. `doubleToLongBits` is API 1.
+         */
+        override fun hashCode(): Int {
+            val bits = java.lang.Double.doubleToLongBits(value)
+            return (bits xor (bits ushr 32)).toInt()
+        }
     }
 
     data class Bool(val value: Boolean) : IntemptValue() {

@@ -37,8 +37,9 @@ sealed class IntemptError {
      * destructures one. Consumers match with `is` and read the fields.
      *
      * [toString] is defined once on this class instead, so every case still prints usefully.
+     *
+     * [message] is a one-line description safe to log. It never contains a credential.
      */
-    /** A one-line description safe to log. Never contains a credential. */
     abstract val message: String
 
     /** The API key was not `<id>.<secret>`. Reports [length] only — never the key itself. */
