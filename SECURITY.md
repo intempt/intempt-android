@@ -1,48 +1,40 @@
-# Security
+# Security policy
 
 ## Reporting a vulnerability
 
-Email **security@intempt.com**. Please do not open a public issue for a security report.
+Email **security@intempt.com**. Don't open a public issue - a public report is a disclosure, and it
+puts every customer running this SDK at risk before there's a fix.
 
-Include the SDK version, the Android API level, and enough detail to reproduce. If you have a
-proof of concept, a diff against the sample app in `sample/` is the fastest thing for us to
-run.
+Tell us what you found, how to reproduce it, and what an attacker could do with it. If you have a
+proof of concept, include it.
 
-We will acknowledge your report within 3 business days and tell you whether we can reproduce
-it. If we can, you will get an assessment and a target fix version. We will credit you in the
-release notes unless you would rather we did not.
+We'll acknowledge within two business days and tell you what we're doing about it.
+
+## What's in scope
+
+Anything in this repository, including:
+
+- A credential, key or token committed to the repo or its history
+- A way to read or send another customer's data through the SDK
+- A payload that crashes or hangs the host app
+- Anything that sends data the integrator didn't ask to send
+
+## What's out of scope
+
+- Vulnerabilities in a dependency we don't control, unless this SDK's use of it is what makes it
+  exploitable. Report those upstream, then tell us.
+- Findings from a scanner with no working proof of concept.
+- Anything requiring physical access to an unlocked device, or a rooted or jailbroken OS.
+
+## Credentials
+
+Intempt API keys are `<id>.<secret>` and are sent as HTTP Basic. **If you find one in this repo, in
+its history, or in a published artifact, that's a valid report** - tell us and we'll rotate it.
+
+Client SDK keys are ingestion-scoped and write-only by design. They can't read data back. That still
+makes a leaked one worth rotating, because it can be used to write junk into your workspace.
 
 ## Supported versions
 
-| Version | Supported |
-|---|---|
-| 3.0.x | yes |
-| 2.0.x | security fixes only |
-| < 2.0 | no |
-
-## What this SDK does with data
-
-Worth knowing when assessing it, and worth checking against your own privacy obligations:
-
-- **Events are stored unencrypted on the device**, in a SQLite database inside the app's
-  private data directory (`intempt_events`). They stay there until the server confirms
-  receipt, up to 5 days. On a non-rooted device this is readable only by the host app, but it
-  is not encrypted at rest.
-- **Autocapture reads text from input fields.** Password inputs are masked before anything is
-  written to the queue. Any other field a host app considers sensitive should be tagged with
-  `Intempt.doNotCaptureText(view)`, or text capture disabled entirely via
-  `isTextCaptureEnabled` in `assets/intempt-config.json`.
-- **Credentials live in the app's assets.** `intempt-config.json` ships inside the APK, so
-  the API key it holds is extractable from any published build. Use a key scoped to event
-  ingestion only.
-- **`logOut()` rotates the local profile id**, so a shared device does not attribute the next
-  user's events to the previous one. Call it on sign-out.
-
-## Scope
-
-In scope: anything letting an attacker read another app's data, exfiltrate host-app data
-through the SDK, execute code, or bypass the input masking described above.
-
-Out of scope: findings that require a rooted device or physical access to unlocked hardware,
-and the extractability of the ingestion key from the APK, which is inherent to shipping a
-client-side key.
+We fix security issues on the latest published major version. Older majors get a fix only if the
+issue is exploitable without an integrator changing their code.
