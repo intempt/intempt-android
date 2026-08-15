@@ -49,8 +49,25 @@ public class DeliveryMessages {
 
 
     public DeliveryMessages(final Context context, QueueConfig config) {
+        this(context, config, null);
+    }
+
+    /**
+     * Modification: an instance-scoped queue database name.
+     *
+     * <p>Upstream partitioned one shared queue by project token; the Intempt port replaced that
+     * with a Dagger {@code @Singleton} on the assumption of one SDK instance per app. Named
+     * instances break that assumption — two instances would open, write to and close the same
+     * {@code intempt_events} file, which is two writers on one SQLite database. That raises
+     * SQLiteDatabaseLockedException, which {@link EventDbAdapter} answers by deleting the
+     * database. A second instance could therefore destroy the first's undelivered queue.
+     *
+     * @param dbName the queue database file, or null for the default {@code intempt_events}
+     */
+    public DeliveryMessages(final Context context, QueueConfig config, final String dbName) {
         mContext = context;
         mConfig = config;
+        mDbName = dbName;
         mWorker = createWorker();
         getPoster().checkIsServerBlocked();
     }
@@ -65,6 +82,84 @@ public class DeliveryMessages {
         if (mHttpService != null) {
             mHttpService.setNetworkErrorListener(errorListener);
         }
+    }
+
+    /**
+     * A delivery failure, already classified. Not an upstream type.
+     *
+     * <p>Carries plain values rather than the SDK's {@code IntemptError} on purpose. This package
+     * is vendored Java, and a Java file here that imports a Kotlin sealed class breaks kapt's stub
+     * generation — which then reports every Dagger binding in the module as unresolvable and never
+     * names the real cause. Keeping the queue package Kotlin-free costs one small interface and
+     * saves the next person that afternoon.
+     *
+     * <p>It also keeps {@link HttpStatusPolicy} package-private. {@code terminal} is that class's
+     * verdict, passed out rather than re-derived by the caller: two places deciding what is
+     * retryable is how they drift, and this one would drift silently, because it only changes what
+     * a host app is told while the other decides whether a batch survives.
+     */
+    public interface DeliveryFailureListener {
+        /**
+         * @param status HTTP status, or <= 0 when the request never got an answer
+         * @param description the exception or response message; never null
+         * @param retryAfterMillis the server's Retry-After in milliseconds, or 0 when it sent none
+         * @param terminal true when this batch will never succeed on retry
+         */
+        void onFailure(int status, String description, long retryAfterMillis, boolean terminal);
+    }
+
+    /**
+     * Installs {@code listener}, invoked on the delivery worker thread.
+     *
+     * <p>This is the half of the error taxonomy that happens <b>after</b> an event was accepted
+     * into the queue — the half where events are actually lost — as opposed to the refusals the
+     * capture components report at the call site.
+     */
+    public void setDeliveryFailureListener(final DeliveryFailureListener listener) {
+        if (listener == null) {
+            setNetworkErrorListener(null);
+            return;
+        }
+        setNetworkErrorListener(
+                new NetworkErrorListener() {
+                    @Override
+                    public void onNetworkError(
+                            String endpointUrl,
+                            String ipAddress,
+                            long durationMillis,
+                            long uncompressedBodySize,
+                            long compressedBodySize,
+                            int responseCode,
+                            String responseMessage,
+                            Exception exception) {
+                        String description = exception == null ? null : exception.getMessage();
+                        if (description == null || description.isEmpty()) {
+                            description = responseMessage;
+                        }
+                        if (description == null || description.isEmpty()) {
+                            description = "no response";
+                        }
+
+                        long retryAfterMillis = 0L;
+                        if (exception instanceof RemoteService.ServiceUnavailableException) {
+                            final int seconds =
+                                    ((RemoteService.ServiceUnavailableException) exception)
+                                            .getRetryAfter();
+                            if (seconds > 0) {
+                                // Seconds on the wire, milliseconds here — the unit the retry
+                                // scheduler already uses, so nothing comparing the two is off by a
+                                // factor of a thousand.
+                                retryAfterMillis = seconds * 1000L;
+                            }
+                        }
+
+                        listener.onFailure(
+                                responseCode,
+                                description,
+                                retryAfterMillis,
+                                responseCode > 0 && HttpStatusPolicy.shouldDrop(responseCode));
+                    }
+                });
     }
 
     /**
@@ -91,11 +186,54 @@ public class DeliveryMessages {
 
     /** Requests a flush of whatever is currently queued. */
     public void flush() {
+        flush(null);
+    }
+
+    /**
+     * Modification: flush with a completion callback, and a runtime-settable interval.
+     *
+     * <p>Neither exists upstream. Both are required by the cross-SDK API contract, which
+     * specifies {@code flush(completion: (Int) -> Void)} and a settable {@code flushInterval}
+     * on the public instance. Upstream exposes flush as fire-and-forget and reads the interval
+     * once, into a final field, when the worker's handler is constructed.
+     *
+     * <p>The callback receives the number of events the server accepted during the flush that
+     * answered it, and runs on the delivery worker thread. Completions are held in a queue and
+     * drained by the next flush to complete — which may be a scheduled one rather than the call
+     * that registered it. The reported count is always a real count from a real flush; it is not
+     * a promise that only the caller's own events were in it.
+     *
+     * @param completion invoked with the count of accepted events, or null for fire-and-forget
+     */
+    public void flush(final FlushCompletion completion) {
+        if (completion != null) {
+            mFlushCompletions.add(completion);
+        }
         final Message m = Message.obtain();
         m.what = FLUSH_QUEUE;
         m.obj = QUEUE_TOKEN;
         m.arg1 = 0;
         mWorker.runMessage(m);
+    }
+
+    /** Notified with the number of events a flush delivered. Not an upstream type. */
+    public interface FlushCompletion {
+        void onFlushed(int delivered);
+    }
+
+    /**
+     * Milliseconds the worker waits before a size-triggered flush. Negative disables it.
+     *
+     * <p>Reads through to {@link QueueConfig} so a change takes effect on the next flush
+     * decision rather than at the next worker restart.
+     */
+    public int getFlushInterval() {
+        return mConfig.getFlushInterval();
+    }
+
+    /** @see #getFlushInterval() */
+    public void setFlushInterval(int millis) {
+        mConfig.setFlushInterval(millis);
     }
 
     public void eventsMessage(final EventDescription eventDescription) {
@@ -113,6 +251,17 @@ public class DeliveryMessages {
         m.arg1 = 0;
 
         mWorker.runMessage(m);
+    }
+
+    /**
+     * Discards every queued event without sending it. Not an upstream convenience.
+     *
+     * <p>Exists so callers do not need {@link #QUEUE_TOKEN}, which is private for a reason —
+     * passing the wrong token to {@link #emptyTrackingQueues} empties nothing and reports
+     * nothing, and an opt-out that silently fails to discard is the failure this method serves.
+     */
+    public void emptyQueue() {
+        emptyTrackingQueues(new QueueDescription(QUEUE_TOKEN));
     }
 
     public void emptyTrackingQueues(final QueueDescription queueDescription) {
@@ -139,7 +288,9 @@ public class DeliveryMessages {
     }
 
     protected EventDbAdapter makeDbAdapter(Context context) {
-        return new EventDbAdapter(context, mConfig);
+        return mDbName == null
+                ? new EventDbAdapter(context, mConfig)
+                : new EventDbAdapter(context, mDbName, mConfig);
     }
 
     private volatile HttpService mHttpService;
@@ -336,7 +487,6 @@ public class DeliveryMessages {
             public AnalyticsMessageHandler(Looper looper) {
                 super(looper);
                 mDbAdapter = null;
-                mFlushInterval = mConfig.getFlushInterval();
             }
 
             @Override
@@ -379,7 +529,11 @@ public class DeliveryMessages {
                         logAboutMessage("Flushing queue due to scheduled or forced flush");
                         updateFlushFrequency();
                         token = (String) msg.obj;
-                        sendAllData(mDbAdapter, token);
+                        final int delivered = sendAllData(mDbAdapter, token);
+                        // Modification: answer any pending flush completions. Drained even when
+                        // delivered is 0 — offline, empty queue, or a batch that was retried — so a
+                        // caller awaiting flush() is never left hanging on a failure.
+                        notifyFlushCompletions(delivered);
                     } else if (msg.what == EMPTY_QUEUES) {
                         final QueueDescription message = (QueueDescription) msg.obj;
                         token = message.getToken();
@@ -419,14 +573,20 @@ public class DeliveryMessages {
                         // a flush right here, so we may end up with two flushes
                         // in our queue, but we're OK with that.
 
+                        // Modification: read the interval per decision instead of caching it in a
+                        // final field at handler construction. setFlushInterval() would otherwise
+                        // only take effect after a worker restart, which an app cannot trigger.
+                        final int flushInterval = mConfig.getFlushInterval();
                         logAboutMessage(
-                                "Queue depth " + returnCode + " - Adding flush in " + mFlushInterval);
-                        if (mFlushInterval >= 0) {
+                                "Queue depth " + returnCode + " - Adding flush in " + flushInterval);
+                        // > 0, not >= 0: the contract makes 0 mean "timer disabled". Upstream's
+                        // >= 0 would post a zero-delay message instead, spinning the worker.
+                        if (flushInterval > 0) {
                             final Message flushMessage = Message.obtain();
                             flushMessage.what = FLUSH_QUEUE;
                             flushMessage.obj = token;
                             flushMessage.arg1 = 1;
-                            sendMessageDelayed(flushMessage, mFlushInterval);
+                            sendMessageDelayed(flushMessage, flushInterval);
                         }
                     }
                 } catch (final RuntimeException e) {
@@ -447,19 +607,23 @@ public class DeliveryMessages {
                 return mTrackEngageRetryAfter;
             }
 
-            private void sendAllData(EventDbAdapter dbAdapter, String token) {
+            /** @return the number of events the server accepted. Upstream returns void. */
+            private int sendAllData(EventDbAdapter dbAdapter, String token) {
                 final RemoteService poster = getPoster();
                 if (!poster.isOnline(mContext, mConfig.getOfflineMode())) {
                     logAboutMessage(
                             "Not flushing data because the device is not connected to the internet.");
-                    return;
+                    return 0;
                 }
 
-                sendData(dbAdapter, token, EventDbAdapter.Table.EVENTS, mConfig.getEventsEndpoint());
+                return sendData(
+                        dbAdapter, token, EventDbAdapter.Table.EVENTS, mConfig.getEventsEndpoint());
             }
 
-            private void sendData(
+            /** @return the number of events the server accepted. Upstream returns void. */
+            private int sendData(
                     EventDbAdapter dbAdapter, String token, EventDbAdapter.Table table, String url) {
+                int delivered = 0;
                 final RemoteService poster = getPoster();
                 String[] eventsData = dbAdapter.generateDataString(table);
                 Integer queueCount = 0;
@@ -488,6 +652,12 @@ public class DeliveryMessages {
                     final byte[] requestBody = envelope.toString().getBytes(StandardCharsets.UTF_8);
 
                     boolean deleteEvents = true;
+                    // Modification: distinct from deleteEvents, which is also true when an
+                    // unrecoverable status makes us drop a batch. A dropped batch is not a
+                    // delivered one, and reporting it as delivered through the flush completion
+                    // would report total data loss as a successful flush — the same conflation
+                    // that made "row left the queue" a useless test oracle.
+                    boolean accepted = false;
                     RemoteService.RequestResult result;
                     try {
                         final SSLSocketFactory socketFactory = mConfig.getSSLSocketFactory();
@@ -530,6 +700,7 @@ public class DeliveryMessages {
                         } else {
                             deleteEvents =
                                     true; // Delete events on any successful post, regardless of 1 or 0 response
+                            accepted = true;
                             String parsedResponse;
                             try {
                                 parsedResponse = new String(response, "UTF-8");
@@ -584,6 +755,9 @@ public class DeliveryMessages {
                     }
 
                     if (deleteEvents) {
+                        if (accepted) {
+                            delivered += countEvents(envelope);
+                        }
                         logAboutMessage("Not retrying this batch of events, deleting them from DB.");
                         dbAdapter.cleanupEvents(lastId, table);
                     } else {
@@ -605,6 +779,21 @@ public class DeliveryMessages {
                         queueCount = Integer.valueOf(eventsData[2]);
                     }
                 }
+
+                return delivered;
+            }
+
+            /**
+             * Number of events in an assembled request body. Not an upstream method.
+             *
+             * <p>Counts the {@code track} array rather than the queue depth: the depth is what
+             * remained before the post, so a caller told "12 delivered" when 12 were merely
+             * pending would read a partial flush as a complete one.
+             */
+            private int countEvents(JSONObject envelope) {
+                final org.json.JSONArray events =
+                        envelope == null ? null : envelope.optJSONArray(TrackPayloadBuilder.TRACK_KEY);
+                return events == null ? 0 : events.length();
             }
 
 
@@ -639,7 +828,6 @@ public class DeliveryMessages {
             }
 
             private EventDbAdapter mDbAdapter;
-            private final long mFlushInterval;
             private long mTrackEngageRetryAfter;
             private int mFailedRetries;
             private long mLastExpirationSweepTime;
@@ -674,6 +862,34 @@ public class DeliveryMessages {
     }
 
     /////////////////////////////////////////////////////////
+
+    /**
+     * Modification: pending {@link FlushCompletion} callbacks, drained by the next flush to
+     * finish. Concurrent because callers register from any thread and the worker drains from
+     * its own.
+     */
+    private final java.util.Queue<FlushCompletion> mFlushCompletions =
+            new java.util.concurrent.ConcurrentLinkedQueue<>();
+
+    /**
+     * Answers every completion registered before this flush finished.
+     *
+     * <p>Each callback is invoked inside its own try/catch: a host app's callback that throws
+     * must not take down the delivery worker, whose death would silently stop all uploads.
+     */
+    private void notifyFlushCompletions(int delivered) {
+        FlushCompletion completion;
+        while ((completion = mFlushCompletions.poll()) != null) {
+            try {
+                completion.onFlushed(delivered);
+            } catch (final Throwable t) {
+                QueueLog.e(LOGTAG, "Flush completion threw; ignoring so the worker survives", t);
+            }
+        }
+    }
+
+    /** Instance-scoped queue database, or null for the default. Not an upstream field. */
+    private final String mDbName;
 
     // Used across thread boundaries
     private final Worker mWorker;

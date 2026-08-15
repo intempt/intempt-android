@@ -48,7 +48,24 @@ internal data class IntemptConfigs(
     val sourceId: String,
     val organizationId: String,
     val projectId: String,
-)
+) {
+    /**
+     * Redacted, overriding the one Kotlin generates for a data class.
+     *
+     * The generated `toString` prints every property, [apiKey] included. Nothing logs this object
+     * today, so this is latent rather than live — but it is one line away from live, and the line
+     * that would do it (`logger.debug("configs: $configs")`) reads as a debug statement and gets
+     * reviewed as one, not as a change that puts a customer's ingestion key into logcat.
+     *
+     * Found by the React Native session sweeping all five SDKs for the same shape after the PHP
+     * SDK exposed its key through `print_r` and Python through `repr`. Three of five had it
+     * independently, which is why the contract now carries a rule rather than three bug reports.
+     * [IntemptCredentials] redacts for the same reason.
+     */
+    override fun toString(): String =
+        "IntemptConfigs(sourceId=$sourceId, organizationId=$organizationId, " +
+            "projectId=$projectId, apiKey=***)"
+}
 
 internal data class IntemptOptions(
     val isLoggingEnabled: Boolean,
@@ -104,8 +121,3 @@ internal data class ScreenEventProps(
     val entityName: String,
     val eventType: String,
 ) : AutoCaptureParam()
-
-internal data class Product(
-    val productId: String,
-    val quantity: Int? = null,
-)

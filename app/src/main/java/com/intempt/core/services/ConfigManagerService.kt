@@ -4,11 +4,14 @@ import android.content.Context
 import android.util.Base64
 import android.util.Log
 import com.intempt.core.autocapture.BaseComponent
+import com.intempt.core.types.AutocaptureOptions
+import com.intempt.core.types.AutomaticEventsOptions
 import com.intempt.core.types.ConfigKeys
 import com.intempt.core.types.ConfigResult
 import com.intempt.core.types.Constants
 import com.intempt.core.types.DefaultConfigs
 import com.intempt.core.types.IntemptConfigs
+import com.intempt.core.types.IntemptCredentials
 import com.intempt.core.types.IntemptOptions
 import org.json.JSONObject
 import java.io.InputStream
@@ -20,6 +23,15 @@ internal class ConfigManagerService
     @Inject
     constructor(
         private val context: Context,
+        /**
+         * Credentials supplied to `Intempt.initialize(...)` at runtime, or null to read
+         * `assets/intempt-config.json` as before.
+         *
+         * Runtime wins when present. The asset path is retained rather than replaced: it is the
+         * documented setup for a plain Android app, and removing it would break every existing
+         * integration for the benefit of the bridges alone.
+         */
+        private val runtimeCredentials: IntemptCredentials? = null,
     ) : BaseComponent() {
         // Leading underscores: backing fields for the public read-only accessors below. Suppressed
         // at the declaration rather than left to the ktlint baseline, which pins violations by line
@@ -45,14 +57,30 @@ internal class ConfigManagerService
         val itemsInQueue: Int
         val timeBuffer: Long
 
-        private val _isTouchEnabled: Boolean
-        private val _isTextCaptureEnabled: Boolean
-        private val _isAutoCaptureEnabled: Boolean
-
         val sourceId: String get() = _sourceId
         val organization: String get() = _organizationId
         val project: String get() = _projectId
-        val isTextCaptureEnabled: Boolean get() = _isTextCaptureEnabled
+
+        /**
+         * UI instrumentation options, settable at runtime.
+         *
+         * These were `val`s read once from `assets/intempt-config.json` with no setter of any kind,
+         * not even an internal one. That is the same conformance gap credentials had: a React
+         * Native app enabling screen tracking from JavaScript would get it on exactly one platform.
+         * The asset file is still where a plain Android app sets its defaults; this is what a
+         * bridge — or `Intempt.autocapture.configure(...)` — writes.
+         *
+         * Volatile because the writer is the caller's thread and the readers are the lifecycle
+         * callbacks running on the main thread and the capture services on their own.
+         */
+        @Volatile
+        var autocaptureOptions: AutocaptureOptions
+
+        /** @see autocaptureOptions — same reasoning, different switch. */
+        @Volatile
+        var automaticEventsOptions: AutomaticEventsOptions
+
+        val isTextCaptureEnabled: Boolean get() = autocaptureOptions.captureText
 
         /**
          * Whether the platform may geolocate from the request's source IP. Default true, matching
@@ -60,8 +88,17 @@ internal class ConfigManagerService
          * geolocation happens at either end.
          */
         val useIpAddressForGeolocation: Boolean get() = _useIpAddressForGeolocation
-        val isTouchEnabled: Boolean get() = _isTouchEnabled
-        val isAutoCaptureEnabled: Boolean get() = _isAutoCaptureEnabled
+        val isTouchEnabled: Boolean get() = autocaptureOptions.controlInteractions
+
+        /**
+         * What the asset file asked for, read once at construction.
+         *
+         * **Not** whether autocapture is running — [com.intempt.core.Intempt.autocapture] owns
+         * that, and nothing starts until `start()` is called. This is only the default the host
+         * app configured, used to decide whether `initialize()` should call `start()` on its
+         * behalf so a plain Android app keeps working the way its config file says.
+         */
+        val autocaptureEnabledByConfig: Boolean
 
         /**
          * The ingestion host. Defaults to production; overridable with `apiUrl` in
@@ -117,14 +154,27 @@ internal class ConfigManagerService
         init {
             val (configs, options) = getConfigs()
 
-            _apiKey = configs?.apiKey ?: ""
-            _sourceId = configs?.sourceId ?: ""
-            _organizationId = configs?.organizationId ?: ""
-            _projectId = configs?.projectId ?: ""
+            // Runtime credentials take precedence over the asset file, per field rather than
+            // wholesale — a bridge supplying credentials should not also have to supply the
+            // options, which stay in the asset file where a host app can edit them.
+            _apiKey = runtimeCredentials?.apiKey ?: configs?.apiKey ?: ""
+            _sourceId = runtimeCredentials?.sourceId ?: configs?.sourceId ?: ""
+            _organizationId = runtimeCredentials?.organizationId ?: configs?.organizationId ?: ""
+            _projectId = runtimeCredentials?.projectId ?: configs?.projectId ?: ""
 
-            _isTouchEnabled = options?.isTouchEnabled ?: DefaultConfigs.IsTouchEnabled.value
-            _isTextCaptureEnabled = options?.isTextCaptureEnabled ?: DefaultConfigs.IsTextCaptureEnabled.value
-            _isAutoCaptureEnabled = options?.isAutoCaptureEnabled ?: DefaultConfigs.IsAutoCaptureEnabled.value
+            autocaptureOptions =
+                AutocaptureOptions(
+                    screenViews = options?.isAutoCaptureEnabled ?: DefaultConfigs.IsAutoCaptureEnabled.value,
+                    controlInteractions = options?.isTouchEnabled ?: DefaultConfigs.IsTouchEnabled.value,
+                    captureText = options?.isTextCaptureEnabled ?: DefaultConfigs.IsTextCaptureEnabled.value,
+                )
+
+            // Contract defaults, not the asset file's: sessions on, the other two off. The asset
+            // file has never had keys for these — the SDK emitted all three unconditionally — so
+            // there is nothing to read and nothing to migrate.
+            automaticEventsOptions = AutomaticEventsOptions()
+
+            autocaptureEnabledByConfig = options?.isAutoCaptureEnabled ?: DefaultConfigs.IsAutoCaptureEnabled.value
             _useIpAddressForGeolocation =
                 options?.useIpAddressForGeolocation ?: DefaultConfigs.UseIpAddressForGeolocation.value
 

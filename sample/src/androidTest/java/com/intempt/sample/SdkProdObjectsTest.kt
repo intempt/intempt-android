@@ -6,6 +6,8 @@ import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.intempt.core.Intempt
+import com.intempt.core.types.IntemptValue
+import com.intempt.core.types.Product
 import kotlinx.coroutines.runBlocking
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
@@ -111,7 +113,10 @@ class SdkProdObjectsTest {
 
     private fun awaitEvent(
         what: String,
-        reemit: (() -> Unit)? = null,
+        // `Any?`, not `Unit`: as of 3.0 every capture method returns Boolean, so a lambda
+        // wrapping one infers `() -> Boolean` and no longer satisfies `() -> Unit`. The
+        // helper only re-runs the emitter and ignores whatever it hands back.
+        reemit: (() -> Any?)? = null,
         predicate: (JSONObject) -> Boolean,
     ): JSONObject {
         val deadline = System.currentTimeMillis() + 30_000L
@@ -135,7 +140,7 @@ class SdkProdObjectsTest {
     fun identifyAttachesToTheStableUser() {
         val userId = requireFixture("INTEMPT_E2E_USER_ID", BuildConfig.INTEMPT_E2E_USER_ID)
 
-        Intempt.identify(userId = userId, userAttributes = mapOf("source" to "android-sdk-e2e"))
+        Intempt.identify(userId = userId, userAttributes = IntemptValue.mapOf(mapOf("source" to "android-sdk-e2e")))
 
         // Matched on this test's own userId. Both test classes run in one app process and the
         // queue persists across them, so `type == "identify"` alone found SdkOnDeviceTest's
@@ -161,7 +166,7 @@ class SdkProdObjectsTest {
     fun groupCreatesTheAccountAndQueuesTheEvent() {
         val accountId = "androidtest-account-${System.nanoTime()}"
 
-        Intempt.group(accountId = accountId, accountAttributes = mapOf("source" to "android-sdk-e2e"))
+        Intempt.group(accountId = accountId, accountAttributes = IntemptValue.mapOf(mapOf("source" to "android-sdk-e2e")))
 
         // Same reasoning: SdkOnDeviceTest also emits a group event.
         val event =
@@ -191,7 +196,7 @@ class SdkProdObjectsTest {
         emitAdd()
         awaitEvent("an add to cart", reemit = emitAdd) { it.optString("name") == "Added to cart" }
 
-        val emitOrder = { Intempt.productOrdered(listOf(mapOf("productId" to productId, "quantity" to 1))) }
+        val emitOrder = { Intempt.productOrdered(listOf(Product(productId, 1))) }
         emitOrder()
         awaitEvent("a product order", reemit = emitOrder) {
             it.optString("type") == "product" &&
@@ -201,7 +206,7 @@ class SdkProdObjectsTest {
     }
 
     /**
-     * `recommendation`'s first argument is the feed id: it goes straight into
+     * `products`' first argument is the feed id: it goes straight into
      * `/v1/{org}/projects/{project}/feeds/{feedId}/data`. Unlike the tracking calls this is a
      * synchronous read, so a null result means the request genuinely failed rather than being
      * queued for later.
@@ -223,7 +228,7 @@ class SdkProdObjectsTest {
      * "one of the two", not "the feed is broken".
      */
     @Test
-    fun recommendationReturnsFromTheFeed() {
+    fun productsReturnFromTheFeed() {
         // Opt-in. Delivery to the gateway is not the same as ingested-and-queryable: the feed
         // only answers for a profile the platform already knows, and there is lag after the
         // 201 that no client-side wait can bound. Verified by hand that the mechanism works —
@@ -244,7 +249,7 @@ class SdkProdObjectsTest {
                 .filter { it.isNotEmpty() }
 
         // Give the platform a profile to answer about, then let it reach the gateway.
-        Intempt.identify(userId = userId, userAttributes = mapOf("source" to "android-sdk-e2e"))
+        Intempt.identify(userId = userId, userAttributes = IntemptValue.mapOf(mapOf("source" to "android-sdk-e2e")))
         awaitEvent("the identify to be queued") { it.optString("type") == "identify" }
         val delivered =
             awaitDrained(timeoutMs = 120_000) {
@@ -255,7 +260,7 @@ class SdkProdObjectsTest {
             delivered,
         )
 
-        val result = runBlocking { Intempt.recommendation(feedId, 3, fields, null) }
+        val result = runBlocking { Intempt.products(feedId, 3, fields, null) }
 
         assertNotNull(
             "feed $feedId returned nothing. Either the feed id is wrong or this device's " +

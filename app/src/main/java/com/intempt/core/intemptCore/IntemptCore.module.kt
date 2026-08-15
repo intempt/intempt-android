@@ -1,7 +1,6 @@
 package com.intempt.core.intemptCore
 
 import android.content.Context
-import com.intempt.core.Intempt
 import com.intempt.core.autocapture.AutoCaptureModule
 import com.intempt.core.customCapture.CustomCaptureModule
 import com.intempt.core.queue.ConsentAuditLog
@@ -9,12 +8,16 @@ import com.intempt.core.queue.DeliveryMessages
 import com.intempt.core.queue.QueueConfig
 import com.intempt.core.services.CertificatePinning
 import com.intempt.core.services.ConfigManagerService
+import com.intempt.core.services.ErrorReporter
 import com.intempt.core.services.HttpManagerService
 import com.intempt.core.services.IntemptEventManagerService
 import com.intempt.core.services.LoggerManagerService
 import com.intempt.core.services.StorageManagerService
 import com.intempt.core.services.UtilsService
 import com.intempt.core.services.eventPool.EventPoolManagerService
+import com.intempt.core.types.InstanceId
+import com.intempt.core.types.IntemptCredentials
+import com.intempt.core.types.IntemptError
 import dagger.Component
 import dagger.Module
 import dagger.Provides
@@ -28,7 +31,37 @@ import javax.inject.Singleton
 )
 internal class IntemptCoreModule(
     private val consumerContext: Context,
+    /** Null means "read assets/intempt-config.json", which is the pre-3.0 behaviour. */
+    private val runtimeCredentials: IntemptCredentials? = null,
+    /**
+     * Which named instance this graph belongs to.
+     *
+     * Dagger already gives one graph per `initialize()`, so this exists for the part Dagger cannot
+     * scope: the `SharedPreferences` files and the SQLite queue, which live on disk and are shared
+     * by name.
+     */
+    private val instance: InstanceId = InstanceId.Default,
 ) {
+    @Provides
+    @Singleton
+    fun provideInstanceId(): InstanceId = instance
+
+    private companion object {
+        // Mirrors EventDbAdapter.DATABASE_NAME and ConsentAuditLog's. Duplicated rather than
+        // exported: both are private to the vendored package, and widening their visibility to
+        // share a string would put two database names in the public surface.
+        const val QUEUE_DATABASE_NAME = "intempt_events"
+        const val CONSENT_DATABASE_NAME = "intempt_consent_audit"
+    }
+
+    /**
+     * Provided as nullable so ConfigManagerService can be constructed either way without two
+     * graphs. Dagger needs the binding to exist even when the value is absent.
+     */
+    @Provides
+    @Singleton
+    fun provideRuntimeCredentials(): IntemptCredentials? = runtimeCredentials
+
     @Provides
     fun provideContext(): Context {
         return consumerContext.applicationContext
@@ -61,6 +94,7 @@ internal class IntemptCoreModule(
         return StorageManagerService(
             consumerContext.applicationContext,
             utils,
+            instance = instance,
         )
     }
 
@@ -79,7 +113,7 @@ internal class IntemptCoreModule(
             http,
             intemptEvent,
             delivery,
-            consentAudit = ConsentAuditLog(consumerContext.applicationContext),
+            consentAudit = ConsentAuditLog(consumerContext.applicationContext, instance.scope(CONSENT_DATABASE_NAME)),
         )
     }
 
@@ -119,11 +153,35 @@ internal class IntemptCoreModule(
 
     @Provides
     @Singleton
-    fun provideDeliveryMessages(queueConfig: QueueConfig): DeliveryMessages {
-        // One instance, owned here. The vendored class had a static registry keyed by
-        // project token to partition a shared queue across Mixpanel instances; Intempt
-        // has one SDK instance per app, so Dagger's @Singleton replaces it.
-        return DeliveryMessages(consumerContext.applicationContext, queueConfig)
+    fun provideDeliveryMessages(
+        queueConfig: QueueConfig,
+        errors: ErrorReporter,
+    ): DeliveryMessages {
+        // One per named instance, owned here. The vendored class had a static registry keyed by
+        // project token to partition a shared queue across Mixpanel instances; @Singleton on this
+        // component replaces it, and the scoped database name keeps two instances off one SQLite
+        // file — two writers on one file is how a second instance deletes the first's queue.
+        return DeliveryMessages(
+            consumerContext.applicationContext,
+            queueConfig,
+            instance.scope(QUEUE_DATABASE_NAME),
+        ).also {
+            // The delivery half of the error taxonomy. Refused-at-the-call-site errors reach the
+            // listener from the capture components; without this, every failure that happens after
+            // an event is accepted — offline, 401, 5xx — would be invisible to a host app, which is
+            // the half where events are actually lost.
+            it.setDeliveryFailureListener { status, description, retryAfterMillis, terminal ->
+                errors.report(
+                    when {
+                        // No usable status: the request never got an answer, so this is a transport
+                        // failure rather than a rejection.
+                        status <= 0 -> IntemptError.Transport(description)
+                        terminal -> IntemptError.Terminal(status)
+                        else -> IntemptError.Retryable(status, retryAfterMillis.takeIf { ms -> ms > 0 })
+                    },
+                )
+            }
+        }
     }
 
     @Provides
@@ -145,8 +203,6 @@ internal class IntemptCoreModule(
 @Singleton
 @Component(modules = [IntemptCoreModule::class])
 internal interface IntemptCoreComponent {
-    fun inject(intempt: Intempt)
-
     fun initService(): IntemptCoreService
 
     /**

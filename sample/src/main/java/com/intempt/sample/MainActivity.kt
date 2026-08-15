@@ -16,6 +16,11 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.intempt.core.Intempt
+import com.intempt.core.types.AutocaptureOptions
+import com.intempt.core.types.ConsentAction
+import com.intempt.core.types.IntemptCredentials
+import com.intempt.core.types.IntemptValue
+import com.intempt.core.types.Product
 
 /**
  * Exercises the public API by hand. Built with plain views rather than Compose so this
@@ -80,7 +85,12 @@ class MainActivity : AppCompatActivity() {
         )
 
         button(root, "track") {
-            Intempt.track("Sample button tapped", mapOf("source" to "sample-app"))
+            // Typed values, so the sample demonstrates the 3.0 shape a customer copies. `seats`
+            // reaching the platform as a number rather than "3" is the point of the change.
+            Intempt.track(
+                "Sample button tapped",
+                IntemptValue.mapOf(mapOf("source" to "sample-app", "seats" to 3, "trial" to false)),
+            )
         }
         button(root, "identify") {
             // Deliberately the obvious call, with no eventTitle. This used to be rejected
@@ -88,25 +98,71 @@ class MainActivity : AppCompatActivity() {
             // this shape means the sample fails visibly if that regresses.
             Intempt.identify(
                 userId = "sample-user-1",
-                userAttributes = mapOf("plan" to "free"),
+                userAttributes = IntemptValue.mapOf(mapOf("plan" to "free")),
             )
         }
         button(root, "group") {
             // Also titleless, to cover the sibling bug: this arrived named "Identify".
             Intempt.group(
                 accountId = "sample-account-1",
-                accountAttributes = mapOf("tier" to "smb"),
+                accountAttributes = IntemptValue.mapOf(mapOf("tier" to "smb")),
             )
         }
         button(root, "record") {
             Intempt.record(
                 eventTitle = "Sample record",
                 userId = "sample-user-1",
-                data = mapOf("step" to "checkout"),
+                data = IntemptValue.mapOf(mapOf("step" to "checkout")),
             )
         }
         button(root, "productView") { Intempt.productView("sku-123") }
-        button(root, "logOut (rotates profileId)") { Intempt.logOut() }
+        button(root, "productOrdered") {
+            Intempt.productOrdered(listOf(Product("sku-123", 2), Product("sku-456", 1)))
+        }
+        button(root, "consent accept (opts in)") {
+            Intempt.consent(ConsentAction.ACCEPT, System.currentTimeMillis() + 86_400_000)
+        }
+        button(root, "consent reject (opts out + clears queue)") {
+            Intempt.consent(ConsentAction.REJECT, System.currentTimeMillis() + 86_400_000)
+        }
+        button(root, "flush") {
+            Intempt.flush { delivered -> runOnUiThread { log.append("  flush delivered $delivered\n") } }
+        }
+        button(root, "logOut (rotates profileId, keeps queue)") { Intempt.logOut() }
+        button(root, "reset (rotates profileId, empties queue)") { Intempt.reset() }
+        button(root, "autocapture stop") {
+            log.append("  autocapture.stop() -> ${Intempt.autocapture.stop()}\n")
+        }
+        button(root, "autocapture start (screen views only)") {
+            val started =
+                Intempt.autocapture.start(
+                    AutocaptureOptions(screenViews = true, controlInteractions = false, captureText = false),
+                )
+            log.append("  autocapture.start() -> $started, running=${Intempt.autocapture.isRunning()}\n")
+        }
+        button(root, "second instance (isolated storage)") {
+            // Two Intempt projects in one app. The point of the assertion below is that the two
+            // instances do NOT share a profileId — they used to, because prefs and the SQLite
+            // queue were global, so a second instance inherited the first's identity and sent its
+            // events under the wrong credentials.
+            val second =
+                Intempt.initialize(
+                    applicationContext,
+                    IntemptCredentials("demo.secret", "demo-org", "demo-project", "demo-source"),
+                    "secondary",
+                )
+            if (second == null) {
+                log.append("  second instance refused (expected: demo credentials are not real)\n")
+            } else {
+                second.track("Second instance event")
+                log.append("  main profileId=${Intempt.getProfileId()}\n")
+                log.append("  secondary profileId=${second.getProfileId()}\n")
+            }
+        }
+        button(root, "show ids") {
+            log.append("  profileId=${Intempt.getProfileId()} sessionId=${Intempt.getSessionId()}\n")
+            log.append("  optedIn=${Intempt.isOptedIn()} flushInterval=${Intempt.flushInterval}s\n")
+        }
 
         log =
             TextView(this).apply {

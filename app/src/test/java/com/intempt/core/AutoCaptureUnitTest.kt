@@ -222,7 +222,7 @@ class AutoCaptureUnitTest {
     fun `should call installUpgrade`() =
         runTest {
             interceptHttpRequest()
-            installUpgradeComponent.start()
+            installUpgradeComponent.start(versionChanges = true, appStateChanges = true)
 
             verify(eventPoolSrv).dispatchEvent(any<DispatchEventProps>(), anyString())
 
@@ -235,7 +235,7 @@ class AutoCaptureUnitTest {
             doThrow(RuntimeException("Simulated error during dispatchEvent"))
                 .`when`(eventPoolSrv).dispatchEvent(any<DispatchEventProps>(), anyString())
 
-            installUpgradeComponent.start()
+            installUpgradeComponent.start(versionChanges = true, appStateChanges = true)
 
             verify(eventPoolSrv).dispatchEvent(any<DispatchEventProps>(), anyString())
 

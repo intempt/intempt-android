@@ -1,6 +1,7 @@
 package com.intempt.core.eventModels
 
 import com.intempt.core.types.IntemptEventProvider
+import com.intempt.core.types.IntemptValue
 
 internal open class TrackEvent(
     override val eventId: String,
@@ -8,7 +9,7 @@ internal open class TrackEvent(
     override val pageId: String,
     override val profileId: String,
     override val timestamp: Long = System.currentTimeMillis(),
-    private val data: Map<String, String>,
+    private val data: Map<String, IntemptValue>,
 ) : IntemptEventProvider {
     override fun getEventTime(): Long {
         return timestamp
@@ -21,7 +22,7 @@ internal open class TrackEvent(
             "pageId" to pageId,
             "profileId" to profileId,
             "timestamp" to timestamp,
-            "data" to data,
+            "data" to IntemptValue.rawMap(data),
         )
     }
 }

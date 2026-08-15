@@ -4,6 +4,9 @@ import android.app.Application
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.intempt.core.Intempt
+import com.intempt.core.types.ConsentAction
+import com.intempt.core.types.IntemptValue
+import com.intempt.core.types.Product
 import org.json.JSONObject
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -72,26 +75,41 @@ class SdkRunsLocallyTest {
      */
     @Test
     fun everyPublicCallSurvivesOnThisApiLevel() {
-        Intempt.track("Sample event", mapOf("source" to "sample-app"))
-        Intempt.identify(userId = "sample-user-1", userAttributes = mapOf("plan" to "free"))
-        Intempt.group(accountId = "sample-account-1", accountAttributes = mapOf("tier" to "smb"))
-        Intempt.record(eventTitle = "Sample record", userId = "sample-user-1", data = mapOf("step" to "checkout"))
+        val attrs = IntemptValue.mapOf(mapOf("plan" to "free", "seats" to 3, "trial" to false))
+
+        Intempt.track("Sample event", IntemptValue.mapOf(mapOf("source" to "sample-app")))
+        Intempt.identify(userId = "sample-user-1", userAttributes = attrs)
+        Intempt.group(accountId = "sample-account-1", accountAttributes = attrs)
+        Intempt.record(
+            eventTitle = "Sample record",
+            userId = "sample-user-1",
+            data = IntemptValue.mapOf(mapOf("step" to "checkout")),
+        )
         Intempt.alias("sample-user-1", "sample-user-2")
         Intempt.productView("sku-123")
         Intempt.productAdd("sku-123", 2)
-        Intempt.productOrdered(listOf(mapOf("productId" to "sku-123", "quantity" to 2)))
-        Intempt.consent(action = "granted", validUntil = System.currentTimeMillis() + 86_400_000)
+        Intempt.productOrdered(listOf(Product("sku-123", 2)))
+        Intempt.consent(action = ConsentAction.ACCEPT, validUntil = System.currentTimeMillis() + 86_400_000)
+
+        Intempt.getProfileId()
+        Intempt.getSessionId()
+        Intempt.flush()
+        Intempt.flushInterval = 30
 
         Intempt.Logging.start()
         assertTrue(Intempt.Logging.isLoggingEnabled())
         Intempt.Logging.stop()
 
-        Intempt.Tracking.start()
-        assertTrue(Intempt.Tracking.isTrackingEnabled())
-        Intempt.Tracking.stop()
+        Intempt.optIn()
+        assertTrue(Intempt.isOptedIn())
+        Intempt.optOut()
+        assertTrue(Intempt.hasOptedOut())
+        Intempt.optIn()
 
-        // Rotates the profileId. Called last: it clears the stores the calls above wrote to.
+        // Rotate the profileId last: both clear the stores the calls above wrote to. reset()
+        // additionally empties the queue, so it goes after logOut() rather than instead of it.
         Intempt.logOut()
+        Intempt.reset()
     }
 
     /**
@@ -140,7 +158,7 @@ class SdkRunsLocallyTest {
      */
     @Test
     fun trackingWiresThroughToTheDurableQueue() {
-        Intempt.track("Sample event", mapOf("source" to "sample-app"))
+        Intempt.track("Sample event", IntemptValue.mapOf(mapOf("source" to "sample-app")))
 
         val db = context().getDatabasePath("intempt_events")
         val appeared = (1..20).any { db.exists().also { found -> if (!found) Thread.sleep(50) } }
