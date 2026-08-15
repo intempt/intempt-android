@@ -225,8 +225,26 @@ jobs:
       # with no third-party dependency graph of its own to scan. Gated at CVSS >= 9 (critical);
       # see the dependencyCheck block in app/build.gradle.kts for why the threshold is not "any
       # known CVE".
+      # Runs only when an NVD API key is configured, and that is not a convenience.
+      #
+      # dependency-check 13 cannot complete without one. With no key it throws
+      # "Invalid API Key, length of 0 too short to provided a masked partial key" while building
+      # its own log line, so the scan fails before analysing anything — and NIST now rate-limits
+      # keyless access hard enough that it would be unusable regardless.
+      #
+      # Skipping is stated rather than hidden. `continue-on-error` would render a green check for
+      # a scan that never ran, which is worse than no scan: it reads as "no vulnerabilities".
+      #
+      # To turn this on: request a free key at https://nvd.nist.gov/developers/request-an-api-key
+      # and add it as the INTEMPT_NVD_API_KEY repository secret. Nothing else changes.
       - name: Dependency vulnerability scan
+        if: env.INTEMPT_NVD_API_KEY != ''
         run: ./gradlew :app:dependencyCheckAnalyze --stacktrace
+
+      - name: Note when the vulnerability scan was skipped
+        if: env.INTEMPT_NVD_API_KEY == ''
+        run: |
+          echo "::warning title=Dependency scan skipped::INTEMPT_NVD_API_KEY is not set, so :app:dependencyCheckAnalyze did not run. This build has NOT been checked for known CVEs. Request a key at https://nvd.nist.gov/developers/request-an-api-key and add it as a repository secret."
 
       - name: Upload dependency-check report
         if: always()

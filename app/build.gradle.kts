@@ -82,11 +82,25 @@ dependencyCheck {
     analyzers.opensslEnabled = false
     analyzers.msbuildEnabled = false
     // Speeds up and stabilizes CI: an NVD API key raises the feed's rate limit drastically. Absent
-    // (forks without the secret), the analyzer still runs, just slower -- it does not fail the
-    // build. See INTEMPT_NVD_API_KEY in .github/workflows/ci.yml.
-    nvd.apiKey = System.getenv("INTEMPT_NVD_API_KEY")
+    // (forks without the secret), the analyzer still runs against cached data rather than failing.
+    // See INTEMPT_NVD_API_KEY in .github/workflows/ci.yml.
+    //
+    // Set only when non-blank, and that conditional is load-bearing. System.getenv returns an
+    // empty string rather than null for an unset secret in Actions, and dependency-check 13
+    // rejects an empty key outright:
+    //
+    //   NvdApiException: Invalid API Key, length of 0 too short to provided a masked partial key
+    //
+    // Assigning unconditionally made the comment above a lie — the scan failed hard on every fork
+    // and on any run where the secret was missing, which is exactly the case it claimed to handle.
+    System.getenv("INTEMPT_NVD_API_KEY")
+        ?.takeIf { it.isNotBlank() }
+        ?.let { nvd.apiKey = it }
     formats = listOf("HTML", "JSON")
-    outputDirectory = "$buildDir/reports/dependency-check"
+    // 13.x types this as a DirectoryProperty rather than a String, so it is set rather than
+    // assigned. Also uses layout.buildDirectory — `buildDir` is deprecated in Gradle 8 and removed
+    // in 9, so this was going to break on the next Gradle bump regardless of the plugin version.
+    outputDirectory.set(layout.buildDirectory.dir("reports/dependency-check"))
 }
 
 // API-compatibility gate, checked against the android-api-level-23 signature rather than inferred.

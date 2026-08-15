@@ -88,14 +88,41 @@ class SdkProdObjectsTest {
         return observed.values.toList()
     }
 
+    /**
+     * @param reemit re-runs the action that produces the event, every [REEMIT_INTERVAL_MS].
+     *
+     * Polling alone cannot win this race. A row exists exactly once, and with working credentials
+     * delivery can create and delete it entirely between two polls — after which no further
+     * polling and no longer deadline will ever see it, because the evidence is gone.
+     *
+     * That is how `productCallsUseACatalogProduct` failed on API 34 while the two events before it
+     * were caught: `[Identify, View screen, Product viewed, Added to cart]` were all observed and
+     * the order was not. Nothing was wrong with `productOrdered`; the sampler simply missed its
+     * window.
+     *
+     * Re-emitting turns one chance into many. It does not change what is asserted — the event still
+     * has to reach the queue — it stops a single unlucky interleaving from deciding the result.
+     * The duplicate events land in the test project, which is what a test project is for.
+     */
+    private companion object {
+        /** How often awaitEvent re-runs a repeatable action while waiting. */
+        const val REEMIT_INTERVAL_MS = 750L
+    }
+
     private fun awaitEvent(
         what: String,
+        reemit: (() -> Unit)? = null,
         predicate: (JSONObject) -> Boolean,
     ): JSONObject {
-        val deadline = System.currentTimeMillis() + 15_000L
+        val deadline = System.currentTimeMillis() + 30_000L
+        var nextReemit = System.currentTimeMillis() + REEMIT_INTERVAL_MS
         while (System.currentTimeMillis() < deadline) {
             sample().firstOrNull(predicate)?.let { return it }
-            Thread.sleep(50)
+            if (reemit != null && System.currentTimeMillis() >= nextReemit) {
+                reemit()
+                nextReemit = System.currentTimeMillis() + REEMIT_INTERVAL_MS
+            }
+            Thread.sleep(25)
         }
         throw AssertionError("timed out waiting for $what. Observed: ${sample().map { it.optString("name") }}")
     }
@@ -156,14 +183,17 @@ class SdkProdObjectsTest {
     fun productCallsUseACatalogProduct() {
         val productId = requireFixture("INTEMPT_E2E_PRODUCT_ID", BuildConfig.INTEMPT_E2E_PRODUCT_ID)
 
-        Intempt.productView(productId)
-        awaitEvent("a product view") { it.optString("name") == "Product viewed" }
+        val emitView = { Intempt.productView(productId) }
+        emitView()
+        awaitEvent("a product view", reemit = emitView) { it.optString("name") == "Product viewed" }
 
-        Intempt.productAdd(productId, 2)
-        awaitEvent("an add to cart") { it.optString("name") == "Added to cart" }
+        val emitAdd = { Intempt.productAdd(productId, 2) }
+        emitAdd()
+        awaitEvent("an add to cart", reemit = emitAdd) { it.optString("name") == "Added to cart" }
 
-        Intempt.productOrdered(listOf(mapOf("productId" to productId, "quantity" to 1)))
-        awaitEvent("a product order") {
+        val emitOrder = { Intempt.productOrdered(listOf(mapOf("productId" to productId, "quantity" to 1))) }
+        emitOrder()
+        awaitEvent("a product order", reemit = emitOrder) {
             it.optString("type") == "product" &&
                 it.optString("name") != "Product viewed" &&
                 it.optString("name") != "Added to cart"

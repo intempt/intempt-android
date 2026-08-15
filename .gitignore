@@ -5,6 +5,11 @@
 *.html
 sonar-project.properties
 .DS_Store
+# Anchored /build only covers the root, so a new module's build output is not ignored by it.
+# That is how 28 compiled .class files from mutation/build reached the repository — the module
+# was added and `git add -A` picked them up because nothing matched. Unanchored `build/` covers
+# every module, present and future.
+build/
 /build
 /captures
 .externalNativeBuild
