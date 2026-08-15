@@ -36,6 +36,56 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Runs first and on its own, because a leaked credential is the one failure that cannot be
+  # fixed by a follow-up commit: once it is in a public repo's history it has to be rotated.
+  #
+  # This exists because GitHub's own secret scanning is OFF on every public repo in the org —
+  # an enforced org-level security configuration named "Legacy" pins it disabled, and a
+  # repo-level enable is refused with HTTP 422. Until that configuration is changed by an org
+  # owner, this job is the only scanning these repos have.
+  #
+  # It is not a replacement for the platform feature. It sees this repo only, and only what is
+  # in the diff or the tree at scan time; GitHub's would scan history, validate whether a found
+  # key is live, and block the push before it ever lands.
+  secret-scan:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+        with:
+          # Full history: a secret removed in a later commit is still in the pack, and still
+          # has to be rotated. Scanning only the tip would report clean on exactly that case.
+          fetch-depth: 0
+
+      - name: Scan for credentials
+        uses: gitleaks/gitleaks-action@44c470ffc35caa8b1eb3e8012ca53c2f9bea4eb5  # v2.3.6
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: false
+          GITLEAKS_ENABLE_SUMMARY: true
+
+      # Two patterns gitleaks does not know, both of which have actually leaked in this org.
+      #
+      # An Intempt ingestion key is "<id>.<secret>" with no vendor prefix, so no provider rule
+      # matches it — one is sitting in intempt-android-release-verification's history today.
+      # The Authorization header is the base64 of that key and reads as ordinary base64.
+      #
+      # Scoped to tracked files and excluding this workflow, so the patterns below do not match
+      # themselves. Tests carry deliberately fake keys, which is why the match requires a
+      # realistic secret half rather than any dot-separated token.
+      - name: Scan for Intempt-shaped credentials
+        run: |
+          set -uo pipefail
+          hits=$(git grep -nIE \
+            "(Basic [A-Za-z0-9+/]{40,}={0,2}|[0-9a-f]{16,}\.[A-Za-z0-9_-]{24,})" \
+            -- ':!.github/workflows/ci.yml' ':!*Test*' ':!*test*' || true)
+          if [ -n "$hits" ]; then
+            echo "::error::Possible Intempt credential in the tree:"
+            echo "$hits"
+            exit 1
+          fi
+          echo "No Intempt-shaped credentials found."
+
   compile:
     name: Compile
     runs-on: ubuntu-latest
