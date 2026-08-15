@@ -1,5 +1,8 @@
 package com.intempt.sample
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.text.InputType
 import android.util.Log
@@ -10,6 +13,8 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import com.intempt.core.Intempt
 
 /**
@@ -22,8 +27,28 @@ import com.intempt.core.Intempt
 class MainActivity : AppCompatActivity() {
     private lateinit var log: TextView
 
+    /**
+     * Android 13+ will not show a notification without this, and it is a runtime prompt rather
+     * than a manifest declaration alone. The SDK contributes the POST_NOTIFICATIONS permission
+     * through its own manifest, so a consuming app does not declare it — but only the app can
+     * ask the user, which is why this lives here and not in the SDK.
+     *
+     * Below API 33 notifications are granted at install time and this is a no-op.
+     */
+    private fun requestNotificationPermissionIfNeeded() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+
+        val granted =
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) ==
+                PackageManager.PERMISSION_GRANTED
+        if (!granted) {
+            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 0)
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        requestNotificationPermissionIfNeeded()
 
         val root =
             LinearLayout(this).apply {

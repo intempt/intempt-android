@@ -1,5 +1,15 @@
 import java.util.Properties
 
+// Push requires a Firebase config, which belongs to the consuming app and is not in this
+// repository. Applied only when one is actually present, so:
+//
+//   - with sample/google-services.json      push works, and the FCM tests run
+//   - without it                            the app still builds and every other test runs
+//
+// Applying it unconditionally would break the build for CI, for forks, and for anyone who
+// clones this without a Firebase project — which is most people most of the time.
+val firebaseConfig = file("google-services.json")
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -112,6 +122,16 @@ abstract class WriteIntemptConfigTask : DefaultTask() {
     }
 }
 
+if (firebaseConfig.exists()) {
+    apply(plugin = "com.google.gms.google-services")
+    logger.lifecycle("sample: google-services.json found — push notifications enabled")
+} else {
+    logger.lifecycle(
+        "sample: no google-services.json — building without push. " +
+            "Add one from your Firebase project to enable it (see README.md).",
+    )
+}
+
 android {
     namespace = "com.intempt.sample"
     compileSdk = 35
@@ -126,6 +146,10 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // Lets the instrumented tests skip the FCM assertions rather than fail when this build
+        // has no Firebase configured.
+        buildConfigField("boolean", "PUSH_ENABLED", firebaseConfig.exists().toString())
 
         // Surfaced to the instrumented suite as BuildConfig constants.
         e2eFixtures.forEach { (name, value) ->
