@@ -112,6 +112,10 @@ object Intempt {
     @JvmStatic
     fun instance(name: String): IntemptInstance? = instances[name]
 
+    // Seven exits, each a distinct refusal a caller can act on: already running, blank name,
+    // bad credentials, unconfigured, construction failed, lost the race, success. Collapsing
+    // them into one would mean tracking which of the seven happened in a variable.
+    @Suppress("ReturnCount")
     private fun start(
         context: Context,
         credentials: IntemptCredentials?,
@@ -274,6 +278,7 @@ object Intempt {
      * positional orders that differ only by a swap is what a bridge author discovers in production.
      * `userId` precedes `accountId` here because that is the order every other method uses.
      */
+    @Suppress("LongParameterList") // frozen by the contract; see the KDoc above
     @JvmStatic
     @JvmOverloads
     fun record(
@@ -479,7 +484,9 @@ object Intempt {
         /** Installs the hooks. Idempotent; false when already running or the SDK is not. */
         @JvmStatic
         @JvmOverloads
-        fun start(options: AutocaptureOptions? = null): Boolean = main("autocapture.start")?.autocapture?.start(options) ?: false
+        fun start(options: AutocaptureOptions? = null): Boolean {
+            return main("autocapture.start")?.autocapture?.start(options) ?: false
+        }
 
         /** Uninstalls the hooks. Idempotent; false when already stopped or the SDK is not running. */
         @JvmStatic

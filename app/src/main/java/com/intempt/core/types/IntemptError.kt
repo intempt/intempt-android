@@ -45,7 +45,9 @@ sealed class IntemptError {
     /** The API key was not `<id>.<secret>`. Reports [length] only — never the key itself. */
     class MalformedApiKey(val length: Int) : IntemptError() {
         override val message: String
-            get() = "The API key is not in \"<id>.<secret>\" form (length $length). No Authorization header can be built."
+            get() =
+                "The API key is not in \"<id>.<secret>\" form (length $length). " +
+                    "No Authorization header can be built."
     }
 
     /**

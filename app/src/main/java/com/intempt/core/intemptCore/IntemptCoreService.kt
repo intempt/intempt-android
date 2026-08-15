@@ -51,7 +51,8 @@ internal class IntemptCoreService
                 autoCaptureComponent.startAutocapture()
             } else {
                 autoCaptureComponent.logger.log(
-                    "Autocapture is off; call Intempt.autocapture.start() or set isAutoCaptureEnabled in intempt-config.json",
+                    "Autocapture is off; call Intempt.autocapture.start() or set " +
+                        "isAutoCaptureEnabled in intempt-config.json",
                 )
             }
         }

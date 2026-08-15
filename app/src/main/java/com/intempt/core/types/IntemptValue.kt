@@ -106,7 +106,12 @@ sealed class IntemptValue {
          * the subclasses by hand. It throws rather than returning null because an unsupported
          * attribute type is a programming error at the call site, and silently dropping it is how
          * an attribute goes missing from a customer's dashboard with nothing to point at.
+         *
+         * One branch per accepted type. The branch count IS the accepted set, so splitting it to
+         * satisfy a complexity threshold would scatter the single place that decides what this SDK
+         * can transmit.
          */
+        @Suppress("CyclomaticComplexMethod")
         @JvmStatic
         fun of(value: Any?): IntemptValue =
             when (value) {

@@ -9,7 +9,6 @@ import com.intempt.core.services.StorageManagerService
 import com.intempt.core.types.Constants
 import com.intempt.core.types.DispatchEventProps
 import com.intempt.core.types.IntemptError
-import com.intempt.core.types.IntemptValue
 import com.intempt.core.types.Product
 import com.intempt.core.types.ScreenEventProps
 import com.intempt.core.types.UiEventProps
@@ -52,10 +51,12 @@ internal class CustomCaptureService
             storage.clearAllStorage()
         }
 
+        // Guard clauses. A single exit point would nest these checks three deep, which is the
+        // shape they were written to avoid.
+        @Suppress("ReturnCount")
         fun isIdentifyValid(
             userId: String,
             eventTitle: String?,
-            userAttributes: Map<String, IntemptValue>?,
         ): Boolean {
             if (userId.isEmpty()) {
                 errors.report(IntemptError.MissingIdentity("identify requires a non-blank userId"))
@@ -84,10 +85,10 @@ internal class CustomCaptureService
             return true
         }
 
+        @Suppress("ReturnCount")
         fun isGroupValid(
             accountId: String,
             eventTitle: String?,
-            accountAttributes: Map<String, IntemptValue>?,
         ): Boolean {
             if (accountId.isEmpty()) {
                 errors.report(IntemptError.MissingIdentity("group requires a non-blank accountId"))
@@ -134,7 +135,10 @@ internal class CustomCaptureService
                 return false
             }
 
-            val problems = products.flatMapIndexed { index, product -> product.problems().map { "products[$index]: $it" } }
+            val problems =
+                products.flatMapIndexed { index, product ->
+                    product.problems().map { "products[$index]: $it" }
+                }
             problems.forEach { errors.report(IntemptError.InvalidPropertyValue(it)) }
             return problems.isEmpty()
         }

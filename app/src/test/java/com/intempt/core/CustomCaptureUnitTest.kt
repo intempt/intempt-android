@@ -314,7 +314,8 @@ class CustomCaptureUnitTest {
             component.optOut()
             assertTrue("precondition: the user is opted out", component.hasOptedOut())
 
-            val accepted = component.consent(ConsentAction.REJECT, System.currentTimeMillis() + 100_000, "e@x.com", null, null)
+            val accepted =
+                component.consent(ConsentAction.REJECT, System.currentTimeMillis() + 100_000, "e@x.com", null, null)
 
             testScheduler.advanceUntilIdle()
             assertTrue("an opted-out user must still be able to withdraw consent", accepted)

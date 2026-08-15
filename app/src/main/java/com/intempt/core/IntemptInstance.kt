@@ -25,6 +25,7 @@ import kotlinx.serialization.json.JsonObject
  * Every method here is also available as a static on [Intempt], where it addresses the `"default"`
  * instance. A single-project app never needs to touch this type.
  */
+@Suppress("TooManyFunctions")
 class IntemptInstance internal constructor(
     /** The name this instance was initialised under. `"default"` unless one was given. */
     val name: String,
@@ -63,6 +64,7 @@ class IntemptInstance internal constructor(
     ): Boolean = core.capture.alias(userId, anotherUserId)
 
     /** Records [eventTitle] attributed to [userId]/[accountId]. Argument order is contract-frozen. */
+    @Suppress("LongParameterList") // frozen by the contract; see Intempt.record
     @JvmOverloads
     fun record(
         eventTitle: String,

@@ -90,8 +90,9 @@ class ErrorReporterTest {
             )
 
         errors.forEach { error ->
-            assertFalse("${error::class.java.simpleName} leaked the key: ${error.message}", error.message.contains(secret))
-            assertFalse("${error::class.java.simpleName} leaked the key via toString", "$error".contains(secret))
+            val label = error::class.java.simpleName
+            assertFalse("$label leaked the key: ${error.message}", error.message.contains(secret))
+            assertFalse("$label leaked the key via toString", "$error".contains(secret))
         }
 
         // The length still has to be reported, or the case carries no information at all and the

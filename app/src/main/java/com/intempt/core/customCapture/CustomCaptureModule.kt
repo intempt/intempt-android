@@ -14,6 +14,8 @@ import javax.inject.Singleton
 internal class CustomCaptureModule {
     @Provides
     @Singleton
+    // Mirrors CustomCaptureComponent's constructor; Dagger provides each argument.
+    @Suppress("LongParameterList")
     fun component(
         service: CustomCaptureService,
         config: ConfigManagerService,

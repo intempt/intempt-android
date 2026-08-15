@@ -41,7 +41,11 @@ import javax.inject.Singleton
  * Before 3.0 all of these returned `Unit` and swallowed every refusal into a log line. An
  * integrator could not distinguish a working call from one that had silently done nothing, which
  * is how a rejected `identify()` went unnoticed for weeks.
+ *
+ * The constructor is long because each parameter is a distinct collaborator; bundling them into a
+ * holder would hide the graph Dagger is actually wiring.
  */
+@Suppress("LongParameterList")
 @Singleton
 internal class CustomCaptureComponent
     @Inject
@@ -149,8 +153,8 @@ internal class CustomCaptureComponent
             data: Map<String, IntemptValue>? = null,
         ): Boolean =
             capture("identify") {
-                if (!srv.isIdentifyValid(userId, eventTitle, userAttributes)) return@capture null
-                if (!valuesRepresentable("identify", userAttributes, data)) return@capture null
+                if (!srv.isIdentifyValid(userId, eventTitle)) return@capture null
+                if (!valuesRepresentable(userAttributes, data)) return@capture null
 
                 IntemptEvent(
                     name = eventTitle ?: "Identify",
@@ -170,8 +174,8 @@ internal class CustomCaptureComponent
             accountAttributes: Map<String, IntemptValue>? = null,
         ): Boolean =
             capture("group") {
-                if (!srv.isGroupValid(accountId, eventTitle, accountAttributes)) return@capture null
-                if (!valuesRepresentable("group", accountAttributes)) return@capture null
+                if (!srv.isGroupValid(accountId, eventTitle)) return@capture null
+                if (!valuesRepresentable(accountAttributes)) return@capture null
 
                 IntemptEvent(
                     // "Group", not "Identify". This was copy-pasted from identify() above, so
@@ -195,7 +199,7 @@ internal class CustomCaptureComponent
         ): Boolean =
             capture("track") {
                 if (!srv.isTrackValid(eventTitle)) return@capture null
-                if (!valuesRepresentable("track", data)) return@capture null
+                if (!valuesRepresentable(data)) return@capture null
 
                 IntemptEvent(
                     name = eventTitle,
@@ -204,6 +208,8 @@ internal class CustomCaptureComponent
                 )
             }
 
+        // Frozen by the contract — see Intempt.record.
+        @Suppress("LongParameterList")
         fun record(
             eventTitle: String,
             userId: String? = null,
@@ -214,7 +220,7 @@ internal class CustomCaptureComponent
         ): Boolean =
             capture("record") {
                 if (!srv.isTrackValid(eventTitle)) return@capture null
-                if (!valuesRepresentable("record", data, userAttributes, accountAttributes)) return@capture null
+                if (!valuesRepresentable(data, userAttributes, accountAttributes)) return@capture null
 
                 IntemptEvent(
                     name = eventTitle,
@@ -343,9 +349,13 @@ internal class CustomCaptureComponent
             quantity: Int,
         ): Boolean = productEvent("productAdd", "Added to cart", listOf(Product(productId, quantity)))
 
-        fun productOrdered(products: List<Product>): Boolean = productEvent("productOrdered", "Product ordered", products)
+        fun productOrdered(products: List<Product>): Boolean {
+            return productEvent("productOrdered", "Product ordered", products)
+        }
 
-        fun productView(productId: String): Boolean = productEvent("productView", "Product viewed", listOf(Product(productId)))
+        fun productView(productId: String): Boolean {
+            return productEvent("productView", "Product viewed", listOf(Product(productId)))
+        }
 
         suspend fun products(
             feedId: String,
@@ -402,10 +412,7 @@ internal class CustomCaptureComponent
          * gateway rejects — and it rejects the **whole batch**, so one bad number loses every
          * event queued alongside it. Refusing at the call site costs one event and names the key.
          */
-        private fun valuesRepresentable(
-            caller: String,
-            vararg maps: Map<String, IntemptValue>?,
-        ): Boolean {
+        private fun valuesRepresentable(vararg maps: Map<String, IntemptValue>?): Boolean {
             val invalid =
                 maps.filterNotNull().flatMap { map ->
                     map.filterValues { !it.isValid() }.keys

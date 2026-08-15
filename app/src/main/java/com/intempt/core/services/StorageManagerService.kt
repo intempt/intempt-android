@@ -157,7 +157,8 @@ internal class StorageManagerService
         fun clearAllStorage() {
             coroutineScope.launch {
                 // Clear all entries in SessionPrefs
-                val sessionPrefs = context.getSharedPreferences(scopedPrefs(StorageKeys.SessionPrefs.key), Context.MODE_PRIVATE)
+                val sessionPrefs =
+                    context.getSharedPreferences(scopedPrefs(StorageKeys.SessionPrefs.key), Context.MODE_PRIVATE)
                 sessionPrefs.edit().clear().apply()
 
                 // Clear all entries in AppPrefs
@@ -165,10 +166,12 @@ internal class StorageManagerService
                 appPrefs.edit().clear().apply()
 
                 // Clear all entries in FragmentPrefs
-                val fragmentPrefs = context.getSharedPreferences(scopedPrefs(StorageKeys.FragmentPrefs.key), Context.MODE_PRIVATE)
+                val fragmentPrefs =
+                    context.getSharedPreferences(scopedPrefs(StorageKeys.FragmentPrefs.key), Context.MODE_PRIVATE)
                 fragmentPrefs.edit().clear().apply()
 
-                val userPrefs = context.getSharedPreferences(scopedPrefs(StorageKeys.UserPrefs.key), Context.MODE_PRIVATE)
+                val userPrefs =
+                    context.getSharedPreferences(scopedPrefs(StorageKeys.UserPrefs.key), Context.MODE_PRIVATE)
                 userPrefs.edit().clear().apply()
 
                 localStore.clear()
@@ -192,7 +195,8 @@ internal class StorageManagerService
         suspend fun validateProfileId() =
             withContext(dispatcher) {
                 val profKey = StorageKeys.ProfileId.key
-                val sharedPreferences = context.getSharedPreferences(scopedPrefs(StorageKeys.UserPrefs.key), Context.MODE_PRIVATE)
+                val sharedPreferences =
+                    context.getSharedPreferences(scopedPrefs(StorageKeys.UserPrefs.key), Context.MODE_PRIVATE)
                 val profId = sharedPreferences.getString(profKey, null)
 
                 if (!profId.isNullOrEmpty()) {

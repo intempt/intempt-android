@@ -35,7 +35,12 @@ internal class ErrorReporter
          * The log line is not conditional on a listener being set: the overwhelmingly common case
          * is an integrator who has not set one and is reading logcat, and an SDK that goes quiet
          * unless you opt in to hearing from it is how a refused call goes unnoticed for weeks.
+         *
+         * The catch is on `Throwable` on purpose: it wraps a HOST APP's callback, which may throw
+         * anything. Letting it escape turns "we could not record your event" into a crash in
+         * someone's checkout flow, which is the failure this whole facade exists to prevent.
          */
+        @Suppress("TooGenericExceptionCaught")
         fun report(error: IntemptError) {
             logger.error(error.message)
 
