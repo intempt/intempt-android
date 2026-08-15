@@ -8,6 +8,10 @@ import com.intempt.core.types.ConsentAction
 import com.intempt.core.types.IntemptValue
 import com.intempt.core.types.Product
 import org.json.JSONObject
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNotSame
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -66,6 +70,58 @@ class SdkRunsLocallyTest {
     fun initializeIsIdempotent() {
         assertTrue(Intempt.initialize(context()))
         assertTrue(Intempt.isInitialized)
+    }
+
+    /**
+     * A second initialize returns the instance the first one built, not a new one.
+     *
+     * This lives here rather than in :app because :app has no config asset, so initialize() always
+     * refuses there and the registration path is never reached — a version of this test written
+     * against :app passed with the guard deleted, which the falsification harness reported as
+     * HOLLOW. The sample module is the only place the SDK actually starts.
+     *
+     * Replacing the instance would orphan the first graph — its queue, its HandlerThread and its
+     * collector — while any caller holding the old reference kept writing to storage nothing would
+     * ever flush.
+     */
+    @Test
+    fun initializingTwiceReturnsTheSameInstance() {
+        assertTrue(Intempt.initialize(context()))
+
+        val first = Intempt.mainInstance()
+        assertNotNull("a successful initialize must register an instance", first)
+
+        assertTrue("the second call reports success too", Intempt.initialize(context()))
+        assertSame("the second initialize must not build a second graph", first, Intempt.mainInstance())
+
+        // Same through the named overload, which is a different entry point into the same registry.
+        assertSame(first, Intempt.initialize(context(), null, "default"))
+    }
+
+    /**
+     * A named instance is a different instance, with its own identity.
+     *
+     * The point of named instances is that two projects in one app do not share state. If the
+     * registry handed back the default instance for any name, every assertion about isolation
+     * elsewhere would be vacuously true.
+     */
+    @Test
+    fun aNamedInstanceIsDistinctFromTheDefault() {
+        assertTrue(Intempt.initialize(context()))
+        val main = Intempt.mainInstance()
+
+        val secondary = Intempt.initialize(context(), null, "secondary")
+
+        if (secondary == null) {
+            // The sample's asset credentials are the only ones available, so a second instance may
+            // legitimately refuse. Reported rather than asserted: what must never happen is it
+            // silently aliasing the default, which the check below covers either way.
+            println("secondary instance refused, which is acceptable here")
+        } else {
+            assertNotSame("a named instance must not alias the default", main, secondary)
+            assertEquals("secondary", secondary.name)
+        }
+        assertSame("the default must be unchanged by a named initialize", main, Intempt.mainInstance())
     }
 
     /**

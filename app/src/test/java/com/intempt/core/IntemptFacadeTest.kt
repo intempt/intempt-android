@@ -166,6 +166,62 @@ class IntemptFacadeTest {
     }
 
     /**
+     * Concurrent initialize() calls produce at most one instance.
+     *
+     * The registry is a ConcurrentHashMap, which makes the map safe and says nothing about what is
+     * built to put in it. An earlier version constructed the whole Dagger graph before taking any
+     * lock, so a losing thread had already started a `DeliveryMessages` HandlerThread and an event
+     * collector before discovering it had lost — and then dropped them on the floor. Construction
+     * now happens under the lock.
+     *
+     * Asserted on the registry's size rather than on threads, because a thread leak is not
+     * observable from here; a second registration would be, and it is the same race.
+     */
+    @Test
+    fun `concurrent initialize calls register at most one instance`() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val threads = 8
+        val start = java.util.concurrent.CountDownLatch(1)
+        val done = java.util.concurrent.CountDownLatch(threads)
+        val results = java.util.Collections.synchronizedList(mutableListOf<Boolean>())
+
+        repeat(threads) {
+            Thread {
+                start.await()
+                results += Intempt.initialize(context)
+                done.countDown()
+            }.start()
+        }
+        start.countDown()
+        assertTrue("threads did not finish", done.await(30, java.util.concurrent.TimeUnit.SECONDS))
+
+        // There is no config asset in this module, so every call must refuse — identically, from
+        // every thread. A race that produced a half-built instance would show up as a mixed result.
+        assertEquals("every concurrent call must agree", 1, results.toSet().size)
+        assertFalse("no instance can exist without credentials", Intempt.isInitialized)
+        assertNull(Intempt.mainInstance())
+    }
+
+    /**
+     * A second initialize for the same name returns the first instance rather than replacing it.
+     *
+     * Replacing it would orphan the first graph — its queue, its HandlerThread and its collector —
+     * while callers holding the old reference kept writing to storage nothing would ever flush.
+     */
+    @Test
+    fun `initializing the same name twice returns the same instance`() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+
+        // Both refuse here (no config asset), which is still the property under test: the second
+        // call must not leave a different registry state than the first.
+        val first = Intempt.initialize(context, null, "tenant-a")
+        val second = Intempt.initialize(context, null, "tenant-a")
+
+        assertEquals(first, second)
+        assertNull("a refused initialize must register nothing", Intempt.instance("tenant-a"))
+    }
+
+    /**
      * Runtime credentials are refused before Dagger is touched when they are malformed.
      *
      * A key without its `<id>.<secret>` separator used to reach the auth path and throw

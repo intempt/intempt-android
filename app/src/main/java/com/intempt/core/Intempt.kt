@@ -139,6 +139,39 @@ object Intempt {
             }
         }
 
+        // The whole construction happens under the lock, not just the map write.
+        //
+        // An earlier version built the graph first and used the lock only to register it, with a
+        // comment claiming that stopped a losing thread from leaving resources behind. It did not:
+        // by the time the lock was taken the loser had already constructed DeliveryMessages, whose
+        // constructor starts a HandlerThread and probes the network, and EventPoolManagerService,
+        // whose init block starts a flow collector. The lock protected the map and nothing else,
+        // and the comment said otherwise — which is worse than no comment.
+        //
+        // Holding it across construction is cheap here: initialize() is called once per process at
+        // application startup, and the double-checked read above means a caller that finds an
+        // existing instance never reaches this block at all.
+        synchronized(instances) {
+            instances[instanceName]?.let {
+                Log.i(TAG, "Instance \"$instanceName\" was initialized concurrently; using the first")
+                return it
+            }
+            return build(context, credentials, instanceName)
+        }
+    }
+
+    /**
+     * Builds and registers one instance. Callers hold the [instances] monitor.
+     *
+     * Three exits: unconfigured, construction threw, success. Each is a distinct outcome a caller
+     * can act on, and merging them would mean carrying which one happened in a variable.
+     */
+    @Suppress("ReturnCount")
+    private fun build(
+        context: Context,
+        credentials: IntemptCredentials?,
+        instanceName: String,
+    ): IntemptInstance? {
         val instance: IntemptInstance
         try {
             val component =
@@ -174,26 +207,12 @@ object Intempt {
             return null
         }
 
-        // A synchronized block, NOT Map.putIfAbsent.
-        //
-        // `putIfAbsent` is API 24 as a Map default method, and this SDK's minSdk is 23. Kotlin
-        // resolves the call through MutableMap rather than ConcurrentHashMap's own API-1 override,
-        // so it compiles, passes lint, and throws NoSuchMethodError on a real API 23 device.
-        // AnimalSniffer caught it — the build file already lists this exact method as one of three
-        // minSdk crashes that reached this branch before, and it happened again here.
-        //
-        // The mutual exclusion still matters: two threads calling initialize() concurrently would
-        // otherwise both build a graph, and the loser's would be dropped on the floor still holding
-        // an open SQLite handle and a live HandlerThread. The winner is whichever registered first.
-        val winner: IntemptInstance?
-        synchronized(instances) {
-            winner = instances[instanceName]
-            if (winner == null) instances[instanceName] = instance
-        }
-        if (winner != null) {
-            Log.i(TAG, "Instance \"$instanceName\" was initialized concurrently; using the first")
-            return winner
-        }
+        // A plain put, under the caller's lock. NOT Map.putIfAbsent: that is API 24 as a Map
+        // default method against a minSdk of 23, and Kotlin resolves it through MutableMap rather
+        // than ConcurrentHashMap's own API-1 override — so it compiles, passes lint, and throws
+        // NoSuchMethodError on a real API 23 device. AnimalSniffer caught it; build.gradle.kts
+        // already lists this exact method as one of three minSdk crashes that reached this branch.
+        instances[instanceName] = instance
 
         // Only after registration, so a screen view emitted by the hooks finds its instance.
         instance.core.startAutocaptureIfConfigured()
