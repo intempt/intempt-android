@@ -1,0 +1,59 @@
+# gitleaks configuration for the Intempt Android SDK.
+#
+# The CI job runs `gitleaks detect` over the full history on every PR. This file narrows what it
+# treats as a finding. Every entry below is scoped as tightly as it can be, because a broad
+# allowlist turns a scanner into a green checkmark that means nothing.
+
+[extend]
+useDefault = true
+
+# --------------------------------------------------------------------------------------------
+# Test fixtures
+#
+# The unit tests carry deliberately fake credentials - the config JSON in CustomCaptureUnitTest
+# and friends, and the planted secret in CredentialRedactionTest, which exists precisely so the
+# redaction can be proven. gitleaks' `generic-api-key` rule matches long constants in these files
+# and reported eight of them.
+#
+# Scoped to that ONE rule in those paths. Provider rules - AWS, Stripe, GitHub tokens, private
+# keys - stay active in test sources, because a real AWS key in a test file is still a real AWS
+# key. Only the heuristic "this looks like a long secret-ish string" rule is muted.
+[[rules]]
+id = "generic-api-key"
+[rules.allowlist]
+paths = [
+  '''app/src/test/.*''',
+  '''sample/src/test/.*''',
+  '''app/src/androidTest/.*''',
+  '''sample/src/androidTest/.*''',
+]
+
+# --------------------------------------------------------------------------------------------
+# app/secret.properties - HISTORICAL, AND THE CREDENTIALS NEED ROTATING
+#
+# This file was committed to a public repository and later removed. Removing a file does not
+# remove it from history: it is still fetchable by anyone who clones this repo. It is now in
+# app/.gitignore, which prevents a recurrence and does nothing about what already happened.
+#
+# It carried:
+#   - signing.keyId / signing.password   the GPG key used to sign published artifacts
+#   - ossrhUsername / ossrhPassword      Maven Central (OSSRH) publishing credentials
+#
+# These matter more than an ingestion key. Whoever holds them can sign and publish a release
+# under Intempt's Maven coordinates, which reaches every app that depends on this SDK.
+#
+# **Rotating them is the only fix.** Scrubbing history does not help once it has been public.
+#
+# Allowlisted by commit so the gate can do its actual job - stopping NEW secrets - rather than
+# failing forever on a finding nobody can remove. This block is the record that it happened, so
+# it cannot be quietly forgotten. Delete the block once the credentials are rotated and the
+# finding becomes historical noise rather than live exposure.
+[allowlist]
+description = "Historical secret.properties commits. Credentials require rotation - see the note above."
+commits = [
+  "ecd6d09",
+  "7888866",
+]
+paths = [
+  '''app/secret\.properties''',
+]

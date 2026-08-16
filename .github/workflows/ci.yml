@@ -57,12 +57,24 @@ jobs:
           # has to be rotated. Scanning only the tip would report clean on exactly that case.
           fetch-depth: 0
 
+      # The gitleaks BINARY, not gitleaks/gitleaks-action.
+      #
+      # The binary is MIT. The marketplace action is not: on an organization repo it exits with
+      # "missing gitleaks license. Go grab one at gitleaks.io", which is exactly how this job
+      # failed on its first real run. The scanner itself is free; only the wrapper is licensed.
+      #
+      # Pinned by version and checksum-free by download from the project's own release, which is
+      # one fewer third party than a marketplace action in any case.
+      - name: Install gitleaks
+        run: |
+          set -euo pipefail
+          VERSION=8.30.1
+          curl -sSL "https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/gitleaks_${VERSION}_linux_x64.tar.gz" \
+            | tar -xz -C /usr/local/bin gitleaks
+          gitleaks version
+
       - name: Scan for credentials
-        uses: gitleaks/gitleaks-action@44c470ffc35caa8b1eb3e8012ca53c2f9bea4eb5  # v2.3.6
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: false
-          GITLEAKS_ENABLE_SUMMARY: true
+        run: gitleaks detect --source . --redact --verbose --exit-code 1
 
       # Two patterns gitleaks does not know, both of which have actually leaked in this org.
       #
