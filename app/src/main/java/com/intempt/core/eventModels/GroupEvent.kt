@@ -1,7 +1,11 @@
 package com.intempt.core.eventModels
 
 import com.intempt.core.types.IntemptEventProvider
+import com.intempt.core.types.IntemptValue
 
+// One constructor parameter per wire field. Grouping them would put a layer between the
+// class and the JSON it exists to produce.
+@Suppress("LongParameterList")
 internal open class GroupEvent(
     override val eventId: String,
     override val sessionId: String,
@@ -9,10 +13,10 @@ internal open class GroupEvent(
     override val profileId: String,
     override val timestamp: Long = System.currentTimeMillis(),
     private val accountId: String,
-    private val accountAttributes: Map<String, Any>?,
+    private val accountAttributes: Map<String, IntemptValue>?,
 ) : IntemptEventProvider {
     override fun getEventTime(): Long {
-        return timestamp;
+        return timestamp
     }
 
     override fun toFormated(): Map<String, Any?> {
@@ -23,9 +27,8 @@ internal open class GroupEvent(
         map["profileId"] = profileId
         map["timestamp"] = timestamp
         map["accountId"] = accountId
-        accountAttributes?.let { map["accountAttributes"] = it }
+        accountAttributes?.let { map["accountAttributes"] = IntemptValue.rawMap(it) }
 
         return map
     }
-
 }

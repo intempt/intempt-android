@@ -1,6 +1,6 @@
 # Intempt Android SDK
 
-Android SDK for the [Intempt](https://intempt.com) analytics platform. Automatic event tracking with experiments and personalizations.
+Android SDK for the [Intempt](https://intempt.com) analytics platform. Automatic event tracking, product analytics and recommendation feeds.
 
 ## Installation
 
@@ -8,17 +8,17 @@ Add the dependency to your module-level `build.gradle.kts`:
 
 ```kotlin
 dependencies {
-    implementation("com.intempt.sdk:intempt-android:2.0.1")
+    implementation("com.intempt.sdk:intempt-android:3.0.0")
 }
 ```
 
-This gives you analytics, auto-tracking, experiments, and personalizations out of the box.
+This gives you analytics, auto-tracking and recommendation feeds out of the box.
 Push notifications are an **optional** add-on that requires Firebase — see below.
 
 ### Without push notifications
 
 Nothing else to do. Add the dependency, call `Intempt.initialize(context)`, and the SDK
-runs fully for analytics, experiments, and personalizations. You do **not** need Firebase.
+runs fully for analytics and recommendations. You do **not** need Firebase.
 
 ### With push notifications (Firebase / FCM)
 
@@ -71,6 +71,51 @@ That's it. `Intempt.initialize(context)` automatically registers the device's FC
 handles incoming push notifications — no extra calls, and no need to declare any Firebase
 services in your manifest (the SDK provides them).
 
+## Configuration
+
+Create `src/main/assets/intempt-config.json`. The SDK reads it on `initialize()` and will refuse
+to start without valid credentials:
+
+```json
+{
+  "auth": {
+    "INTEMPT_API_KEY": "your-key-id.your-key-secret",
+    "INTEMPT_SOURCE_ID": "your-source-id",
+    "INTEMPT_ORGANIZATION_ID": "your-org",
+    "INTEMPT_PROJECT_ID": "your-project"
+  },
+  "options": {
+    "isLoggingEnabled": false,
+    "isTouchEnabled": true,
+    "isTextCaptureEnabled": true,
+    "isAutoCaptureEnabled": true,
+    "isQueueEnabled": true,
+    "useIpAddressForGeolocation": true,
+    "itemsInQueue": 5,
+    "timeBuffer": 5000
+  }
+}
+```
+
+Every `options` key is optional; the values above are the defaults.
+
+| Option | Type | Default | Meaning |
+|---|---|---|---|
+| `isLoggingEnabled` | boolean | `false` | Debug logging to logcat, tag `Intempt` |
+| `isTouchEnabled` | boolean | `true` | Touch event auto-capture |
+| `isTextCaptureEnabled` | boolean | `true` | Capture text/values on interaction |
+| `isAutoCaptureEnabled` | boolean | `true` | Screen and interaction auto-capture |
+| `isQueueEnabled` | boolean | `true` | Batch events rather than sending one at a time |
+| `useIpAddressForGeolocation` | boolean | `true` | Whether Intempt may derive geo from the request IP — see [Geolocation](#geolocation) |
+| `itemsInQueue` | int | `5` | Queued events that trigger a flush |
+| `timeBuffer` | long | `5000` | **Milliseconds** between batch sends — not seconds |
+
+The API key ships inside your APK and is extractable from any installed build. Use a key scoped
+to ingestion only.
+
+`:sample` generates this file at build time from `local.properties` or the environment, so the
+credentials never get committed. See `sample/build.gradle.kts` if you want the same for your app.
+
 ## Quick Start
 
 ```kotlin
@@ -89,6 +134,31 @@ Intempt.track("purchase_completed", mapOf(
 Intempt.identify("john@example.com", "login", mapOf("plan" to "pro"))
 ```
 
+## Using it from Java
+
+The public API is annotated with `@JvmStatic` and `@JvmOverloads`, so Java callers use the plain
+static form and get the overloads that Kotlin default arguments imply:
+
+```java
+public class MyApplication extends Application {
+    @Override public void onCreate() {
+        super.onCreate();
+
+        if (!Intempt.initialize(this)) {
+            // Analytics is off. Nothing else needs guarding.
+        }
+
+        Intempt.identify("john@example.com");                 // shortest overload
+        Intempt.identify("john@example.com", "login");         // and every arity between
+        Intempt.track("purchase_completed", Map.of("amount", "49.99"));
+        Intempt.Logging.start();                               // nested objects too
+    }
+}
+```
+
+No `Intempt.INSTANCE.` prefix is needed anywhere. `recommendation()` is a `suspend` function and
+needs a Kotlin caller or a coroutine bridge.
+
 ## Features
 
 - **Auto-tracking** — automatically capture screen views, taps, and app lifecycle events
@@ -98,8 +168,6 @@ Intempt.identify("john@example.com", "login", mapOf("plan" to "pro"))
 - **Consent management** — respect user privacy preferences before collecting data
 - **Ecommerce** — track product views, cart additions, and purchases
 - **Recommendations** — fetch server-side product recommendations
-- **Experiments** — serve server-side experiment variants to your users
-- **Personalizations** — deliver targeted content and campaigns in real time
 
 ## API Reference
 
@@ -313,6 +381,19 @@ Exclude a specific view from automatic text capture. Call after the view is infl
 Intempt.doNotCaptureText(mySecretTextField)
 ```
 
+### Geolocation
+
+The SDK does not fetch, store or transmit the device's IP address.
+
+`useIpAddressForGeolocation` controls whether Intempt may derive city / region / country from the
+source IP of the requests it already receives. It defaults to `true`; set it to `false` in
+`intempt-config.json` and no geolocation happens at either end.
+
+Session events carry `deviceType`, `carrier` and `platform` in `userAttributes`. They no longer
+carry `ipAddress`, `city`, `region` or `country` — earlier versions fetched those from a
+third-party service on every session start. If you read those fields, see
+[docs/MIGRATION.md](docs/MIGRATION.md).
+
 ### Logging
 
 Toggle SDK debug logging.
@@ -333,42 +414,64 @@ Intempt.Tracking.start()             // Opt back in — resume tracking
 Intempt.Tracking.isTrackingEnabled() // Check current state
 ```
 
-## Experiments and Personalizations
+## Checking the SDK started
 
-After initialization, use `Intempt.experiment` and `Intempt.personalization` to fetch server-side variants.
+`initialize` never throws and never takes your app down. It returns whether the SDK is
+running, and every other call is a no-op while it is not:
 
 ```kotlin
-import kotlinx.coroutines.launch
-
-// Fetch experiments by group name
-lifecycleScope.launch {
-    val variant = Intempt.experiment.getByGroup(listOf("onboarding-flow"))
-    // variant is a JsonElement? with the experiment configuration
+if (!Intempt.initialize(context)) {
+    // Analytics is off. Your app is unaffected; nothing else needs guarding.
 }
 
-// Fetch personalizations by name
-lifecycleScope.launch {
-    val content = Intempt.personalization.getByName(listOf("hero-banner"))
-}
+Intempt.isInitialized   // same answer, readable later
 ```
 
-Both `experiment` and `personalization` implement `ModificationProvider` with these methods:
+Calls made before or without a successful `initialize` log a warning and do nothing. They do
+not throw, so you do not need to guard your tracking calls.
 
-| Method | Description |
-|--------|-------------|
-| `suspend getByGroup(data: List<String>): JsonElement?` | Fetch modifications by group name |
-| `suspend getByName(data: List<String>): JsonElement?` | Fetch modifications by name |
-| `getByGroupAsync(data: List<String>): CompletableFuture<JsonElement?>` | Java-friendly async variant |
-| `getByNameAsync(data: List<String>): CompletableFuture<JsonElement?>` | Java-friendly async variant |
+## Sample app
+
+`sample/` is a host application that consumes this SDK the way your app does — a config file
+in `assets/`, `Intempt.initialize()` from `Application.onCreate`, and a button per public
+call.
+
+```bash
+./gradlew :sample:installDebug
+adb shell am start -n com.intempt.sample/.MainActivity
+adb logcat -s Intempt
+```
+
+It is also a test target. `:sample:testDebugUnitTest` boots the SDK on the JVM at API 24 and
+34, and `:sample:connectedDebugAndroidTest` runs it on a real emulator and reads assertions
+back out of the on-device queue — including that a password typed into a real `EditText`
+never reaches it. Both run in CI on every pull request.
+
+## Usage recipes
+
+The API Reference above documents each call in isolation. For realistic, multi-step flows —
+consent-gated tracking, a full ecommerce funnel, rendering a recommendation feed with error
+handling — see [docs/RECIPES.md](docs/RECIPES.md).
+
+## Upgrading
+
+Moving from `2.0.1`? See [docs/MIGRATION.md](docs/MIGRATION.md) for the breaking changes in
+`3.0.0` and how to update your code, including a required change if you construct
+`SessionUserAttributes` or read geo fields off it.
 
 ## Documentation
 
-Full documentation: [docs.intempt.com](https://docs.intempt.com/docs/android-sdk)
+Full documentation: [docs.intempt.com/api/sdk/android](https://docs.intempt.com/api/sdk/android)
 
 ## Requirements
 
-- Android API 31+
-- Kotlin
+- **Android API 23+** (Android 6.0). Verified by an instrumented suite that runs on an
+  API 23 emulator in CI, not only on the current target — three crashes that were invisible
+  above the floor shipped before that gate existed.
+- **compileSdk / targetSdk 35**, both set explicitly on the library module.
+- **Kotlin or Java.** The public API is annotated for Java interop — see
+  [Using it from Java](#using-it-from-java). `recommendation()` is the one exception; it is a
+  `suspend` function.
 
 ## For devs
 
@@ -377,12 +480,19 @@ Releases publish to Maven Central automatically, **only from `main`**, when you 
 ```bash
 git checkout main
 git pull origin main
-git tag v2.0.1
-git push origin v2.0.1
+git tag v3.0.0
+git push origin v3.0.0
 ```
 
 Full release guide: [RELEASING.md](RELEASING.md).
 
 ## License
 
-MIT -- see [LICENSE](LICENSE) for details.
+Apache 2.0 -- see [LICENSE](LICENSE) and [NOTICE](NOTICE) for details.
+
+Version 3.0.0 onwards is Apache 2.0. It incorporates the event delivery queue from
+[mixpanel-android](https://github.com/mixpanel/mixpanel-android), which is Apache 2.0, so this
+SDK is distributed under the same terms. `NOTICE` lists every derived file against its
+upstream path and records which behaviours are inherited unchanged.
+
+Versions up to and including 2.0.1 were published under MIT and remain MIT on Maven Central.

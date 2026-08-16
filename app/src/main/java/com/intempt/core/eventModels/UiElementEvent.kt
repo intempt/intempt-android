@@ -1,8 +1,6 @@
 package com.intempt.core.eventModels
 import com.intempt.core.types.IntemptEventProvider
 
-
-
 internal data class UiElementEvent(
     override val eventId: String,
     override val sessionId: String,
@@ -16,7 +14,7 @@ internal data class UiElementEvent(
     private val targetClass: String,
     private val targetId: String,
     private val fullTargetId: String,
-): IntemptEventProvider {
+) : IntemptEventProvider {
     override fun getEventTime(): Long {
         return timestamp
     }
@@ -28,15 +26,16 @@ internal data class UiElementEvent(
             "pageId" to pageId,
             "profileId" to profileId,
             "timestamp" to timestamp,
-            "data" to mapOf(
-                "targetElement" to targetElement,
-                "hierarchy" to hierarchy,
-                "targetText" to targetText,
-                "targetClass" to targetClass,
-                "targetValue" to targetValue,
-                "targetId" to targetId,
-                "fullTargetId" to fullTargetId,
-            )
+            "data" to
+                mapOf(
+                    "targetElement" to targetElement,
+                    "hierarchy" to hierarchy,
+                    "targetText" to targetText,
+                    "targetClass" to targetClass,
+                    "targetValue" to targetValue,
+                    "targetId" to targetId,
+                    "fullTargetId" to fullTargetId,
+                ),
         )
     }
 
@@ -49,13 +48,13 @@ internal data class UiElementEvent(
                 profileId: $profileId,
                 timestamp: $timestamp,
                 data: {
-                    targetElement: ${targetElement},
-                    hierarchy: ${hierarchy},
-                    targetText: ${targetText},
-                    targetClass: ${targetClass},
-                    targetValue: ${targetValue},
-                    targetId: ${targetId},
-                    fullTargetId: ${fullTargetId},
+                    targetElement: $targetElement,
+                    hierarchy: $hierarchy,
+                    targetText: $targetText,
+                    targetClass: $targetClass,
+                    targetValue: $targetValue,
+                    targetId: $targetId,
+                    fullTargetId: $fullTargetId,
                 },
             }
         """

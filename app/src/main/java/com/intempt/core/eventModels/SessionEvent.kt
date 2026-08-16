@@ -1,8 +1,6 @@
 package com.intempt.core.eventModels
 import com.intempt.core.types.IntemptEventProvider
 
-
-
 internal data class SessionEvent(
     override val eventId: String,
     override val sessionId: String,
@@ -16,8 +14,8 @@ internal data class SessionEvent(
     val appIdentifier: String,
     val androidId: String,
     val source: String = "android",
-    val userAttributes:SessionUserAttributes
-): IntemptEventProvider {
+    val userAttributes: SessionUserAttributes,
+) : IntemptEventProvider {
     override fun getEventTime(): Long {
         return timestamp
     }
@@ -29,31 +27,27 @@ internal data class SessionEvent(
             "pageId" to pageId,
             "profileId" to profileId,
             "timestamp" to timestamp,
-            "data" to mapOf(
-                "sessionStartEventName" to sessionStartEventName,
-                "deviceName" to deviceName,
-                "source" to source,
-                "appName" to appName,
-                "appVersion" to appVersion,
-                "appIdentifier" to appIdentifier,
-                "androidId" to androidId
-            ),
-            "userAttributes" to mapOf(
-                "deviceType" to userAttributes.deviceType,
-                "carrier" to userAttributes.carrier,
-                "platform" to userAttributes.platform,
-                "ipAddress" to userAttributes.ipAddress,
-                "region" to userAttributes.region,
-                "country" to userAttributes.country,
-                "city" to userAttributes.city
-            )
+            "data" to
+                mapOf(
+                    "sessionStartEventName" to sessionStartEventName,
+                    "deviceName" to deviceName,
+                    "source" to source,
+                    "appName" to appName,
+                    "appVersion" to appVersion,
+                    "appIdentifier" to appIdentifier,
+                    "androidId" to androidId,
+                ),
+            "userAttributes" to
+                mapOf(
+                    "deviceType" to userAttributes.deviceType,
+                    "carrier" to userAttributes.carrier,
+                    "platform" to userAttributes.platform,
+                ),
         )
-
-
     }
 
     override fun toString(): String {
-    val output = """
+        val output = """
         {
             sessionId: $sessionId,
             eventId: $eventId,
@@ -71,15 +65,10 @@ internal data class SessionEvent(
             userAttributes: {
                 deviceType: ${userAttributes.deviceType},
                 carrier: ${userAttributes.carrier},
-                platform: ${userAttributes.platform},
-                ipAddress: ${userAttributes.ipAddress},
-                region: ${userAttributes.region},
-                country: ${userAttributes.country},
-                city: ${userAttributes.city}
+                platform: ${userAttributes.platform}
             }
         }
     """
-    return output.trimIndent()
-}
-
+        return output.trimIndent()
+    }
 }

@@ -1,0 +1,17 @@
+{
+  "auth": {
+    "INTEMPT_API_KEY": "sample-key-id.sample-key-secret",
+    "INTEMPT_SOURCE_ID": "sample-source",
+    "INTEMPT_ORGANIZATION_ID": "sample-org",
+    "INTEMPT_PROJECT_ID": "sample-project"
+  },
+  "options": {
+    "isLoggingEnabled": true,
+    "isAutoCaptureEnabled": true,
+    "isTouchEnabled": true,
+    "isTextCaptureEnabled": true,
+    "isQueueEnabled": true,
+    "itemsInQueue": 5,
+    "timeBuffer": 5000
+  }
+}

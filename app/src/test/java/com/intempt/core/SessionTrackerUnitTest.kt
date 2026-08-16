@@ -6,6 +6,7 @@ import android.os.Looper
 import com.intempt.core.autocapture.sessionTracker.SessionTrackerComponent
 import com.intempt.core.autocapture.sessionTracker.SessionTrackerService
 import com.intempt.core.eventModels.IntemptEvent
+import com.intempt.core.queue.DeliveryMessages
 import com.intempt.core.services.ConfigManagerService
 import com.intempt.core.services.HttpManagerService
 import com.intempt.core.services.IntemptEventManagerService
@@ -17,28 +18,30 @@ import com.intempt.core.types.Constants
 import com.intempt.core.types.StorageKeys
 import junit.framework.TestCase.assertFalse
 import junit.framework.TestCase.assertTrue
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestCoroutineScheduler
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.mockito.kotlin.any
-import org.mockito.kotlin.eq
 import org.mockito.ArgumentMatchers.anyLong
 import org.mockito.ArgumentMatchers.anyString
 import org.mockito.Mockito.atLeastOnce
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.spy
 import org.mockito.Mockito.verify
+import org.mockito.Mockito.verifyNoInteractions
 import org.mockito.Mockito.`when`
+import org.mockito.kotlin.any
+import org.mockito.kotlin.eq
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows
 import org.robolectric.annotation.Config
 import org.robolectric.shadows.ShadowLog
-
-
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
@@ -55,6 +58,7 @@ class SessionTrackerUnitTest {
     private lateinit var intemptEvent: IntemptEventManagerService
     private lateinit var utils: UtilsService
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     @Before
     fun setUp() {
         ShadowLog.stream = System.out
@@ -66,182 +70,211 @@ class SessionTrackerUnitTest {
         logger = spy(LoggerManagerService(config))
         utils = spy(UtilsService(logger))
 
-
-        storage = spy(StorageManagerService(context,utils))
+        storage = spy(StorageManagerService(context, utils))
         httpSrv = spy(HttpManagerService(config, logger))
         intemptEvent = spy(IntemptEventManagerService(context, storage, utils, config))
-        eventPool = spy(EventPoolManagerService(config, logger, httpSrv, intemptEvent))
+        // The dispatcher must be injected. EventPoolManagerService's init block launches a
+        // flow collector on it, so leaving the default means a real Dispatchers.IO
+        // coroutine outlives the test; anything it throws reaches the global uncaught
+        // handler and is reported against whichever test runs next, in any class, since
+        // Gradle shares one JVM across the suite. This was the only one of five
+        // construction sites missing it.
+        //
+        // Unconfined rather than Standard, matching the other four sites: Standard queues
+        // work until its scheduler is advanced, and nothing advances this one, so the
+        // collector would never run and "should collect events" would fail.
+        eventPool =
+            spy(
+                EventPoolManagerService(
+                    config,
+                    logger,
+                    httpSrv,
+                    intemptEvent,
+                    mock(DeliveryMessages::class.java),
+                    dispatcher = UnconfinedTestDispatcher(TestCoroutineScheduler()),
+                ),
+            )
 
         eventFlow = MutableSharedFlow<IntemptEvent>()
 
-
         `when`(eventPool.eventReceiver).thenReturn(eventFlow)
 
-        sessionTrackerService = spy(
-            SessionTrackerService(
-                context,
-                logger,
-                storage,
-                eventPool,
-                httpSrv,
-                utils,
-                intemptEvent
+        sessionTrackerService =
+            spy(
+                SessionTrackerService(
+                    context,
+                    logger,
+                    storage,
+                    eventPool,
+                    httpSrv,
+                    utils,
+                    intemptEvent,
+                ),
             )
-        )
-        sessionTrackerComponent = spy(
-            SessionTrackerComponent(
-                sessionTrackerService
+        sessionTrackerComponent =
+            spy(
+                SessionTrackerComponent(
+                    sessionTrackerService,
+                ),
             )
-        )
-
     }
 
 //    @Test
-    fun `onInit should start new session if session is expired`() = runTest {
-        sessionTrackerComponent.start()
-        val expiredSessionTimestamp = System.currentTimeMillis() - (Constants.SESSION.SESSION_TIMEOUT + 1000)
-        val sessionId = "test_session_id"
+    fun `onInit should start new session if session is expired`() =
+        runTest {
+            sessionTrackerComponent.start()
+            val expiredSessionTimestamp = System.currentTimeMillis() - (Constants.SESSION.SESSION_TIMEOUT + 1000)
+            val sessionId = "test_session_id"
 
-        `when`(
-            storage.getStorageItem<Long>(
+            `when`(
+                storage.getStorageItem<Long>(
+                    eq(StorageKeys.SessionPrefs.key),
+                    eq(StorageKeys.SessionTimestamp.key),
+                    anyLong(),
+                    any<SharedPreferences.(String, Long?) -> Long?>() ?: { _, _ -> expiredSessionTimestamp },
+                ),
+            ).thenReturn(expiredSessionTimestamp)
+
+            `when`(
+                storage.getStorageItem<String>(
+                    eq(StorageKeys.SessionPrefs.key),
+                    eq(StorageKeys.SessionId.key),
+                    anyString(),
+                    any<SharedPreferences.(String, String?) -> String?>() ?: { _, _ -> sessionId },
+                ),
+            ).thenReturn(sessionId)
+
+            verify(storage, atLeastOnce()).setStorageItem(
                 eq(StorageKeys.SessionPrefs.key),
                 eq(StorageKeys.SessionTimestamp.key),
                 anyLong(),
-                any<SharedPreferences.(String, Long?) -> Long?>()  ?: { _, _ -> expiredSessionTimestamp }
+                any<SharedPreferences.Editor.(String, Long) -> Unit>(),
             )
-        ).thenReturn(expiredSessionTimestamp)
-
-        `when`(
-            storage.getStorageItem<String>(
+            verify(storage, atLeastOnce()).setStorageItem(
                 eq(StorageKeys.SessionPrefs.key),
                 eq(StorageKeys.SessionId.key),
                 anyString(),
-                any<SharedPreferences.(String, String?) -> String?>()  ?: { _, _ -> sessionId }
+                any<SharedPreferences.Editor.(String, String) -> Unit>(),
             )
-        ).thenReturn(sessionId)
-
-
-        verify(storage,  atLeastOnce()).setStorageItem(
-            eq(StorageKeys.SessionPrefs.key),
-            eq(StorageKeys.SessionTimestamp.key),
-            anyLong(),
-            any<SharedPreferences.Editor.(String, Long) -> Unit>()
-        )
-        verify(storage, atLeastOnce()).setStorageItem(
-            eq(StorageKeys.SessionPrefs.key),
-            eq(StorageKeys.SessionId.key),
-            anyString(),
-            any<SharedPreferences.Editor.(String, String) -> Unit>()
-        )
-
-    }
+        }
 
     @Test
-    fun `onInit should not start new session if session is active`() = runTest {
+    fun `onInit should not start new session if session is active`() =
+        runTest {
+            val activeSessionTimestamp = System.currentTimeMillis() + 1000
 
-        val activeSessionTimestamp = System.currentTimeMillis() + 1000
+            `when`(sessionTrackerService.getSessionTime()).thenReturn(activeSessionTimestamp)
 
-        `when`(sessionTrackerService.getSessionTime()).thenReturn(activeSessionTimestamp)
+            sessionTrackerComponent.start()
 
-        sessionTrackerComponent.start()
+            val allLogs = ShadowLog.getLogs().map { it.msg.trim() }
 
-
-        val allLogs = ShadowLog.getLogs().map { it.msg.trim() }
-
-        assertTrue(allLogs.any { it.contains("Session is active".trim()) })
-        assertFalse(allLogs.any { it.contains("Store session id".trim()) })
-    }
+            assertTrue(allLogs.any { it.contains("Session is active".trim()) })
+            assertFalse(allLogs.any { it.contains("Store session id".trim()) })
+        }
 
     @Test
-    fun `subscribe to event receiver should collect events`() = runTest {
-        sessionTrackerService.subscribeToEventReceiver()
-        val mockEvent = mock(IntemptEvent::class.java)
-        `when`(mockEvent.getEventType()).thenReturn("test_event")
+    fun `subscribe to event receiver should collect events`() =
+        runTest {
+            sessionTrackerService.subscribeToEventReceiver()
+            val mockEvent = mock(IntemptEvent::class.java)
+            `when`(mockEvent.getEventType()).thenReturn("test_event")
 
-        eventFlow.emit(mockEvent)
-        verify(eventPool, atLeastOnce()).eventReceiver
+            eventFlow.emit(mockEvent)
+            verify(eventPool, atLeastOnce()).eventReceiver
 
-        Shadows.shadowOf(Looper.getMainLooper()).runToEndOfTasks()
-        val allLogs = ShadowLog.getLogs().map { it.msg.trim() }
-
+            Shadows.shadowOf(Looper.getMainLooper()).runToEndOfTasks()
+            val allLogs = ShadowLog.getLogs().map { it.msg.trim() }
 
 //        assertTrue(allLogs.any { it.contains("eventReceiver $mockEvent".trim()) })
 //        assertTrue(allLogs.any { it.contains("getEventType test_event".trim()) })
-
-    }
+        }
 
 //    @Test
-    fun `validateSession should start new session if event occurs after timeout`() = runTest {
-        val expiredSessionTimestamp = System.currentTimeMillis() - (Constants.SESSION.SESSION_TIMEOUT + 1000)
+    fun `validateSession should start new session if event occurs after timeout`() =
+        runTest {
+            val expiredSessionTimestamp = System.currentTimeMillis() - (Constants.SESSION.SESSION_TIMEOUT + 1000)
 
-        `when`(
-            storage.getStorageItem<Long>(
+            `when`(
+                storage.getStorageItem<Long>(
+                    eq(StorageKeys.SessionPrefs.key),
+                    eq(StorageKeys.SessionTimestamp.key),
+                    anyLong(),
+                    any<SharedPreferences.(String, Long?) -> Long?>() ?: { _, _ -> expiredSessionTimestamp },
+                ),
+            ).thenReturn(expiredSessionTimestamp)
+
+            val mockEvent = mock(IntemptEvent::class.java)
+            `when`(mockEvent.getEventTimestamp()).thenReturn(System.currentTimeMillis())
+
+            sessionTrackerService.subscribeToEventReceiver()
+            sessionTrackerService.onInit()
+
+            eventFlow.emit(mockEvent)
+
+            verify(eventPool, atLeastOnce()).eventReceiver
+
+            verify(storage, atLeastOnce()).setStorageItem(
+                eq(StorageKeys.SessionPrefs.key),
+                eq(StorageKeys.SessionId.key),
+                anyString(),
+                any(),
+            )
+            verify(storage, atLeastOnce()).setStorageItem(
                 eq(StorageKeys.SessionPrefs.key),
                 eq(StorageKeys.SessionTimestamp.key),
                 anyLong(),
-                any<SharedPreferences.(String, Long?) -> Long?>()  ?: { _, _ -> expiredSessionTimestamp }
+                any(),
             )
-        ).thenReturn(expiredSessionTimestamp)
-
-        val mockEvent = mock(IntemptEvent::class.java)
-        `when`(mockEvent.getEventTimestamp()).thenReturn(System.currentTimeMillis())
-
-        sessionTrackerService.subscribeToEventReceiver()
-        sessionTrackerService.onInit()
-
-
-
-        eventFlow.emit(mockEvent)
-
-        verify(eventPool,  atLeastOnce()).eventReceiver
-
-        verify(storage,  atLeastOnce() ).setStorageItem(
-            eq(StorageKeys.SessionPrefs.key),
-            eq(StorageKeys.SessionId.key),
-            anyString(),
-            any()
-        )
-        verify(storage, atLeastOnce() ).setStorageItem(
-            eq(StorageKeys.SessionPrefs.key),
-            eq(StorageKeys.SessionTimestamp.key),
-            anyLong(),
-            any()
-        )
-    }
-
+        }
 
 //    @Test
-    fun `runSessionStart should fetch location info and dispatch event`() = runTest {
-        val expiredSessionTimestamp = System.currentTimeMillis() - (Constants.SESSION.SESSION_TIMEOUT + 1000)
-        val testDispatcher = StandardTestDispatcher(testScheduler)
+    fun `runSessionStart dispatches a session event and makes no third-party call`() =
+        runTest {
+            val expiredSessionTimestamp = System.currentTimeMillis() - (Constants.SESSION.SESSION_TIMEOUT + 1000)
+            val testDispatcher = StandardTestDispatcher(testScheduler)
 
-        sessionTrackerService = spy(
-            SessionTrackerService(
-                context,
-                logger,
-                storage,
-                eventPool,
-                httpSrv,
-                utils,
-                intemptEvent,
-                dispatcher = testDispatcher
-            )
-        )
+            sessionTrackerService =
+                spy(
+                    SessionTrackerService(
+                        context,
+                        logger,
+                        storage,
+                        eventPool,
+                        httpSrv,
+                        utils,
+                        intemptEvent,
+                        dispatcher = testDispatcher,
+                    ),
+                )
 
-        sessionTrackerComponent = spy(
-            SessionTrackerComponent(
-                sessionTrackerService
-            )
-        )
+            sessionTrackerComponent =
+                spy(
+                    SessionTrackerComponent(
+                        sessionTrackerService,
+                    ),
+                )
 
-        `when`(sessionTrackerService.getSessionTime()).thenReturn(expiredSessionTimestamp)
+            `when`(sessionTrackerService.getSessionTime()).thenReturn(expiredSessionTimestamp)
 
-        sessionTrackerComponent.start()
+            sessionTrackerComponent.start()
 
-        testScheduler.advanceUntilIdle()
+            testScheduler.advanceUntilIdle()
 
-        verify(sessionTrackerService,  atLeastOnce()).getLocationInfo()
+            // getLocationInfo() no longer exists. It called ipapi.co on every session start, sent
+            // the device's IP to a third party outside consent gating, and attached IP plus geo to
+            // the payload. Geo is server-derived now, from the request the platform already
+            // receives — see the ?ip= parameter on ConfigManagerService.eventsUrl.
+            //
+            // Asserted as absence rather than deleted: the point of this test is now that a session
+            // start dispatches its event WITHOUT any outbound lookup, so re-introducing one has a
+            // failing test attached.
+            // The event still reaches the pool...
+            verify(eventPool, atLeastOnce()).dispatchEvent(any(), anyString())
 
-    }
+            // ...and nothing is fetched to build it. `httpSrv` is the transport the ipapi.co call
+            // used; no interaction with it means no outbound lookup happened. That is the property
+            // this test now protects, so re-introducing a per-session third-party call fails here.
+            verifyNoInteractions(httpSrv)
+        }
 }
-

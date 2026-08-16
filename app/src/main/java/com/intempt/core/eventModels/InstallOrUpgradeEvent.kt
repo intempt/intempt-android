@@ -1,11 +1,8 @@
 package com.intempt.core.eventModels
 
-import android.content.Context
 import com.intempt.core.services.ConfigManagerService
-import com.intempt.core.services.StorageManagerService
 import com.intempt.core.types.AppVisibilityState
 import com.intempt.core.types.IntemptEventProvider
-
 
 internal data class InstallOrUpgradeEvent(
     override val eventId: String,
@@ -20,8 +17,8 @@ internal data class InstallOrUpgradeEvent(
     private val appVisibilityState: AppVisibilityState,
     private val isUpgrade: Boolean,
     private val token: String,
-    private val config: ConfigManagerService
-): IntemptEventProvider {
+    private val config: ConfigManagerService,
+) : IntemptEventProvider {
     override fun getEventTime(): Long {
         return timestamp
     }
@@ -33,17 +30,19 @@ internal data class InstallOrUpgradeEvent(
             "pageId" to pageId,
             "profileId" to profileId,
             "timestamp" to timestamp,
-            "data" to mapOf(
-                "currentVersionCode" to currentVersionCode,
-                "previousVersionCode" to previousVersionCode,
-                "previousBuildType" to previousBuildType,
-                "currentBuildType" to currentBuildType,
-                "appVisibilityState" to appVisibilityState,
-                "isUpgrade" to isUpgrade
-            ),
-            "userAttributes" to mapOf(
-                "fcm_token_" + config.sourceId to token
-            )
+            "data" to
+                mapOf(
+                    "currentVersionCode" to currentVersionCode,
+                    "previousVersionCode" to previousVersionCode,
+                    "previousBuildType" to previousBuildType,
+                    "currentBuildType" to currentBuildType,
+                    "appVisibilityState" to appVisibilityState,
+                    "isUpgrade" to isUpgrade,
+                ),
+            "userAttributes" to
+                mapOf(
+                    "fcm_token_" + config.sourceId to token,
+                ),
         )
     }
 
@@ -56,12 +55,12 @@ internal data class InstallOrUpgradeEvent(
                 profileId: $profileId,
                 timestamp: $timestamp,
                 data: {
-                    currentVersionCode: ${currentVersionCode},
-                    previousVersionCode: ${previousVersionCode},
-                    previousBuildType: ${previousBuildType},
-                    currentBuildType: ${currentBuildType},
-                    currentBuildType: ${appVisibilityState},
-                    currentBuildType: ${appVisibilityState},
+                    currentVersionCode: $currentVersionCode,
+                    previousVersionCode: $previousVersionCode,
+                    previousBuildType: $previousBuildType,
+                    currentBuildType: $currentBuildType,
+                    currentBuildType: $appVisibilityState,
+                    currentBuildType: $appVisibilityState,
                 },
                 userAttributes: {
                     fcm_token_${config.sourceId}: $token
@@ -69,7 +68,5 @@ internal data class InstallOrUpgradeEvent(
             }
         """
         return output.trimIndent()
-
-
     }
 }

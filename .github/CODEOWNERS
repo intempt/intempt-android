@@ -1,0 +1,18 @@
+# Review routing for this SDK. Engineering owns it by default.
+*                       @romchik2612
+
+# The vendored delivery substrate from mixpanel-android. Review these as provenance —
+# confirm they match upstream and that the Apache 2.0 change notices are intact — rather
+# than line by line.
+/app/src/main/java/com/intempt/core/queue/   @romchik2612
+
+# Licensing and anything that ships legal text inside the artifact.
+/LICENSE                @beska0013
+/NOTICE                 @beska0013
+/SECURITY.md            @beska0013
+/app/src/main/resources/META-INF/   @beska0013
+
+# Build, release and CI configuration.
+/.github/workflows/     @beska0013 @romchik2612
+/app/build.gradle.kts   @romchik2612
+/gradle/                @romchik2612

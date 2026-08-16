@@ -17,6 +17,10 @@ on:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    # contents: write is needed for the GitHub Release created below (softprops/action-gh-release);
+    # everything else in this job only reads the repo.
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -45,6 +49,24 @@ jobs:
             echo "RELEASE_VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
           fi
 
+      # A tag with no changelog entry is how this SDK reached 2.0.1 with no changelog at all. The
+      # workflow already resolved RELEASE_VERSION above, so the check costs nothing and runs before
+      # anything is uploaded — a staged deployment is awkward to retract, an early exit is not.
+      - name: Refuse to publish a version with no CHANGELOG entry
+        run: |
+          set -euo pipefail
+          if [ ! -f CHANGELOG.md ]; then
+            echo "::error::CHANGELOG.md is missing. See RELEASING.md step 2."
+            exit 1
+          fi
+          if ! grep -qE "^## \\[${RELEASE_VERSION}\\]" CHANGELOG.md; then
+            echo "::error::CHANGELOG.md has no '## [${RELEASE_VERSION}]' heading. Move the Unreleased section under it before tagging — see RELEASING.md step 2."
+            echo "Headings currently present:"
+            grep -E "^## " CHANGELOG.md || true
+            exit 1
+          fi
+          echo "CHANGELOG.md documents ${RELEASE_VERSION}."
+
       - name: Publish to Maven Central (staged deployment)
         run: |
           chmod +x ./gradlew
@@ -58,3 +80,32 @@ jobs:
       # NOTE: this uses the STAGED task — after it succeeds, go to central.sonatype.com,
       # review the deployment, and click "Publish" to release it to Maven Central.
       # To auto-release instead, change the task to: publishAndReleaseToMavenCentral
+
+      # Additive only — does not touch the Maven Central publish above. The CHANGELOG check
+      # earlier in this job already proved a matching "## [<version>]" heading exists, so this
+      # just extracts the body between that heading and the next "## " heading and attaches it
+      # as the GitHub Release notes, instead of a human retyping what's already written.
+      - name: Extract this version's CHANGELOG section
+        run: |
+          set -euo pipefail
+          awk -v ver="$RELEASE_VERSION" '
+            BEGIN { found = 0 }
+            /^## \[/ {
+              if (found) exit
+              if ($0 ~ "^## \\[" ver "\\]") { found = 1; next }
+            }
+            found { print }
+          ' CHANGELOG.md > release-notes.md
+          echo "Extracted release notes:"
+          cat release-notes.md
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@da05d552573ad5aba039eaac05058a918a7bf631  # v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: "v${{ env.RELEASE_VERSION }}"
+          body_path: release-notes.md
+          # workflow_dispatch has no tag to attach a release to; only create one for a real
+          # tag push.
+          draft: false
+        if: github.event_name == 'push'

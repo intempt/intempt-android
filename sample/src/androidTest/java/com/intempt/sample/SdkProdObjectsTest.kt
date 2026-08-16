@@ -1,0 +1,283 @@
+package com.intempt.sample
+
+import android.content.Context
+import android.database.sqlite.SQLiteDatabase
+import androidx.test.core.app.ActivityScenario
+import androidx.test.core.app.ApplicationProvider
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.intempt.core.Intempt
+import com.intempt.core.types.IntemptValue
+import com.intempt.core.types.Product
+import kotlinx.coroutines.runBlocking
+import org.json.JSONObject
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
+import org.junit.Assume
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
+
+/**
+ * The methods that need real objects from a live project to mean anything.
+ *
+ * Fixtures arrive as BuildConfig constants, sourced from gitignored local.properties locally
+ * or repository secrets in CI, under one name in both places:
+ *
+ *   INTEMPT_E2E_USER_ID, INTEMPT_E2E_PRODUCT_ID, INTEMPT_E2E_FEED_ID,
+ *   INTEMPT_E2E_FEED_FIELDS (defaults to "id")
+ *
+ * Each test skips when its fixture is missing rather than failing. A red suite because a
+ * contributor has no credentials teaches people to ignore the suite; a fabricated id gives a
+ * green run that proves nothing.
+ *
+ * Experiments and personalizations are deliberately absent: they are an intemptjs capability
+ * and are not part of the Android or iOS SDKs, so there is nothing here to test.
+ *
+ * The only identity fixture is userId. group() creates its own account, and the SDK's public
+ * API accepts no internal profile identifier, so a test reaching for one would be asserting
+ * against something the SDK is not allowed to know.
+ */
+@RunWith(AndroidJUnit4::class)
+class SdkProdObjectsTest {
+    private fun context(): Context = ApplicationProvider.getApplicationContext()
+
+    @Before
+    fun launch() {
+        ActivityScenario.launch(MainActivity::class.java)
+        assertTrue("the SDK must be running before these tests mean anything", Intempt.isInitialized)
+    }
+
+    private fun requireFixture(
+        name: String,
+        value: String,
+    ): String {
+        Assume.assumeTrue(
+            "$name is not set; supply it in local.properties or as a CI secret to run this test",
+            value.isNotBlank(),
+        )
+        return value
+    }
+
+    /** Rows currently in the durable queue. */
+    private fun rows(): List<JSONObject> {
+        val file = context().getDatabasePath("intempt_events")
+        if (!file.exists()) return emptyList()
+        val out = mutableListOf<JSONObject>()
+        SQLiteDatabase.openDatabase(file.path, null, SQLiteDatabase.OPEN_READONLY).use { db ->
+            db.rawQuery("SELECT data FROM events ORDER BY _id", null).use { c ->
+                while (c.moveToNext()) runCatching { out.add(JSONObject(c.getString(0))) }
+            }
+        }
+        return out
+    }
+
+    /**
+     * Accumulates rather than samples, for the same reason as SdkOnDeviceTest: with working
+     * credentials a row is deleted as soon as the gateway confirms it, so a poll can miss an
+     * event that was queued and delivered correctly.
+     */
+    private val observed = LinkedHashMap<String, JSONObject>()
+
+    private fun sample(): Collection<JSONObject> {
+        rows().forEach { row ->
+            val id =
+                row.optJSONArray("payload")?.optJSONObject(0)?.optString("eventId")
+                    ?: row.optString("name") + row.optString("type")
+            // containsKey + put: Map.putIfAbsent is API 24 and this runs at minSdk 23.
+            if (!observed.containsKey(id)) observed[id] = row
+        }
+        return observed.values.toList()
+    }
+
+    /**
+     * @param reemit re-runs the action that produces the event, every [REEMIT_INTERVAL_MS].
+     *
+     * Polling alone cannot win this race. A row exists exactly once, and with working credentials
+     * delivery can create and delete it entirely between two polls — after which no further
+     * polling and no longer deadline will ever see it, because the evidence is gone.
+     *
+     * That is how `productCallsUseACatalogProduct` failed on API 34 while the two events before it
+     * were caught: `[Identify, View screen, Product viewed, Added to cart]` were all observed and
+     * the order was not. Nothing was wrong with `productOrdered`; the sampler simply missed its
+     * window.
+     *
+     * Re-emitting turns one chance into many. It does not change what is asserted — the event still
+     * has to reach the queue — it stops a single unlucky interleaving from deciding the result.
+     * The duplicate events land in the test project, which is what a test project is for.
+     */
+    private companion object {
+        /** How often awaitEvent re-runs a repeatable action while waiting. */
+        const val REEMIT_INTERVAL_MS = 750L
+    }
+
+    private fun awaitEvent(
+        what: String,
+        // `Any?`, not `Unit`: as of 3.0 every capture method returns Boolean, so a lambda
+        // wrapping one infers `() -> Boolean` and no longer satisfies `() -> Unit`. The
+        // helper only re-runs the emitter and ignores whatever it hands back.
+        reemit: (() -> Any?)? = null,
+        predicate: (JSONObject) -> Boolean,
+    ): JSONObject {
+        val deadline = System.currentTimeMillis() + 30_000L
+        var nextReemit = System.currentTimeMillis() + REEMIT_INTERVAL_MS
+        while (System.currentTimeMillis() < deadline) {
+            sample().firstOrNull(predicate)?.let { return it }
+            if (reemit != null && System.currentTimeMillis() >= nextReemit) {
+                reemit()
+                nextReemit = System.currentTimeMillis() + REEMIT_INTERVAL_MS
+            }
+            Thread.sleep(25)
+        }
+        throw AssertionError("timed out waiting for $what. Observed: ${sample().map { it.optString("name") }}")
+    }
+
+    /**
+     * The same profile every run, which is what keeps results comparable: a new anonymous
+     * user per run would leave a trail of throwaway profiles in a real project.
+     */
+    @Test
+    fun identifyAttachesToTheStableUser() {
+        val userId = requireFixture("INTEMPT_E2E_USER_ID", BuildConfig.INTEMPT_E2E_USER_ID)
+
+        Intempt.identify(userId = userId, userAttributes = IntemptValue.mapOf(mapOf("source" to "android-sdk-e2e")))
+
+        // Matched on this test's own userId. Both test classes run in one app process and the
+        // queue persists across them, so `type == "identify"` alone found SdkOnDeviceTest's
+        // identify for "androidtest-user" and compared it against this fixture. Every
+        // predicate has to identify its own event; matching on type is never enough.
+        val event =
+            awaitEvent("an identify for $userId") { row ->
+                row.optString("type") == "identify" &&
+                    row.optJSONArray("payload")?.optJSONObject(0)?.optString("userId") == userId
+            }
+        val payload = event.getJSONArray("payload").getJSONObject(0)
+        assertEquals("the identify must carry the userId it was given", userId, payload.optString("userId"))
+        // profileId is generated and persisted on the device, so it must be present and
+        // prefixed — it is what ties this event to the anonymous profile before identify runs.
+        assertTrue("profileId missing", payload.optString("profileId").startsWith("prof_"))
+    }
+
+    /**
+     * group() needs no pre-existing account: creating a group creates the account and puts the
+     * user in it, so any id works and this needs no fixture.
+     */
+    @Test
+    fun groupCreatesTheAccountAndQueuesTheEvent() {
+        val accountId = "androidtest-account-${System.nanoTime()}"
+
+        Intempt.group(accountId = accountId, accountAttributes = IntemptValue.mapOf(mapOf("source" to "android-sdk-e2e")))
+
+        // Same reasoning: SdkOnDeviceTest also emits a group event.
+        val event =
+            awaitEvent("a group for $accountId") { row ->
+                row.optString("type") == "group" &&
+                    row.optJSONArray("payload")?.optJSONObject(0)?.optString("accountId") == accountId
+            }
+        assertEquals("Group", event.optString("name"))
+        assertEquals(accountId, event.getJSONArray("payload").getJSONObject(0).optString("accountId"))
+    }
+
+    /**
+     * All three commerce calls with a product that exists in the catalog. A productId that is
+     * not in the catalog is the case worth worrying about: the gateway answers 400 "Data not
+     * matching with collection schema", HttpStatusPolicy drops the batch by design, and the
+     * queue looks healthy while the events are gone.
+     */
+    @Test
+    fun productCallsUseACatalogProduct() {
+        val productId = requireFixture("INTEMPT_E2E_PRODUCT_ID", BuildConfig.INTEMPT_E2E_PRODUCT_ID)
+
+        val emitView = { Intempt.productView(productId) }
+        emitView()
+        awaitEvent("a product view", reemit = emitView) { it.optString("name") == "Product viewed" }
+
+        val emitAdd = { Intempt.productAdd(productId, 2) }
+        emitAdd()
+        awaitEvent("an add to cart", reemit = emitAdd) { it.optString("name") == "Added to cart" }
+
+        val emitOrder = { Intempt.productOrdered(listOf(Product(productId, 1))) }
+        emitOrder()
+        awaitEvent("a product order", reemit = emitOrder) {
+            it.optString("type") == "product" &&
+                it.optString("name") != "Product viewed" &&
+                it.optString("name") != "Added to cart"
+        }
+    }
+
+    /**
+     * `products`' first argument is the feed id: it goes straight into
+     * `/v1/{org}/projects/{project}/feeds/{feedId}/data`. Unlike the tracking calls this is a
+     * synchronous read, so a null result means the request genuinely failed rather than being
+     * queued for later.
+     *
+     * The profile has to exist server-side first, which is the part worth knowing. The SDK
+     * sends `id = storage.getProfileId()` with `type = "profile"` — a device-generated
+     * `prof_<uuid>` the platform has never heard of on a fresh install. Until events for that
+     * profile have been ingested the feed answers:
+     *
+     *     400 {"errors":[{"message":"USER with id prof_… is not found"}]}
+     *
+     * So this identifies first and waits for the queue to drain, which is what a real app does
+     * before it asks for recommendations. Verified by hand against linea_shop: after an
+     * identify was ingested for the profile, the same feed returned 200 {"products":[]}.
+     *
+     * Note the error text names USER even when the id is a profile and even when the *feed id*
+     * is the wrong part — a nonexistent feed returns the identical message. That makes a wrong
+     * feed id and a wrong profile indistinguishable from the client, so a failure here means
+     * "one of the two", not "the feed is broken".
+     */
+    @Test
+    fun productsReturnFromTheFeed() {
+        // Opt-in. Delivery to the gateway is not the same as ingested-and-queryable: the feed
+        // only answers for a profile the platform already knows, and there is lag after the
+        // 201 that no client-side wait can bound. Verified by hand that the mechanism works —
+        // once an identify had been ingested, feed 5292 returned 200 {"products":[]} — so the
+        // failure mode here is the wait being short, not the SDK being wrong. An assertion
+        // that depends on someone else's timing must not block a merge.
+        Assume.assumeTrue(
+            "opt-in: depends on platform ingestion timing. Run with -Pintempt.prodTests=true",
+            BuildConfig.INTEMPT_PROD_TESTS,
+        )
+
+        val feedId = requireFixture("INTEMPT_E2E_FEED_ID", BuildConfig.INTEMPT_E2E_FEED_ID)
+        val userId = requireFixture("INTEMPT_E2E_USER_ID", BuildConfig.INTEMPT_E2E_USER_ID)
+        val fields =
+            BuildConfig.INTEMPT_E2E_FEED_FIELDS
+                .split(",")
+                .map { it.trim() }
+                .filter { it.isNotEmpty() }
+
+        // Give the platform a profile to answer about, then let it reach the gateway.
+        Intempt.identify(userId = userId, userAttributes = IntemptValue.mapOf(mapOf("source" to "android-sdk-e2e")))
+        awaitEvent("the identify to be queued") { it.optString("type") == "identify" }
+        val delivered =
+            awaitDrained(timeoutMs = 120_000) {
+                rows().none { row -> row.optString("type") == "identify" }
+            }
+        assertTrue(
+            "the identify never left the queue, so the platform cannot know this profile yet",
+            delivered,
+        )
+
+        val result = runBlocking { Intempt.products(feedId, 3, fields, null) }
+
+        assertNotNull(
+            "feed $feedId returned nothing. Either the feed id is wrong or this device's " +
+                "profile is still unknown to the platform — the API cannot tell those apart",
+            result,
+        )
+    }
+
+    private fun awaitDrained(
+        timeoutMs: Long,
+        predicate: () -> Boolean,
+    ): Boolean {
+        val deadline = System.currentTimeMillis() + timeoutMs
+        while (System.currentTimeMillis() < deadline) {
+            if (predicate()) return true
+            Thread.sleep(1_000)
+        }
+        return false
+    }
+}

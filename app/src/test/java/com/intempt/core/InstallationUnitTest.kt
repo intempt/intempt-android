@@ -1,20 +1,23 @@
 package com.intempt.core
 
-import android.app.Activity
 import android.content.Context
 import android.content.SharedPreferences
 import android.content.res.AssetManager
 import com.intempt.core.customCapture.CustomCaptureComponent
 import com.intempt.core.customCapture.CustomCaptureService
+import com.intempt.core.queue.DeliveryMessages
 import com.intempt.core.services.ConfigManagerService
+import com.intempt.core.services.ErrorReporter
 import com.intempt.core.services.HttpManagerService
 import com.intempt.core.services.IntemptEventManagerService
 import com.intempt.core.services.LoggerManagerService
 import com.intempt.core.services.StorageManagerService
 import com.intempt.core.services.UtilsService
 import com.intempt.core.services.eventPool.EventPoolManagerService
+import com.intempt.core.types.ConsentAction
+import com.intempt.core.types.IntemptValue
+import com.intempt.core.types.Product
 import com.intempt.core.types.StorageKeys
-import junit.framework.TestCase.assertEquals
 import junit.framework.TestCase.assertNotNull
 import junit.framework.TestCase.assertTrue
 import junit.framework.TestCase.fail
@@ -22,6 +25,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestCoroutineScheduler
 import kotlinx.coroutines.test.TestDispatcher
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import org.junit.Assert.assertFalse
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -33,26 +37,21 @@ import org.mockito.Mockito.doThrow
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.spy
 import org.mockito.Mockito.verify
-import org.mockito.kotlin.any
 import org.mockito.Mockito.`when`
 import org.mockito.MockitoAnnotations
+import org.mockito.kotlin.any
 import org.mockito.kotlin.anyOrNull
 import org.mockito.kotlin.eq
-import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import org.robolectric.shadows.ShadowLog
 import java.io.ByteArrayInputStream
 
-
-
-
-
 @RunWith(RobolectricTestRunner::class)
 @Config(
     sdk = [34],
-    manifest= Config.NONE
+    manifest = Config.NONE,
 )
 class InstallationUnitTest {
     private lateinit var context: Context
@@ -62,6 +61,7 @@ class InstallationUnitTest {
     private lateinit var logger: LoggerManagerService
     private lateinit var httpSrv: HttpManagerService
     private lateinit var storage: StorageManagerService
+    private lateinit var errors: ErrorReporter
     private lateinit var component: CustomCaptureComponent
     private lateinit var eventPoolSrv: EventPoolManagerService
     private lateinit var intemptEvent: IntemptEventManagerService
@@ -69,7 +69,8 @@ class InstallationUnitTest {
     private val testScheduler = TestCoroutineScheduler()
     private lateinit var testDispatcher: TestDispatcher
 
-    private val jsonConfig = """
+    private val jsonConfig =
+        """
         {
             "auth": {
                 "INTEMPT_API_KEY": "9643576a2cfa47729a1eb63213074e78.1a4f98ffc8f648d3a4c8455a2041cae5",
@@ -87,13 +88,10 @@ class InstallationUnitTest {
                 "timeBuffer": 5000
             }
         }
-    """.trimIndent()
+        """.trimIndent()
     private val mockProfId = "prof_test_id_123456"
     private val mockedSesId = "ses_test_id_123456"
     private val mockedPagId = "pag_test_id_123456"
-
-
-
 
     @OptIn(ExperimentalCoroutinesApi::class)
     @Before
@@ -103,7 +101,6 @@ class InstallationUnitTest {
         ShadowLog.clear()
 
         context = spy(RuntimeEnvironment.getApplication())
-
 
         val inputStream = ByteArrayInputStream(jsonConfig.toByteArray(Charsets.UTF_8))
         `when`(mockAssets.open("intempt-config.json")).thenReturn(inputStream)
@@ -131,34 +128,38 @@ class InstallationUnitTest {
 
         storage = spy(StorageManagerService(context, utils))
         httpSrv = spy(HttpManagerService(config, logger))
-        customCaptureSrv = spy(CustomCaptureService(storage, logger))
+        errors = ErrorReporter(logger)
+        customCaptureSrv = spy(CustomCaptureService(storage, logger, errors))
 
         intemptEvent = spy(IntemptEventManagerService(context, storage, utils, config))
         testDispatcher = UnconfinedTestDispatcher(testScheduler)
 
-
-        eventPoolSrv = spy(
-            EventPoolManagerService(
-                config,
-                logger,
-                httpSrv,
-                intemptEvent,
-                dispatcher = testDispatcher
+        eventPoolSrv =
+            spy(
+                EventPoolManagerService(
+                    config,
+                    logger,
+                    httpSrv,
+                    intemptEvent,
+                    mock(DeliveryMessages::class.java),
+                    dispatcher = testDispatcher,
+                ),
             )
-        )
 
-        component = CustomCaptureComponent(
-            customCaptureSrv,
-            config,
-            eventPoolSrv,
-            intemptEvent,
-            utils
-        )
-
+        component =
+            CustomCaptureComponent(
+                customCaptureSrv,
+                config,
+                eventPoolSrv,
+                intemptEvent,
+                utils,
+                storage,
+                errors,
+            )
     }
 
     @Test
-    fun `should init without errors` (){
+    fun `should init without errors`() {
         try {
             Intempt.initialize(context)
         } catch (e: Exception) {
@@ -166,33 +167,42 @@ class InstallationUnitTest {
         }
     }
 
+    /**
+     * A failing initialize must not take the host app down.
+     *
+     * Rewritten, not weakened. It used to `spy(Intempt)`, stub `initialize` to throw, call it, catch
+     * the throw and verify the call — which tested that Mockito can throw, not that the SDK
+     * survives. It also stopped working the moment the public API gained `@JvmStatic`: the call then
+     * dispatches to the generated static method rather than the spy, so the stub never applied, the
+     * real `initialize` ran, and Dagger reached `getApplicationContext` on the mock — surfacing as
+     * `UnfinishedVerificationException` pointing at a line that had nothing to do with it.
+     *
+     * The property is now asserted directly against the real implementation, which is stronger: no
+     * exception escapes, and the failure is reported through the return value. There is no config
+     * asset in this module, so this is the genuinely-misconfigured path.
+     */
     @Test
-    fun `should render main activity even if SDK fails to initialize`() {
-        val message ="Initialization failed"
-        val intempt = spy(Intempt)
-        doThrow(RuntimeException(message))
-        .`when`(intempt).initialize(context)
+    fun `a failing initialize reports failure instead of throwing`() {
+        val started = Intempt.initialize(context)
 
-        try {
-            intempt.initialize(context)
-        } catch (e: Exception) {
-            assertEquals(message, e.message)
-        }
-
-        verify(intempt).initialize(context)
+        assertFalse(
+            "initialize must report a missing config rather than claiming the SDK is running",
+            started,
+        )
+        assertFalse("and must not leave the SDK looking ready", Intempt.isInitialized)
         assertNotNull(context)
     }
 
     @Test
-    fun `should render main activity if identify fails`(){
+    fun `should render main activity if identify fails`() {
         doThrow(RuntimeException("Simulated error during emitEvent"))
             .`when`(eventPoolSrv).emitEvent(any())
 
         component.identify(
             "test_userID",
             "test_eventTitle",
-            mapOf("test" to "test"),
-            mapOf("test" to "test")
+            IntemptValue.mapOf(mapOf("test" to "test")),
+            IntemptValue.mapOf(mapOf("test" to "test")),
         )
 
         verify(eventPoolSrv).emitEvent(any())
@@ -208,7 +218,7 @@ class InstallationUnitTest {
         component.group(
             "test_accountID",
             "test_eventTitle",
-            mapOf("key" to "value")
+            IntemptValue.mapOf(mapOf("key" to "value")),
         )
 
         verify(eventPoolSrv).emitEvent(any())
@@ -222,7 +232,7 @@ class InstallationUnitTest {
 
         component.track(
             "test_eventTitle",
-            mapOf("key" to "value")
+            IntemptValue.mapOf(mapOf("key" to "value")),
         )
 
         verify(eventPoolSrv).emitEvent(any())
@@ -236,11 +246,11 @@ class InstallationUnitTest {
 
         component.record(
             "test_eventTitle",
-            "test_accountID",
             "test_userID",
-            mapOf("accountKey" to "accountValue"),
-            mapOf("userKey" to "userValue"),
-            mapOf("dataKey" to "dataValue")
+            "test_accountID",
+            IntemptValue.mapOf(mapOf("dataKey" to "dataValue")),
+            IntemptValue.mapOf(mapOf("userKey" to "userValue")),
+            IntemptValue.mapOf(mapOf("accountKey" to "accountValue")),
         )
 
         verify(eventPoolSrv).emitEvent(any())
@@ -254,7 +264,7 @@ class InstallationUnitTest {
 
         component.alias(
             "test_userID",
-            "test_anotherUserID"
+            "test_anotherUserID",
         )
 
         verify(eventPoolSrv).emitEvent(any())
@@ -267,11 +277,11 @@ class InstallationUnitTest {
             .`when`(eventPoolSrv).emitEvent(any())
 
         component.consent(
-            "accept",
+            ConsentAction.ACCEPT,
             1234567890L,
             "test@example.com",
             "test_message",
-            "test_category"
+            "test_category",
         )
 
         verify(eventPoolSrv).emitEvent(any())
@@ -285,7 +295,7 @@ class InstallationUnitTest {
 
         component.productAdd(
             "test_productID",
-            3
+            3,
         )
 
         verify(eventPoolSrv).emitEvent(any())
@@ -299,9 +309,9 @@ class InstallationUnitTest {
 
         component.productOrdered(
             listOf(
-                mapOf("productId" to "test_productID", "quantity" to 3),
-                mapOf("productId" to "another_productID", "quantity" to 2)
-            )
+                Product("test_productID", 3),
+                Product("another_productID", 2),
+            ),
         )
 
         verify(eventPoolSrv).emitEvent(any())
@@ -314,7 +324,7 @@ class InstallationUnitTest {
             .`when`(eventPoolSrv).emitEvent(any())
 
         component.productView(
-            "test_productID"
+            "test_productID",
         )
 
         verify(eventPoolSrv).emitEvent(any())
@@ -331,11 +341,4 @@ class InstallationUnitTest {
         verify(customCaptureSrv).logoutHandler()
         assertTrue(true)
     }
-
-
-
-
-
-
-
 }

@@ -1,0 +1,123 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>ComplexCondition:TouchTrackerService.kt$TouchTrackerService$x >= viewX &amp;&amp; x &lt;= viewX + view.width &amp;&amp; y >= viewY &amp;&amp; y &lt;= viewY + view.height</ID>
+    <ID>CyclomaticComplexMethod:IntemptEventManagerService.kt$IntemptEventManagerService$private fun getViewValue(view: View?): String?</ID>
+    <ID>DestructuringDeclarationWithTooManyEntries:CustomCaptureService.kt$CustomCaptureService$val (activity, eventName, entityName, eventType) = props</ID>
+    <ID>DestructuringDeclarationWithTooManyEntries:EventPoolManagerService.kt$EventPoolManagerService$val (eventName, entityName, event, type, context, view) = props</ID>
+    <ID>EmptyFunctionBlock:BaseAutoCaptureComponent.kt$BaseAutoCaptureComponent${}</ID>
+    <ID>EmptyFunctionBlock:CertificatePinningUnitTest.kt$CertificatePinningUnitTest.&lt;no name provided>${}</ID>
+    <ID>EmptyFunctionBlock:ChangeTrackerService.kt$ChangeTrackerService.&lt;no name provided>${}</ID>
+    <ID>EmptyFunctionBlock:LifecycleCallBacksComponent.kt$LifecycleCallBacksComponent${ }</ID>
+    <ID>EmptyFunctionBlock:LifecycleCallBacksComponent.kt$LifecycleCallBacksComponent${}</ID>
+    <ID>LongMethod:AutoCaptureUnitTest.kt$AutoCaptureUnitTest$@OptIn(ExperimentalCoroutinesApi::class) @Before fun setUp()</ID>
+    <ID>LongMethod:ChangeTrackerUnitTest.kt$ChangeTrackerUnitTest$@OptIn(ExperimentalCoroutinesApi::class) @Before fun setUp()</ID>
+    <ID>LongMethod:FirebaseService.kt$FirebaseService$private fun sendPushNotification( context: Context, content: PushNotificationContent, metadata: PushNotificationMetadata?, webhookService: WebhookService, )</ID>
+    <ID>LongParameterList:AliasEvent.kt$AliasEvent$( override val eventId: String, override val sessionId: String, override val pageId: String, override val profileId: String, override val timestamp: Long = System.currentTimeMillis(), private val userId: String, private val anotherUserId: String, )</ID>
+    <ID>LongParameterList:AutoCaptureComponent.kt$AutoCaptureComponent$( val logger: LoggerManagerService, private val context: Context, private val storage: StorageManagerService, private val config: ConfigManagerService, private val session: SessionTrackerComponent, private val installUpgrade: InstallUpgradeTrackerComponent, private val lifecycleCallBacks: LifecycleCallBacksComponent, private val dispatcher: CoroutineDispatcher = Dispatchers.IO, )</ID>
+    <ID>LongParameterList:AutoCaptureModule.kt$AutoCaptureModule$( context: Context, storage: StorageManagerService, config: ConfigManagerService, logger: LoggerManagerService, session: SessionTrackerComponent, installUpgrade: InstallUpgradeTrackerComponent, lifecycleCallBacksManager: LifecycleCallBacksComponent, )</ID>
+    <ID>LongParameterList:ConsentEvent.kt$ConsentEvent$( override val eventId: String, override val sessionId: String, override val pageId: String, override val profileId: String, override val timestamp: Long = System.currentTimeMillis(), private val action: String, private val email: String? = null, private val message: String? = null, private val category: String? = null, private val sourceId: String, private val validUntil: Long, )</ID>
+    <ID>LongParameterList:CustomCaptureComponent.kt$CustomCaptureComponent$( eventTitle: String, accountId: String? = null, userId: String? = null, accountAttributes: Map&lt;String, String>? = null, userAttributes: Map&lt;String, String>? = null, data: Map&lt;String, String>? = null, )</ID>
+    <ID>LongParameterList:EventPoolManagerService.kt$EventPoolManagerService$( private val config: ConfigManagerService, private val logger: LoggerManagerService, private val http: HttpManagerService, private val intemptEvent: IntemptEventManagerService, private val delivery: DeliveryMessages, private val dispatcher: CoroutineDispatcher = Dispatchers.IO, // Nullable with a null default so every existing call site (production wiring in // IntemptCoreModule aside) keeps compiling unchanged. Production wiring supplies a // real instance; null only shows up in tests that don't care about the audit trail. private val consentAudit: ConsentAuditLog? = null, )</ID>
+    <ID>LongParameterList:GroupEvent.kt$GroupEvent$( override val eventId: String, override val sessionId: String, override val pageId: String, override val profileId: String, override val timestamp: Long = System.currentTimeMillis(), private val accountId: String, private val accountAttributes: Map&lt;String, Any>?, )</ID>
+    <ID>LongParameterList:IdentifyEvent.kt$IdentifyEvent$( override val eventId: String, override val sessionId: String, override val pageId: String, override val profileId: String, override val timestamp: Long = System.currentTimeMillis(), private val userId: String, private val userAttributes: Map&lt;String, String>?, private val data: Map&lt;String, String>?, )</ID>
+    <ID>LongParameterList:Intempt.kt$Intempt$( eventTitle: String, accountId: String? = null, userId: String? = null, accountAttributes: Map&lt;String, String>? = null, userAttributes: Map&lt;String, String>? = null, data: Map&lt;String, String>? = null, )</ID>
+    <ID>LongParameterList:IntemptEventManagerService.kt$IntemptEventManagerService$( action: String, email: String? = null, message: String? = null, category: String? = null, validUntil: Long, sourceId: String, )</ID>
+    <ID>LongParameterList:ProductEvent.kt$ProductEvent$( override val eventId: String, override val sessionId: String, override val pageId: String, override val profileId: String, override val timestamp: Long = System.currentTimeMillis(), private val productId: String, private val quantity: Int?, )</ID>
+    <ID>LongParameterList:RecordEvent.kt$RecordEvent$( override val eventId: String, override val sessionId: String, override val pageId: String, override val profileId: String, override val timestamp: Long = System.currentTimeMillis(), private val accountId: String?, private val userId: String?, private val accountAttributes: Map&lt;String, Any>?, private val userAttributes: Map&lt;String, Any>?, private val data: Map&lt;String, Any>?, )</ID>
+    <ID>LongParameterList:SessionTrackerService.kt$SessionTrackerService$( private val context: Context, private val logger: LoggerManagerService, private val storage: StorageManagerService, private val eventPool: EventPoolManagerService, private val http: HttpManagerService, private val utils: UtilsService, private val intemptEvent: IntemptEventManagerService, private val dispatcher: CoroutineDispatcher = Dispatchers.IO, )</ID>
+    <ID>MagicNumber:ConfigManagerService.kt$ConfigManagerService$5</ID>
+    <ID>MagicNumber:ConfigManagerService.kt$ConfigManagerService$5000</ID>
+    <ID>MagicNumber:Constants.kt$Constants$200</ID>
+    <ID>MagicNumber:Constants.kt$Constants$320L</ID>
+    <ID>MagicNumber:Constants.kt$Constants.SESSION$1000L</ID>
+    <ID>MagicNumber:Constants.kt$Constants.SESSION$30</ID>
+    <ID>MagicNumber:Constants.kt$Constants.SESSION$60</ID>
+    <ID>MagicNumber:HttpManagerService.kt$HttpManagerService$200</ID>
+    <ID>MagicNumber:HttpManagerService.kt$HttpManagerService$299</ID>
+    <ID>MagicNumber:IntemptEventManagerService.kt$IntemptEventManagerService$1000</ID>
+    <ID>MagicNumber:SealedTypes.kt$DefaultConfigs.ItemsInQueue$5</ID>
+    <ID>MagicNumber:SealedTypes.kt$DefaultConfigs.TimeBuffer$5000L</ID>
+    <ID>MaxLineLength:ChangeTrackerService.kt$ChangeTrackerService$logger.error("setOnItemClickListener | Error: childView is null for ListView item at position $position")</ID>
+    <ID>MaxLineLength:ChangeTrackerService.kt$ChangeTrackerService.&lt;no name provided>$logger.error("onItemSelected | Error: childView is null for ListView item selected at position $position")</ID>
+    <ID>MaxLineLength:CustomCaptureService.kt$CustomCaptureService$private</ID>
+    <ID>MaxLineLength:FirebaseService.kt$FirebaseService$intentTest.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)</ID>
+    <ID>MaxLineLength:IntemptEventManagerService.kt$IntemptEventManagerService$val androidId = Settings.Secure.getString((context.contentResolver ?: "") as ContentResolver?, Settings.Secure.ANDROID_ID)</ID>
+    <ID>MaxLineLength:SessionTrackerServiceTest.kt$SessionTrackerServiceTest$assertFalse("exactly at the timeout must not itself count as expired", elapsed > Constants.SESSION.SESSION_TIMEOUT)</ID>
+    <ID>MaxLineLength:Types.kt$HandleEventTypeProps</ID>
+    <ID>MayBeConst:Constants.kt$Constants$// val API_URL = "https://api.staging.intempt.com/v1" val API_URL = "https://api.intempt.com"</ID>
+    <ID>MayBeConst:Constants.kt$Constants$val DEBOUNCE_DELAY = 320L</ID>
+    <ID>MayBeConst:Constants.kt$Constants$val SUCCESS_CODE = 200</ID>
+    <ID>MayBeConst:Constants.kt$Constants.CHANGE$val ENTITY_NAME = "changeEvent"</ID>
+    <ID>MayBeConst:Constants.kt$Constants.CHANGE$val EVENT_NAME = "Change event"</ID>
+    <ID>MayBeConst:Constants.kt$Constants.CHANGE$val EVENT_TYPE = "change"</ID>
+    <ID>MayBeConst:Constants.kt$Constants.InstallUpgrade$val ENTITY_NAME = "installUpgrade"</ID>
+    <ID>MayBeConst:Constants.kt$Constants.InstallUpgrade$val EVENT_NAME = "App install/upgrade"</ID>
+    <ID>MayBeConst:Constants.kt$Constants.InstallUpgrade$val EVENT_TYPE = "installOrUpgrade"</ID>
+    <ID>MayBeConst:Constants.kt$Constants.SCREEN.ACTIVITY$val EVENT_TYPE = "screen"</ID>
+    <ID>MayBeConst:Constants.kt$Constants.SCREEN.ACTIVITY$val LEAVE_ENTITY_NAME = "screenLeave"</ID>
+    <ID>MayBeConst:Constants.kt$Constants.SCREEN.ACTIVITY$val LEAVE_EVENT_NAME = "Leave screen"</ID>
+    <ID>MayBeConst:Constants.kt$Constants.SCREEN.ACTIVITY$val VIEW_ENTITY_NAME = "screenView"</ID>
+    <ID>MayBeConst:Constants.kt$Constants.SCREEN.ACTIVITY$val VIEW_EVENT_NAME = "View screen"</ID>
+    <ID>MayBeConst:Constants.kt$Constants.SCREEN.ACTIVITY$val VIEW_TYPE = "Activity"</ID>
+    <ID>MayBeConst:Constants.kt$Constants.SCREEN.FRAGMENT$val ENTITY_NAME = "fragmentTransition"</ID>
+    <ID>MayBeConst:Constants.kt$Constants.SCREEN.FRAGMENT$val EVENT_NAME = "Fragment transition"</ID>
+    <ID>MayBeConst:Constants.kt$Constants.SCREEN.FRAGMENT$val EVENT_TYPE = "fragment"</ID>
+    <ID>MayBeConst:Constants.kt$Constants.SCREEN.FRAGMENT$val VIEW_TYPE = "Fragment"</ID>
+    <ID>MayBeConst:Constants.kt$Constants.SESSION$val ENTITY_NAME = "sessionStart"</ID>
+    <ID>MayBeConst:Constants.kt$Constants.SESSION$val EVENT_NAME = "Session start"</ID>
+    <ID>MayBeConst:Constants.kt$Constants.SESSION$val EVENT_TYPE = "session"</ID>
+    <ID>MayBeConst:Constants.kt$Constants.SESSION$val MILLISECONDS_PER_SECOND = 1000L</ID>
+    <ID>MayBeConst:Constants.kt$Constants.SESSION$val MINUTE_STEP = 30</ID>
+    <ID>MayBeConst:Constants.kt$Constants.SESSION$val SECONDS_PER_MINUTE = 60</ID>
+    <ID>MayBeConst:Constants.kt$Constants.TOUCH$val ENTITY_NAME = "touchEvent"</ID>
+    <ID>MayBeConst:Constants.kt$Constants.TOUCH$val EVENT_NAME = "Touch event"</ID>
+    <ID>MayBeConst:Constants.kt$Constants.TOUCH$val EVENT_TYPE = "touch"</ID>
+    <ID>NestedBlockDepth:ChangeTrackerService.kt$ChangeTrackerService$private fun findAndRegisterChangeEvent( viewGroup: ViewGroup, activity: Activity, )</ID>
+    <ID>ReturnCount:ConfigManagerService.kt$ConfigManagerService$fun token(): String</ID>
+    <ID>ReturnCount:CustomCaptureService.kt$CustomCaptureService$fun isGroupValid( accountId: String, eventTitle: String?, accountAttributes: Map&lt;String, String>?, ): Boolean</ID>
+    <ID>ReturnCount:CustomCaptureService.kt$CustomCaptureService$fun isIdentifyValid( userId: String, eventTitle: String?, userAttributes: Map&lt;String, String>?, ): Boolean</ID>
+    <ID>ReturnCount:CustomCaptureService.kt$CustomCaptureService$fun isTrackValid(eventTitle: String?): Boolean</ID>
+    <ID>ReturnCount:FirebaseService.kt$FirebaseService$private fun notificationsAllowed(context: Context): Boolean</ID>
+    <ID>ReturnCount:Intempt.kt$Intempt$@JvmStatic fun initialize(context: Context): Boolean</ID>
+    <ID>ReturnCount:TouchTrackerService.kt$TouchTrackerService$private fun findTouchedView( view: View, x: Int, y: Int, ): View?</ID>
+    <ID>SwallowedException:ConfigManagerService.kt$ConfigManagerService$e: Exception</ID>
+    <ID>SwallowedException:ConsentAuditLog.kt$ConsentAuditLog$e: Exception</ID>
+    <ID>SwallowedException:Intempt.kt$Intempt$e: Exception</ID>
+    <ID>SwallowedException:IntemptEventManagerService.kt$IntemptEventManagerService$e: Exception</ID>
+    <ID>SwallowedException:IntemptEventManagerService.kt$IntemptEventManagerService$e: Resources.NotFoundException</ID>
+    <ID>ThrowingExceptionsWithoutMessageOrCause:HttpManagerService.kt$HttpManagerService$Exception()</ID>
+    <ID>TooGenericExceptionCaught:ConfigManagerService.kt$ConfigManagerService$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:ConsentAuditLog.kt$ConsentAuditLog$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:EventPoolManagerService.kt$EventPoolManagerService$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:FirebaseService.kt$FirebaseService$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:FirebaseService.kt$FirebaseService$e: Throwable</ID>
+    <ID>TooGenericExceptionCaught:HttpManagerService.kt$HttpManagerService$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:InstallUpgradeTrackerService.kt$InstallUpgradeTrackerService$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:Intempt.kt$Intempt$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:Intempt.kt$Intempt$e: Throwable</ID>
+    <ID>TooGenericExceptionCaught:IntemptEventManagerService.kt$IntemptEventManagerService$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:NotificationDispatcherActivity.kt$NotificationDispatcherActivity$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:UtilsService.kt$UtilsService$e: Throwable</ID>
+    <ID>TooGenericExceptionCaught:WebhookService.kt$WebhookService$e: Throwable</ID>
+    <ID>TooGenericExceptionThrown:HttpManagerService.kt$HttpManagerService$throw Exception("Failed with status code: ${response.status.value}")</ID>
+    <ID>TooGenericExceptionThrown:HttpManagerService.kt$HttpManagerService$throw Exception()</ID>
+    <ID>TooManyFunctions:ChangeTrackerService.kt$ChangeTrackerService</ID>
+    <ID>TooManyFunctions:CustomCaptureComponent.kt$CustomCaptureComponent</ID>
+    <ID>TooManyFunctions:Intempt.kt$Intempt</ID>
+    <ID>TooManyFunctions:IntemptEventManagerService.kt$IntemptEventManagerService</ID>
+    <ID>UnusedParameter:CustomCaptureService.kt$CustomCaptureService$accountAttributes: Map&lt;String, String>?</ID>
+    <ID>UnusedParameter:CustomCaptureService.kt$CustomCaptureService$userAttributes: Map&lt;String, String>?</ID>
+    <ID>UnusedParameter:EventHandlers.kt$EventHandlers$props: HandleEventTypeProps</ID>
+    <ID>UnusedParameter:StorageManagerService.kt$StorageManagerService$fallBack: T? = null</ID>
+    <ID>UnusedParameter:StorageManagerService.kt$StorageManagerService$fetchFromPrefs: SharedPreferences.(String, T?) -> T?</ID>
+    <ID>UnusedParameter:StorageManagerService.kt$StorageManagerService$prefs: String</ID>
+    <ID>UnusedPrivateMember:ChangeTrackerService.kt$ChangeTrackerService$private fun checkViews(view: View): Boolean</ID>
+    <ID>UnusedPrivateMember:ChangeTrackerService.kt$ChangeTrackerService$private fun getViewValue(view: View): Any?</ID>
+    <ID>UnusedPrivateProperty:ChangeTrackerService.kt$ChangeTrackerService$j</ID>
+    <ID>UnusedPrivateProperty:ChangeTrackerService.kt$ChangeTrackerService$private val previousStateMap = mutableMapOf&lt;Int, Any?>()</ID>
+    <ID>UnusedPrivateProperty:SessionTrackerService.kt$SessionTrackerService$private val http: HttpManagerService</ID>
+    <ID>UnusedPrivateProperty:SessionTrackerService.kt$SessionTrackerService$private var coroutineJob: Job? = null</ID>
+  </CurrentIssues>
+</SmellBaseline>

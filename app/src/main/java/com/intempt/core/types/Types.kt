@@ -5,12 +5,12 @@ import android.content.Context
 import android.view.View
 
 internal data class DispatchEventProps(
-    val eventName:String,
-    val entityName:String,
+    val eventName: String,
+    val entityName: String,
     val event: Array<IntemptEventProvider>? = null,
-    val type:String,
+    val type: String,
     val context: Context,
-    val view: View? = null
+    val view: View? = null,
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
@@ -39,43 +39,68 @@ internal data class DispatchEventProps(
     }
 }
 
-internal data class HandleEventTypeProps(val type:String,val entityName:String,  val context: Context,  val view: View? = null )
+internal data class HandleEventTypeProps(val type: String, val entityName: String, val context: Context, val view: View? = null)
 
-internal data class ScreenViewProps(val activity: Activity, val entityName:String)
+internal data class ScreenViewProps(val activity: Activity, val entityName: String)
 
 internal data class IntemptConfigs(
     val apiKey: String,
     val sourceId: String,
     val organizationId: String,
-    val projectId: String
-)
+    val projectId: String,
+) {
+    /**
+     * Redacted, overriding the one Kotlin generates for a data class.
+     *
+     * The generated `toString` prints every property, [apiKey] included. Nothing logs this object
+     * today, so this is latent rather than live — but it is one line away from live, and the line
+     * that would do it (`logger.debug("configs: $configs")`) reads as a debug statement and gets
+     * reviewed as one, not as a change that puts a customer's ingestion key into logcat.
+     *
+     * Found by the React Native session sweeping all five SDKs for the same shape after the PHP
+     * SDK exposed its key through `print_r` and Python through `repr`. Three of five had it
+     * independently, which is why the contract now carries a rule rather than three bug reports.
+     * [IntemptCredentials] redacts for the same reason.
+     */
+    override fun toString(): String =
+        "IntemptConfigs(sourceId=$sourceId, organizationId=$organizationId, " +
+            "projectId=$projectId, apiKey=***)"
+}
 
 internal data class IntemptOptions(
-    val isLoggingEnabled : Boolean,
+    val isLoggingEnabled: Boolean,
     val isTouchEnabled: Boolean,
     val isTextCaptureEnabled: Boolean,
     val isQueueEnabled: Boolean,
+    val useIpAddressForGeolocation: Boolean,
     val isAutoCaptureEnabled: Boolean,
     val itemsInQueue: Int,
     val timeBuffer: Long,
-
+    // Null means "use the production endpoint". Present so the SDK can be pointed at
+    // staging or at a local stub; without it the endpoint was a compile-time constant and
+    // the delivery leg could not be tested at all without a real project and key.
+    val apiUrl: String?,
+    // Opt-in TLS certificate pinning for the ingestion endpoint. Empty (the default) means
+    // unchanged, platform-default TLS trust validation -- pinning activates only when the host
+    // app supplies pins.
+    val certificatePins: List<String> = emptyList(),
 )
 
 internal data class ConfigResult(
     val configs: IntemptConfigs?,
-    val options: IntemptOptions?
+    val options: IntemptOptions?,
 )
 
 internal data class ModificationBodyParam(
-    val optimizationType:String,
-    val data:List<String>,
-    val paramType:String
+    val optimizationType: String,
+    val data: List<String>,
+    val paramType: String,
 )
 
 internal data class ModificationGetParam(
-    val optimizationType:String,
-    val data:List<String>,
-    val isNameType: Boolean
+    val optimizationType: String,
+    val data: List<String>,
+    val isNameType: Boolean,
 )
 
 internal data class RecommendationBody(
@@ -83,24 +108,16 @@ internal data class RecommendationBody(
     val sourceId: String,
     val limit: Int,
     val fields: List<String>,
-    val productId: String?
+    val productId: String?,
 )
 
+internal sealed class AutoCaptureParam
 
+internal data class UiEventProps(val activity: Activity, val view: View, val listenerType: String) : AutoCaptureParam()
 
-
-//Public types
-sealed class AutoCaptureParam
-
-data class UiEventProps(val activity: Activity, val view: View, val listenerType:String):AutoCaptureParam();
-data class ScreenEventProps(
+internal data class ScreenEventProps(
     val activity: Activity,
-    val eventName:String,
-    val entityName:String,
-    val eventType:String,
-):AutoCaptureParam();
-
-data class Product(
-    val productId: String,
-    val quantity: Int? = null
-)
+    val eventName: String,
+    val entityName: String,
+    val eventType: String,
+) : AutoCaptureParam()
