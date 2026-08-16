@@ -21,12 +21,16 @@ import com.intempt.core.customCapture.CustomCaptureComponent
 import com.intempt.core.customCapture.CustomCaptureService
 import com.intempt.core.queue.DeliveryMessages
 import com.intempt.core.services.ConfigManagerService
+import com.intempt.core.services.ErrorReporter
 import com.intempt.core.services.HttpManagerService
 import com.intempt.core.services.IntemptEventManagerService
 import com.intempt.core.services.LoggerManagerService
 import com.intempt.core.services.StorageManagerService
 import com.intempt.core.services.UtilsService
 import com.intempt.core.services.eventPool.EventPoolManagerService
+import com.intempt.core.types.ConsentAction
+import com.intempt.core.types.IntemptValue
+import com.intempt.core.types.Product
 import com.intempt.core.types.StorageKeys
 import junit.framework.TestCase.assertEquals
 import junit.framework.TestCase.assertNotNull
@@ -80,6 +84,7 @@ class CustomCaptureUnitTest {
     private lateinit var httpSrv: HttpManagerService
     private lateinit var context: Context
     private lateinit var storage: StorageManagerService
+    private lateinit var errors: ErrorReporter
     private lateinit var component: CustomCaptureComponent
     private lateinit var eventPoolSrv: EventPoolManagerService
     private lateinit var delivery: DeliveryMessages
@@ -153,7 +158,8 @@ class CustomCaptureUnitTest {
         doReturn(mockProfId).`when`(storage).getProfileId()
 
         httpSrv = spy(HttpManagerService(config, logger))
-        customCaptureSrv = CustomCaptureService(storage, logger)
+        errors = ErrorReporter(logger)
+        customCaptureSrv = CustomCaptureService(storage, logger, errors)
 
         intemptEvent = spy(IntemptEventManagerService(context, storage, utils, config))
         testDispatcher = UnconfinedTestDispatcher(testScheduler)
@@ -179,6 +185,8 @@ class CustomCaptureUnitTest {
                 eventPoolSrv,
                 intemptEvent,
                 utils,
+                storage,
+                errors,
             )
 
         testScheduler.advanceUntilIdle()
@@ -190,8 +198,8 @@ class CustomCaptureUnitTest {
             component.identify(
                 "test_userID",
                 "test_eventTitle",
-                mapOf("test" to "test"),
-                mapOf("test" to "test"),
+                IntemptValue.mapOf(mapOf("test" to "test")),
+                IntemptValue.mapOf(mapOf("test" to "test")),
             )
 
             assertEnqueued("identify")
@@ -203,7 +211,7 @@ class CustomCaptureUnitTest {
             component.group(
                 "test_accountID",
                 "test_eventTitle",
-                mapOf("test" to "test"),
+                IntemptValue.mapOf(mapOf("test" to "test")),
             )
 
             assertEnqueued("group")
@@ -214,7 +222,7 @@ class CustomCaptureUnitTest {
         runTest {
             component.track(
                 "test_TrackTitle",
-                mapOf("test" to "test"),
+                IntemptValue.mapOf(mapOf("test" to "test")),
             )
 
             assertEnqueued("track")
@@ -224,7 +232,7 @@ class CustomCaptureUnitTest {
     fun `should receive event of type record`() {
         component.record(
             "test_RecordTitle",
-            data = mapOf("test" to "test"),
+            data = IntemptValue.mapOf(mapOf("test" to "test")),
         )
 
         assertEnqueued("record")
@@ -246,7 +254,7 @@ class CustomCaptureUnitTest {
             interceptConsentHttpRequest()
 
             component.consent(
-                "reject",
+                ConsentAction.REJECT,
                 System.currentTimeMillis() + 100000000,
                 "test_email",
                 "test_message",
@@ -284,13 +292,144 @@ class CustomCaptureUnitTest {
 
             component.productOrdered(
                 listOf(
-                    mapOf("productId" to "prt1231231231_23", "quantity" to 1),
-                    mapOf("productId" to "sdfgdfgdfg1234234", "quantity" to 45),
+                    Product("prt1231231231_23", 1),
+                    Product("sdfgdfgdfg1234234", 45),
                 ),
             )
 
             assertEnqueued("product")
         }
+
+    // ------------------------------------------------- 3.0 contract behaviours
+
+    /**
+     * Consent transmits even when the user has opted out.
+     *
+     * Every capture method returns early on `!isUserOptIn`, and consent used to as well — which
+     * meant the one call a user who had objected would make was the one the objection suppressed.
+     * A withdrawal has to reach the server, so this path deliberately does not consult the flag.
+     */
+    @Test
+    fun `consent is sent while opted out`() =
+        runTest {
+            interceptConsentHttpRequest()
+            component.optOut()
+            assertTrue("precondition: the user is opted out", component.hasOptedOut())
+
+            val accepted =
+                component.consent(ConsentAction.REJECT, System.currentTimeMillis() + 100_000, "e@x.com", null, null)
+
+            testScheduler.advanceUntilIdle()
+            assertTrue("an opted-out user must still be able to withdraw consent", accepted)
+            verify(httpSrv, atLeastOnce()).post(any(), any<JSONObject>(), any())
+        }
+
+    /**
+     * The consent decision and the capture flag are one decision, not two.
+     *
+     * They were independent settings, so an app could record a rejection and keep collecting —
+     * the SDK would hold documentary evidence that the user said no while continuing to send.
+     */
+    @Test
+    fun `reject opts out and accept opts back in`() =
+        runTest {
+            interceptConsentHttpRequest()
+            val validUntil = System.currentTimeMillis() + 100_000
+
+            component.optIn()
+            component.consent(ConsentAction.REJECT, validUntil)
+            testScheduler.advanceUntilIdle()
+            assertTrue("a rejection must stop capture", component.hasOptedOut())
+
+            component.consent(ConsentAction.ACCEPT, validUntil)
+            testScheduler.advanceUntilIdle()
+            assertTrue("an acceptance must resume capture", component.isOptedIn())
+        }
+
+    /**
+     * Opting out empties the queue rather than only setting a flag.
+     *
+     * Events captured before the objection would otherwise sit in the durable queue and upload
+     * after it: the SDK would stop adding to the pile it was still sending.
+     */
+    @Test
+    fun `opting out discards what is already queued`() {
+        component.optIn()
+        component.track("Viewed", IntemptValue.mapOf(mapOf("screen" to "home")))
+        testScheduler.advanceUntilIdle()
+
+        component.optOut()
+        testScheduler.advanceUntilIdle()
+
+        verify(delivery, atLeastOnce()).emptyQueue()
+    }
+
+    /** [logOut] keeps the queue; only [reset] discards it. Both rotate the identity. */
+    @Test
+    fun `logOut keeps the queue and reset empties it`() {
+        component.logOut()
+        testScheduler.advanceUntilIdle()
+        verify(delivery, never()).emptyQueue()
+
+        component.reset()
+        testScheduler.advanceUntilIdle()
+        verify(delivery, atLeastOnce()).emptyQueue()
+    }
+
+    /**
+     * logOut runs while opted out.
+     *
+     * It used to return early on `!isUserOptIn`, leaving the previous user's profileId in place on
+     * a shared device — the exact identity inheritance logging out exists to prevent, and most
+     * likely to matter for the user who had just objected.
+     */
+    @Test
+    fun `logOut rotates the identity even while opted out`() {
+        component.optOut()
+        testScheduler.advanceUntilIdle()
+
+        component.logOut()
+        testScheduler.advanceUntilIdle()
+
+        verify(storage, atLeastOnce()).clearAllStorage()
+    }
+
+    /**
+     * A refusal is visible to the caller.
+     *
+     * These all returned Unit before 3.0, so a rejected call and a working one were
+     * indistinguishable at the call site — which is how a silently rejected identify() went
+     * unnoticed for weeks.
+     */
+    @Test
+    fun `capture methods report refusal rather than swallowing it`() {
+        assertTrue("a valid track must report acceptance", component.track("Viewed", emptyMap()))
+
+        assertTrue("an empty title must be refused", !component.track("", emptyMap()))
+        assertTrue("a reserved title must be refused", !component.track("identify", emptyMap()))
+        assertTrue("a blank userId must be refused", !component.identify(""))
+        assertTrue("an empty order must be refused", !component.productOrdered(emptyList()))
+        assertTrue("a zero quantity must be refused", !component.productOrdered(listOf(Product("p1", 0))))
+
+        `when`(config.isUserOptIn).thenReturn(false)
+        assertTrue("an opted-out track must report refusal", !component.track("Viewed", emptyMap()))
+    }
+
+    /**
+     * A non-finite number is refused before it reaches the wire.
+     *
+     * NaN and Infinity are not JSON. Serialized unchecked the gateway rejects the body — and it
+     * rejects the whole batch, so one bad value loses every event queued alongside it.
+     */
+    @Test
+    fun `a non-finite attribute value is refused`() {
+        val bad = mapOf("score" to IntemptValue.of(Double.NaN))
+
+        assertTrue(!component.track("Viewed", bad))
+        assertTrue(!component.identify("u1", null, bad))
+        assertTrue(!component.group("a1", null, bad))
+        assertTrue(!component.record("Custom", data = bad))
+    }
 
     @Test
     fun `should clear storage on logout`() {
@@ -366,12 +505,11 @@ class CustomCaptureUnitTest {
     fun `on tracking blocked`() {
         `when`(config.isUserOptIn).thenReturn(false)
 
-        component.identify("test", "test", mapOf("test" to "test"))
-        component.group("test", "test", mapOf("test" to "test"))
-        component.track("test", mapOf("test" to "test"))
+        component.identify("test", "test", IntemptValue.mapOf(mapOf("test" to "test")))
+        component.group("test", "test", IntemptValue.mapOf(mapOf("test" to "test")))
+        component.track("test", IntemptValue.mapOf(mapOf("test" to "test")))
         component.record("test", "test")
         component.alias("test", "test")
-        component.consent("test", 100L, "test", "test", "test")
         component.logOut()
 
         testScheduler.advanceUntilIdle()
@@ -409,9 +547,9 @@ class CustomCaptureUnitTest {
             val productId = "26701"
 
             val res =
-                component.recommendation(
-                    id = id,
-                    quantity = quantity,
+                component.products(
+                    feedId = id,
+                    count = quantity,
                     fields = fields,
                     productId = productId,
                 )

@@ -29,8 +29,18 @@ import org.json.JSONObject
  * require teaching that vendored, already-delicate substrate a second wire format and
  * destination. A small dedicated table on the same SQLite mechanism is the narrower change.
  */
-internal class ConsentAuditLog(context: Context) {
-    private val dbHelper = ConsentAuditDbHelper(context.applicationContext)
+internal class ConsentAuditLog(
+    context: Context,
+    /**
+     * Instance-scoped database file, or null for the default.
+     *
+     * Two named instances sharing one consent database would interleave two projects' consent
+     * decisions in one table with nothing distinguishing them — and this table is the evidence a
+     * compliance request is answered from, so "whose consent was this" has to stay answerable.
+     */
+    databaseName: String? = null,
+) {
+    private val dbHelper = ConsentAuditDbHelper(context.applicationContext, databaseName ?: DATABASE_NAME)
 
     /**
      * Records a consent decision. Safe to call regardless of whether the network send to the
@@ -79,8 +89,8 @@ internal class ConsentAuditLog(context: Context) {
         return results
     }
 
-    private class ConsentAuditDbHelper(context: Context) :
-        SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_VERSION) {
+    private class ConsentAuditDbHelper(context: Context, databaseName: String) :
+        SQLiteOpenHelper(context, databaseName, null, DATABASE_VERSION) {
         override fun onCreate(db: SQLiteDatabase) {
             db.execSQL(CREATE_TABLE)
         }

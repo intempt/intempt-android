@@ -22,6 +22,28 @@ plugins {
 // committed app/api/app.api file without that file being regenerated via `apiDump`. It is a
 // guardrail against an accidental breaking change slipping in unnoticed, not a scoring exercise —
 // intentional API changes just need `./gradlew :app:apiDump` run and the updated file committed.
+apiValidation {
+    // Dagger's generated factories and component are public in the bytecode because Java has no
+    // `internal`, and there is nothing this build can do about that. What it can do is stop them
+    // describing themselves as the SDK's API: 20 of the 84 declared types were `*_Factory` and
+    // `DaggerIntemptCoreComponent`, which is enough noise that a reviewer scanning app.api for a
+    // real change stops reading.
+    //
+    // Matched on Dagger's own `@DaggerGenerated` marker rather than an explicit class list. A list
+    // goes stale the moment a provider is added, and it goes stale *quietly* — the new factory
+    // simply reappears in the dump and nobody remembers why the others are absent.
+    //
+    // This documents the consumer contract; it does not change what ships. Those classes remain
+    // public in the AAR. Excluding them is honest only because nothing outside the SDK can
+    // usefully call them, and because the exclusion is narrow: it is one annotation, applied by a
+    // code generator, to code that generator wrote.
+    nonPublicMarkers.add("dagger.internal.DaggerGenerated")
+
+    // `com.intempt.core.queue` is deliberately NOT excluded, even though it is transport internals
+    // that no consumer should touch. Keeping it in the dump is what surfaced
+    // `QueueConfig.getAuthorization()` — public, and returning the base64 ingestion credential.
+    // Hiding the package would have hidden that, and would hide the next one.
+}
 
 jacoco {
     toolVersion = "0.8.12"
@@ -99,11 +121,25 @@ dependencyCheck {
     analyzers.opensslEnabled = false
     analyzers.msbuildEnabled = false
     // Speeds up and stabilizes CI: an NVD API key raises the feed's rate limit drastically. Absent
-    // (forks without the secret), the analyzer still runs, just slower -- it does not fail the
-    // build. See INTEMPT_NVD_API_KEY in .github/workflows/ci.yml.
-    nvd.apiKey = System.getenv("INTEMPT_NVD_API_KEY")
+    // (forks without the secret), the analyzer still runs against cached data rather than failing.
+    // See INTEMPT_NVD_API_KEY in .github/workflows/ci.yml.
+    //
+    // Set only when non-blank, and that conditional is load-bearing. System.getenv returns an
+    // empty string rather than null for an unset secret in Actions, and dependency-check 13
+    // rejects an empty key outright:
+    //
+    //   NvdApiException: Invalid API Key, length of 0 too short to provided a masked partial key
+    //
+    // Assigning unconditionally made the comment above a lie — the scan failed hard on every fork
+    // and on any run where the secret was missing, which is exactly the case it claimed to handle.
+    System.getenv("INTEMPT_NVD_API_KEY")
+        ?.takeIf { it.isNotBlank() }
+        ?.let { nvd.apiKey = it }
     formats = listOf("HTML", "JSON")
-    outputDirectory = "$buildDir/reports/dependency-check"
+    // 13.x types this as a DirectoryProperty rather than a String, so it is set rather than
+    // assigned. Also uses layout.buildDirectory — `buildDir` is deprecated in Gradle 8 and removed
+    // in 9, so this was going to break on the next Gradle bump regardless of the plugin version.
+    outputDirectory.set(layout.buildDirectory.dir("reports/dependency-check"))
 }
 
 // API-compatibility gate, checked against the android-api-level-23 signature rather than inferred.

@@ -62,9 +62,31 @@ internal open class EventPoolManagerService
         // wraps its own reflective call in withContext(Dispatchers.IO) internally.
         private val eventHandlers = EventHandlers(logger, intemptEvent)
         private var eventReceiverJob: Job? = null
-        private val _eventReceiver = MutableSharedFlow<IntemptEvent>(replay = 10)
+
+        // extraBufferCapacity, not replay alone.
+        //
+        // With `replay = 10` and no extra buffer, `tryEmit` returns false — and DROPS the event —
+        // as soon as a subscriber has not drained the 10 slots. There are two subscribers, and a
+        // burst of 45 events is a normal thing for a host app to do, so the buffer filled in
+        // practice. The comment further down already warned that a full buffer means "silent drops
+        // upstream of the durable queue, reintroducing the exact loss this work exists to
+        // eliminate"; nothing had ever measured whether it filled.
+        //
+        // Caught on a real device by the first assertion that ever read a capture method's return
+        // value: consent() reported false while the SDK was working correctly. Making the returns
+        // meaningful is what made this visible — before 3.0 every one of these drops was silent.
+        //
+        // 256 is chosen against the queue's own bulk-upload limit of 40: the collector hands off to
+        // DeliveryMessages without blocking on disk or network, so the buffer only has to absorb a
+        // burst, not a backlog.
+        private val _eventReceiver =
+            MutableSharedFlow<IntemptEvent>(replay = 10, extraBufferCapacity = 256)
 
         val eventReceiver: SharedFlow<IntemptEvent> = _eventReceiver
+
+        private companion object {
+            const val MILLIS_PER_SECOND = 1000
+        }
 
         init {
             startEventCollection()
@@ -118,6 +140,46 @@ internal open class EventPoolManagerService
             val isEmitted = _eventReceiver.tryEmit(event)
             logger.log("EventPool | Event is emitted: $isEmitted")
             return isEmitted
+        }
+
+        /**
+         * Sends whatever is queued now, instead of waiting for the timer or the size trigger.
+         *
+         * [completion] receives the number of events the server accepted and runs on the delivery
+         * worker thread, so a host app that touches UI from it must post to the main thread itself.
+         */
+        fun flush(completion: ((Int) -> Unit)? = null) {
+            if (completion == null) {
+                delivery.flush()
+            } else {
+                delivery.flush { delivered -> completion(delivered) }
+            }
+        }
+
+        /**
+         * Flush delay in **seconds**; 0 disables the timer.
+         *
+         * Seconds rather than the queue's native milliseconds because the cross-SDK contract
+         * specifies seconds, and a bridge marshalling this value between platforms would
+         * otherwise be off by a factor of a thousand in whichever direction nobody tested.
+         */
+        var flushInterval: Int
+            get() = delivery.flushInterval / MILLIS_PER_SECOND
+            set(seconds) {
+                delivery.flushInterval = seconds * MILLIS_PER_SECOND
+            }
+
+        /**
+         * Empties the durable queue without sending it.
+         *
+         * Used by `optOut()` and `reset()`. Consent records are unaffected because they never
+         * enter this queue — they post directly to `/consents/data` — which is what allows an
+         * opt-out to discard pending analytics while preserving the evidence of the decision
+         * that caused it.
+         */
+        fun discardQueuedEvents() {
+            logger.log("EventPool | Discarding queued events")
+            delivery.emptyQueue()
         }
 
         fun subscribe(

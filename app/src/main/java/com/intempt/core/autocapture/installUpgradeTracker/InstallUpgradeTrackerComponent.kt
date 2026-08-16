@@ -20,9 +20,20 @@ internal class InstallUpgradeTrackerComponent
         private val srv: InstallUpgradeTrackerService,
         private val dispatcher: CoroutineDispatcher = Dispatchers.Main,
     ) : BaseComponent(srv.logger) {
-        suspend fun start() {
-            registerVisibilityTracking()
-            registerInstallUpgradeTracking()
+        /**
+         * Each half behind its own switch.
+         *
+         * These were one `start()` that always did both, so an app that wanted install/upgrade
+         * events also got an Application Opened and an Application Backgrounded on every single
+         * transition — the highest-volume automatic event the SDK has, emitted by a call that
+         * never mentioned it. The contract separates them and defaults both to off.
+         */
+        suspend fun start(
+            versionChanges: Boolean,
+            appStateChanges: Boolean,
+        ) {
+            if (appStateChanges) registerVisibilityTracking()
+            if (versionChanges) registerInstallUpgradeTracking()
         }
 
         private suspend fun registerVisibilityTracking() =

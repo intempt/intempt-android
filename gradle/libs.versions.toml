@@ -29,7 +29,16 @@ dokka="1.9.20"
 # Scans the resolved dependency graph against the NVD for known CVEs. See the
 # dependencyCheck block in app/build.gradle.kts and the "Dependency vulnerability scan"
 # step in .github/workflows/ci.yml.
-dependencyCheck="10.0.4"
+# 13.0.0, up from 10.0.4. 10.x fails outright on CVE records whose reference URL exceeds its own
+# H2 schema column width:
+#
+#   Failed to process CVE-2026-6785
+#   DatabaseException: Value too long for column "URL CHARACTER VARYING(1000)": ... (1585)
+#
+# That is an upstream schema bug, not anything about our dependencies — it made the scan fail for
+# everyone on that version the moment such a CVE was published. Fixed upstream by widening the
+# column.
+dependencyCheck="13.0.0"
 dagger="2.52"
 lifecycleProcess="2.8.7"
 

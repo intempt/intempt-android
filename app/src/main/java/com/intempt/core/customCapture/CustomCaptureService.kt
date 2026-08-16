@@ -5,10 +5,13 @@ package com.intempt.core.customCapture
 import android.view.View
 import com.intempt.core.R
 import com.intempt.core.autocapture.BaseComponent
+import com.intempt.core.services.ErrorReporter
 import com.intempt.core.services.LoggerManagerService
 import com.intempt.core.services.StorageManagerService
 import com.intempt.core.types.Constants
 import com.intempt.core.types.DispatchEventProps
+import com.intempt.core.types.IntemptError
+import com.intempt.core.types.Product
 import com.intempt.core.types.ScreenEventProps
 import com.intempt.core.types.UiEventProps
 import javax.inject.Inject
@@ -20,6 +23,7 @@ internal class CustomCaptureService
     constructor(
         private val storage: StorageManagerService,
         val logger: LoggerManagerService,
+        private val errors: ErrorReporter,
     ) : BaseComponent(logger) {
         private val forbiddenEventNames: Array<String> =
             arrayOf(
@@ -49,13 +53,15 @@ internal class CustomCaptureService
             storage.clearAllStorage()
         }
 
+        // Guard clauses. A single exit point would nest these checks three deep, which is the
+        // shape they were written to avoid.
+        @Suppress("ReturnCount")
         fun isIdentifyValid(
             userId: String,
             eventTitle: String?,
-            userAttributes: Map<String, String>?,
         ): Boolean {
             if (userId.isEmpty()) {
-                logger.error("Identify parameters are invalid: set 'userId' to use 'identify'.")
+                errors.report(IntemptError.MissingIdentity("identify requires a non-blank userId"))
                 return false
             }
 
@@ -74,25 +80,25 @@ internal class CustomCaptureService
             // in the on-device queue.
 
             if (eventTitle != null && isForbidden(eventTitle)) {
-                logger.error("The '$eventTitle' event title is forbidden")
+                errors.report(IntemptError.ForbiddenEventName(eventTitle))
                 return false
             }
 
             return true
         }
 
+        @Suppress("ReturnCount")
         fun isGroupValid(
             accountId: String,
             eventTitle: String?,
-            accountAttributes: Map<String, String>?,
         ): Boolean {
             if (accountId.isEmpty()) {
-                logger.error("Group parameters are invalid: 'accountId' is required.")
+                errors.report(IntemptError.MissingIdentity("group requires a non-blank accountId"))
                 return false
             }
 
             if (eventTitle != null && isForbidden(eventTitle)) {
-                logger.error("The '$eventTitle' event title is forbidden")
+                errors.report(IntemptError.ForbiddenEventName(eventTitle))
                 return false
             }
 
@@ -105,38 +111,38 @@ internal class CustomCaptureService
 
         fun isTrackValid(eventTitle: String?): Boolean {
             if (eventTitle.isNullOrEmpty()) {
-                logger.error("Track parameters are invalid: eventTitle is required.")
+                errors.report(IntemptError.MissingIdentity("an event requires a non-blank eventTitle"))
                 return false
             }
 
             if (isForbidden(eventTitle)) {
-                logger.error("The '$eventTitle' event title is forbidden")
+                errors.report(IntemptError.ForbiddenEventName(eventTitle))
                 return false
             }
             return true
         }
 
         /**
-         * `!=`, not `!==`. The original used reference identity on Strings, so it only worked
-         * for interned literals — a value read from JSON, a network response or string
-         * concatenation compares unequal even when it reads "accept", and the consent was
-         * rejected. Kotlin's `!==` is identity; `!=` is equals. Found by an adversarial review,
-         * not by a test: all four consent tests asserted nothing that could see it.
+         * Validates a commerce line list.
+         *
+         * The predecessor took `List<Map<String, Any>>` and checked for a `"productId"` String and
+         * a positive `"quantity"` Int. Every way of getting that wrong — a misspelled key, a
+         * quantity arriving as a String from a bridge — produced a silent no-op on the most
+         * valuable event an ecommerce app sends. [Product] makes both fields unmissable at the
+         * call site, so what is left to check is only their values.
          */
-        fun isConsentValid(action: String): Boolean {
-            if (action.isNotEmpty() && action != "accept" && action != "reject") {
-                logger.error("Consent parameters are invalid: action should be either 'reject' or 'accept'.")
+        fun isProductListValid(products: List<Product>): Boolean {
+            if (products.isEmpty()) {
+                errors.report(IntemptError.MissingIdentity("productOrdered requires at least one product"))
                 return false
             }
-            return true
-        }
 
-        fun isProductListValid(products: List<Map<String, Any>>): Boolean {
-            return products.all { product ->
-                val productId = product["productId"]
-                val quantity = product["quantity"]
-                productId is String && productId.isNotBlank() && quantity is Int && quantity > 0
-            }
+            val problems =
+                products.flatMapIndexed { index, product ->
+                    product.problems().map { "products[$index]: $it" }
+                }
+            problems.forEach { errors.report(IntemptError.InvalidPropertyValue(it)) }
+            return problems.isEmpty()
         }
 
         fun onUiEventReceive(props: UiEventProps): DispatchEventProps {

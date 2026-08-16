@@ -44,6 +44,7 @@ import com.intempt.core.eventModels.UiElementEvent
 import com.intempt.core.types.AppVisibilityState
 import com.intempt.core.types.IdTypeKeys
 import com.intempt.core.types.IntemptEventProvider
+import com.intempt.core.types.IntemptValue
 import com.intempt.core.types.Product
 import java.util.Locale
 import javax.inject.Inject
@@ -234,8 +235,8 @@ internal open class IntemptEventManagerService
 
         fun generateIdentifyEventPayload(
             userId: String,
-            userAttributes: Map<String, String>? = null,
-            data: Map<String, String>? = null,
+            userAttributes: Map<String, IntemptValue>? = null,
+            data: Map<String, IntemptValue>? = null,
         ): Array<IntemptEventProvider> {
             val eventProps = getBaseEventProps()
 
@@ -254,7 +255,7 @@ internal open class IntemptEventManagerService
 
         fun generateGroupEventPayload(
             accountId: String,
-            accountAttributes: Map<String, String>? = null,
+            accountAttributes: Map<String, IntemptValue>? = null,
         ): Array<IntemptEventProvider> {
             val eventProps = getBaseEventProps()
 
@@ -289,7 +290,7 @@ internal open class IntemptEventManagerService
             return map
         }
 
-        fun generateTrackEventPayload(data: Map<String, String>): Array<IntemptEventProvider> {
+        fun generateTrackEventPayload(data: Map<String, IntemptValue>): Array<IntemptEventProvider> {
             val eventProps = getBaseEventProps()
 
             return arrayOf(
@@ -306,9 +307,9 @@ internal open class IntemptEventManagerService
         fun generateRecordEventPayload(
             accountId: String? = null,
             userId: String? = null,
-            accountAttributes: Map<String, String>? = null,
-            userAttributes: Map<String, String>? = null,
-            data: Map<String, String>? = null,
+            accountAttributes: Map<String, IntemptValue>? = null,
+            userAttributes: Map<String, IntemptValue>? = null,
+            data: Map<String, IntemptValue>? = null,
         ): Array<IntemptEventProvider> {
             val eventProps = getBaseEventProps()
 

@@ -26,6 +26,7 @@ import com.google.firebase.messaging.RemoteMessage
 import com.intempt.core.services.ConfigManagerService
 import com.intempt.core.services.HttpManagerService
 import com.intempt.core.services.LoggerManagerService
+import com.intempt.core.types.IntemptValue
 import com.intempt.push.model.PushNotificationContent
 import com.intempt.push.model.PushNotificationMetadata
 import com.intempt.push.webhook.WebhookService
@@ -141,7 +142,7 @@ internal class FirebaseService : FirebaseMessagingService() {
             // and the token still reaches the backend on the next install/upgrade event.
             com.intempt.core.Intempt.track(
                 "App install/upgrade",
-                mapOf("deviceToken" to token),
+                IntemptValue.mapOf(mapOf("deviceToken" to token)),
             )
         } catch (e: Throwable) {
             // Never let a token report crash the messaging service.

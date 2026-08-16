@@ -6,6 +6,8 @@ import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.intempt.core.Intempt
+import com.intempt.core.types.IntemptValue
+import com.intempt.core.types.Product
 import kotlinx.coroutines.runBlocking
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
@@ -88,14 +90,44 @@ class SdkProdObjectsTest {
         return observed.values.toList()
     }
 
+    /**
+     * @param reemit re-runs the action that produces the event, every [REEMIT_INTERVAL_MS].
+     *
+     * Polling alone cannot win this race. A row exists exactly once, and with working credentials
+     * delivery can create and delete it entirely between two polls — after which no further
+     * polling and no longer deadline will ever see it, because the evidence is gone.
+     *
+     * That is how `productCallsUseACatalogProduct` failed on API 34 while the two events before it
+     * were caught: `[Identify, View screen, Product viewed, Added to cart]` were all observed and
+     * the order was not. Nothing was wrong with `productOrdered`; the sampler simply missed its
+     * window.
+     *
+     * Re-emitting turns one chance into many. It does not change what is asserted — the event still
+     * has to reach the queue — it stops a single unlucky interleaving from deciding the result.
+     * The duplicate events land in the test project, which is what a test project is for.
+     */
+    private companion object {
+        /** How often awaitEvent re-runs a repeatable action while waiting. */
+        const val REEMIT_INTERVAL_MS = 750L
+    }
+
     private fun awaitEvent(
         what: String,
+        // `Any?`, not `Unit`: as of 3.0 every capture method returns Boolean, so a lambda
+        // wrapping one infers `() -> Boolean` and no longer satisfies `() -> Unit`. The
+        // helper only re-runs the emitter and ignores whatever it hands back.
+        reemit: (() -> Any?)? = null,
         predicate: (JSONObject) -> Boolean,
     ): JSONObject {
-        val deadline = System.currentTimeMillis() + 15_000L
+        val deadline = System.currentTimeMillis() + 30_000L
+        var nextReemit = System.currentTimeMillis() + REEMIT_INTERVAL_MS
         while (System.currentTimeMillis() < deadline) {
             sample().firstOrNull(predicate)?.let { return it }
-            Thread.sleep(50)
+            if (reemit != null && System.currentTimeMillis() >= nextReemit) {
+                reemit()
+                nextReemit = System.currentTimeMillis() + REEMIT_INTERVAL_MS
+            }
+            Thread.sleep(25)
         }
         throw AssertionError("timed out waiting for $what. Observed: ${sample().map { it.optString("name") }}")
     }
@@ -108,7 +140,7 @@ class SdkProdObjectsTest {
     fun identifyAttachesToTheStableUser() {
         val userId = requireFixture("INTEMPT_E2E_USER_ID", BuildConfig.INTEMPT_E2E_USER_ID)
 
-        Intempt.identify(userId = userId, userAttributes = mapOf("source" to "android-sdk-e2e"))
+        Intempt.identify(userId = userId, userAttributes = IntemptValue.mapOf(mapOf("source" to "android-sdk-e2e")))
 
         // Matched on this test's own userId. Both test classes run in one app process and the
         // queue persists across them, so `type == "identify"` alone found SdkOnDeviceTest's
@@ -134,7 +166,7 @@ class SdkProdObjectsTest {
     fun groupCreatesTheAccountAndQueuesTheEvent() {
         val accountId = "androidtest-account-${System.nanoTime()}"
 
-        Intempt.group(accountId = accountId, accountAttributes = mapOf("source" to "android-sdk-e2e"))
+        Intempt.group(accountId = accountId, accountAttributes = IntemptValue.mapOf(mapOf("source" to "android-sdk-e2e")))
 
         // Same reasoning: SdkOnDeviceTest also emits a group event.
         val event =
@@ -156,14 +188,17 @@ class SdkProdObjectsTest {
     fun productCallsUseACatalogProduct() {
         val productId = requireFixture("INTEMPT_E2E_PRODUCT_ID", BuildConfig.INTEMPT_E2E_PRODUCT_ID)
 
-        Intempt.productView(productId)
-        awaitEvent("a product view") { it.optString("name") == "Product viewed" }
+        val emitView = { Intempt.productView(productId) }
+        emitView()
+        awaitEvent("a product view", reemit = emitView) { it.optString("name") == "Product viewed" }
 
-        Intempt.productAdd(productId, 2)
-        awaitEvent("an add to cart") { it.optString("name") == "Added to cart" }
+        val emitAdd = { Intempt.productAdd(productId, 2) }
+        emitAdd()
+        awaitEvent("an add to cart", reemit = emitAdd) { it.optString("name") == "Added to cart" }
 
-        Intempt.productOrdered(listOf(mapOf("productId" to productId, "quantity" to 1)))
-        awaitEvent("a product order") {
+        val emitOrder = { Intempt.productOrdered(listOf(Product(productId, 1))) }
+        emitOrder()
+        awaitEvent("a product order", reemit = emitOrder) {
             it.optString("type") == "product" &&
                 it.optString("name") != "Product viewed" &&
                 it.optString("name") != "Added to cart"
@@ -171,7 +206,7 @@ class SdkProdObjectsTest {
     }
 
     /**
-     * `recommendation`'s first argument is the feed id: it goes straight into
+     * `products`' first argument is the feed id: it goes straight into
      * `/v1/{org}/projects/{project}/feeds/{feedId}/data`. Unlike the tracking calls this is a
      * synchronous read, so a null result means the request genuinely failed rather than being
      * queued for later.
@@ -193,7 +228,7 @@ class SdkProdObjectsTest {
      * "one of the two", not "the feed is broken".
      */
     @Test
-    fun recommendationReturnsFromTheFeed() {
+    fun productsReturnFromTheFeed() {
         // Opt-in. Delivery to the gateway is not the same as ingested-and-queryable: the feed
         // only answers for a profile the platform already knows, and there is lag after the
         // 201 that no client-side wait can bound. Verified by hand that the mechanism works —
@@ -214,7 +249,7 @@ class SdkProdObjectsTest {
                 .filter { it.isNotEmpty() }
 
         // Give the platform a profile to answer about, then let it reach the gateway.
-        Intempt.identify(userId = userId, userAttributes = mapOf("source" to "android-sdk-e2e"))
+        Intempt.identify(userId = userId, userAttributes = IntemptValue.mapOf(mapOf("source" to "android-sdk-e2e")))
         awaitEvent("the identify to be queued") { it.optString("type") == "identify" }
         val delivered =
             awaitDrained(timeoutMs = 120_000) {
@@ -225,7 +260,7 @@ class SdkProdObjectsTest {
             delivered,
         )
 
-        val result = runBlocking { Intempt.recommendation(feedId, 3, fields, null) }
+        val result = runBlocking { Intempt.products(feedId, 3, fields, null) }
 
         assertNotNull(
             "feed $feedId returned nothing. Either the feed id is wrong or this device's " +

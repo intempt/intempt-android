@@ -57,6 +57,9 @@ public class QueueConfig {
      * <p>Reading this as a hard 20MB cap inverts the semantic and drops events on
      * devices with gigabytes free. Source: MPDbAdapter.java:189-190, MPConfig.java:212.
      */
+    /** No override supplied; {@link #getFlushInterval()} falls back to {@link #FLUSH_INTERVAL_MS}. */
+    private static final int FLUSH_INTERVAL_UNSET = -1;
+
     private static final int MINIMUM_DATABASE_LIMIT = 20 * 1024 * 1024;
 
     /** The real ceiling. Source: MPConfig.java:215. */
@@ -67,7 +70,15 @@ public class QueueConfig {
     private final boolean mGzipRequestPayload;
     private final String mAuthorization;
     private final int mBulkUploadLimitOverride;
-    private final int mFlushIntervalOverride;
+    /**
+     * Modification: not final, and volatile.
+     *
+     * <p>Upstream fixes the flush interval at construction. The cross-SDK contract requires a
+     * settable {@code flushInterval} on the public instance, and the delivery worker reads this
+     * on every flush decision, so a write here takes effect without restarting the worker.
+     * Volatile because the writer is the caller's thread and the reader is the worker's.
+     */
+    private volatile int mFlushIntervalOverride;
     private final SSLSocketFactory mSslSocketFactory;
 
     public QueueConfig(String eventsEndpoint) {
@@ -126,7 +137,7 @@ public class QueueConfig {
         mBackupHost = backupHost;
         mGzipRequestPayload = gzipRequestPayload;
         mBulkUploadLimitOverride = itemsInQueue > 0 ? itemsInQueue : 0;
-        mFlushIntervalOverride = timeBufferMs > 0 ? (int) timeBufferMs : 0;
+        mFlushIntervalOverride = timeBufferMs > 0 ? (int) timeBufferMs : FLUSH_INTERVAL_UNSET;
         mSslSocketFactory = sslSocketFactory;
     }
 
@@ -145,8 +156,15 @@ public class QueueConfig {
      * <p>It survived review because both tests that claimed to cover delivery could not see
      * it: the JVM test built its own headers map, and the device test's definition of
      * "delivered" was "the row left the queue", which is equally the signature of a drop.
+     *
+     * <p><b>Package-private, deliberately.</b> This returns the base64 ingestion credential, and
+     * as a public method it was in the declared API surface — the same defect as
+     * {@code ConfigManagerService.token()}, which was public API returning the same secret.
+     * Every caller, production and test, is in this package, so nothing needed it to be public.
+     * Found by reading app.api after the cross-SDK contract added its credential-handling rules;
+     * grep for "apiKey|token|authorization|secret" in that file is the check worth repeating.
      */
-    public String getAuthorization() {
+    /* package */ String getAuthorization() {
         return mAuthorization;
     }
 
@@ -154,8 +172,27 @@ public class QueueConfig {
         return mBulkUploadLimitOverride > 0 ? mBulkUploadLimitOverride : BULK_UPLOAD_LIMIT;
     }
 
+    /** @return the size-triggered flush delay in ms, or 0 when the timer is disabled. */
     public int getFlushInterval() {
-        return mFlushIntervalOverride > 0 ? mFlushIntervalOverride : FLUSH_INTERVAL_MS;
+        return mFlushIntervalOverride == FLUSH_INTERVAL_UNSET ? FLUSH_INTERVAL_MS : mFlushIntervalOverride;
+    }
+
+    /**
+     * Sets the size-triggered flush delay in milliseconds. Not an upstream method.
+     *
+     * <p><b>Zero disables the timer</b>, matching the cross-SDK contract. Events then leave only
+     * on an explicit {@code flush()} or when the queue reaches its bulk-upload limit. Negatives
+     * are clamped to zero rather than rejected: the alternative — passing one through — would
+     * reach {@code sendMessageDelayed} as a negative delay, which Android treats as zero and
+     * would spin the delivery worker.
+     *
+     * <p>The unset sentinel is deliberately not reachable from here. Once an app has set an
+     * interval there is no way to ask for "whatever the default was", because a setter that can
+     * silently restore a different value than the one written is how a flush interval ends up
+     * being something nobody chose.
+     */
+    public void setFlushInterval(int millis) {
+        mFlushIntervalOverride = Math.max(0, millis);
     }
 
     public int getFlushBatchSize() {

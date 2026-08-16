@@ -36,6 +36,68 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Runs first and on its own, because a leaked credential is the one failure that cannot be
+  # fixed by a follow-up commit: once it is in a public repo's history it has to be rotated.
+  #
+  # This exists because GitHub's own secret scanning is OFF on every public repo in the org —
+  # an enforced org-level security configuration named "Legacy" pins it disabled, and a
+  # repo-level enable is refused with HTTP 422. Until that configuration is changed by an org
+  # owner, this job is the only scanning these repos have.
+  #
+  # It is not a replacement for the platform feature. It sees this repo only, and only what is
+  # in the diff or the tree at scan time; GitHub's would scan history, validate whether a found
+  # key is live, and block the push before it ever lands.
+  secret-scan:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+        with:
+          # Full history: a secret removed in a later commit is still in the pack, and still
+          # has to be rotated. Scanning only the tip would report clean on exactly that case.
+          fetch-depth: 0
+
+      # The gitleaks BINARY, not gitleaks/gitleaks-action.
+      #
+      # The binary is MIT. The marketplace action is not: on an organization repo it exits with
+      # "missing gitleaks license. Go grab one at gitleaks.io", which is exactly how this job
+      # failed on its first real run. The scanner itself is free; only the wrapper is licensed.
+      #
+      # Pinned by version and checksum-free by download from the project's own release, which is
+      # one fewer third party than a marketplace action in any case.
+      - name: Install gitleaks
+        run: |
+          set -euo pipefail
+          VERSION=8.30.1
+          curl -sSL "https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/gitleaks_${VERSION}_linux_x64.tar.gz" \
+            | tar -xz -C /usr/local/bin gitleaks
+          gitleaks version
+
+      - name: Scan for credentials
+        run: gitleaks detect --source . --redact --verbose --exit-code 1
+
+      # Two patterns gitleaks does not know, both of which have actually leaked in this org.
+      #
+      # An Intempt ingestion key is "<id>.<secret>" with no vendor prefix, so no provider rule
+      # matches it — one is sitting in intempt-android-release-verification's history today.
+      # The Authorization header is the base64 of that key and reads as ordinary base64.
+      #
+      # Scoped to tracked files and excluding this workflow, so the patterns below do not match
+      # themselves. Tests carry deliberately fake keys, which is why the match requires a
+      # realistic secret half rather than any dot-separated token.
+      - name: Scan for Intempt-shaped credentials
+        run: |
+          set -uo pipefail
+          hits=$(git grep -nIE \
+            "(Basic [A-Za-z0-9+/]{40,}={0,2}|[0-9a-f]{16,}\.[A-Za-z0-9_-]{24,})" \
+            -- ':!.github/workflows/ci.yml' ':!*Test*' ':!*test*' || true)
+          if [ -n "$hits" ]; then
+            echo "::error::Possible Intempt credential in the tree:"
+            echo "$hits"
+            exit 1
+          fi
+          echo "No Intempt-shaped credentials found."
+
   compile:
     name: Compile
     runs-on: ubuntu-latest
@@ -158,7 +220,21 @@ jobs:
           METHOD_COUNT=$("$BUILD_TOOLS_DIR/dexdump" -f "$WORKDIR/classes.dex" \
             | grep "method_ids_size" | awk '{print $NF}')
 
-          CEILING=2700
+          # Raised from 2700 for the 3.0 API. Measured at 2898 with the same d8 + dexdump
+          # commands above; the ceiling is that number plus ~50 of headroom, deliberately tight so
+          # the gate keeps biting.
+          #
+          # The growth is the contract surface, not slack. IntemptInstance is a full delegating
+          # class (named instances are contractual — a singleton is not conformant), and every
+          # defaulted method carries an @JvmOverloads set on both it and Intempt so Java callers
+          # can use them. IntemptError is 12 cases, IntemptValue 6, plus the options and
+          # credential types.
+          #
+          # The gate already earned its keep on this change: it caught 74 generated members from
+          # declaring IntemptError's cases as `data` classes. Nobody copies an error with a
+          # different status or destructures one, so they are plain classes and that is 55 methods
+          # back. Check for that kind of waste before raising this again.
+          CEILING=2950
           echo "SDK's own method count: $METHOD_COUNT (ceiling: $CEILING, baseline: ~2,409)"
           if [ "$METHOD_COUNT" -gt "$CEILING" ]; then
             echo "::error::SDK method count $METHOD_COUNT exceeds ceiling $CEILING. If this growth is intentional, raise CEILING in .github/workflows/ci.yml with a note on why."
@@ -225,8 +301,26 @@ jobs:
       # with no third-party dependency graph of its own to scan. Gated at CVSS >= 9 (critical);
       # see the dependencyCheck block in app/build.gradle.kts for why the threshold is not "any
       # known CVE".
+      # Runs only when an NVD API key is configured, and that is not a convenience.
+      #
+      # dependency-check 13 cannot complete without one. With no key it throws
+      # "Invalid API Key, length of 0 too short to provided a masked partial key" while building
+      # its own log line, so the scan fails before analysing anything — and NIST now rate-limits
+      # keyless access hard enough that it would be unusable regardless.
+      #
+      # Skipping is stated rather than hidden. `continue-on-error` would render a green check for
+      # a scan that never ran, which is worse than no scan: it reads as "no vulnerabilities".
+      #
+      # To turn this on: request a free key at https://nvd.nist.gov/developers/request-an-api-key
+      # and add it as the INTEMPT_NVD_API_KEY repository secret. Nothing else changes.
       - name: Dependency vulnerability scan
+        if: env.INTEMPT_NVD_API_KEY != ''
         run: ./gradlew :app:dependencyCheckAnalyze --stacktrace
+
+      - name: Note when the vulnerability scan was skipped
+        if: env.INTEMPT_NVD_API_KEY == ''
+        run: |
+          echo "::warning title=Dependency scan skipped::INTEMPT_NVD_API_KEY is not set, so :app:dependencyCheckAnalyze did not run. This build has NOT been checked for known CVEs. Request a key at https://nvd.nist.gov/developers/request-an-api-key and add it as a repository secret."
 
       - name: Upload dependency-check report
         if: always()

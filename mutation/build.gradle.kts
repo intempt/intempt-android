@@ -21,12 +21,25 @@
 
 plugins {
     id("java-library")
+    // Kotlin, added for 3.0. The queue substrate this module was built for is Java, but the types
+    // 3.0 introduced — IntemptValue, IntemptError, IntemptCredentials, Product, InstanceId — are
+    // Kotlin, pure, and exactly the kind of decision-dense code mutation testing is for. Leaving
+    // them out would have meant the gate covering the transport and none of the new surface.
+    kotlin("jvm")
     id("info.solidsoft.pitest") version "1.15.0"
 }
 
 java {
     sourceCompatibility = JavaVersion.VERSION_17
     targetCompatibility = JavaVersion.VERSION_17
+}
+
+// Pinned to match compileJava. Kotlin otherwise defaults to the toolchain's 21 and Gradle refuses
+// the mismatch — the two compilers feed one classpath here, so they have to agree.
+kotlin {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+    }
 }
 
 sourceSets {
@@ -49,6 +62,20 @@ sourceSets {
             include("com/intempt/core/queue/DeliveryRetryPolicy.java")
             include("android/util/Log.java")
         }
+        kotlin {
+            // Same rule as the Java list above: everything here must compile without android.jar,
+            // so a type that grows an `android.*` import fails this module rather than silently
+            // dropping out of the mutation gate.
+            setSrcDirs(listOf("../app/src/main/java"))
+            include("com/intempt/core/types/IntemptValue.kt")
+            include("com/intempt/core/types/IntemptError.kt")
+            include("com/intempt/core/types/IntemptCredentials.kt")
+            include("com/intempt/core/types/InstanceId.kt")
+            include("com/intempt/core/types/Product.kt")
+            include("com/intempt/core/types/ConsentAction.kt")
+            include("com/intempt/core/types/CaptureOptions.kt")
+            include("com/intempt/core/types/FeedFields.kt")
+        }
     }
     test {
         java {
@@ -62,6 +89,13 @@ sourceSets {
             include("com/intempt/core/queue/QueueLogFallbackTest.java")
             include("com/intempt/core/queue/EventDedupKeyPureTest.java")
             include("com/intempt/core/queue/DeliveryRetryPolicyTest.java")
+        }
+        kotlin {
+            setSrcDirs(listOf("../app/src/test/java"))
+            include("com/intempt/core/types/IntemptValueTest.kt")
+            include("com/intempt/core/types/InstanceIdTest.kt")
+            include("com/intempt/core/types/IntemptCredentialsTest.kt")
+            include("com/intempt/core/types/ContractTypesTest.kt")
         }
     }
 }
@@ -81,6 +115,12 @@ pitest {
     pitestVersion.set("1.16.1")
     targetClasses.set(
         listOf(
+            "com.intempt.core.types.IntemptValue*",
+            "com.intempt.core.types.IntemptError*",
+            "com.intempt.core.types.IntemptCredentials*",
+            "com.intempt.core.types.InstanceId*",
+            "com.intempt.core.types.Product*",
+            "com.intempt.core.types.ConsentAction*",
             "com.intempt.core.queue.HttpStatusPolicy*",
             "com.intempt.core.queue.TrackPayloadBuilder*",
             "com.intempt.core.queue.QueueConfig*",
@@ -91,6 +131,10 @@ pitest {
     )
     targetTests.set(
         listOf(
+            "com.intempt.core.types.IntemptValueTest",
+            "com.intempt.core.types.InstanceIdTest",
+            "com.intempt.core.types.IntemptCredentialsTest",
+            "com.intempt.core.types.ContractTypesTest",
             "com.intempt.core.queue.HttpStatusPolicyTest",
             "com.intempt.core.queue.PureJvmQueueTest",
             "com.intempt.core.queue.TrackPayloadBuilderPureTest",

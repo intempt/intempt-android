@@ -2,10 +2,17 @@ package com.intempt.core
 
 import android.view.View
 import androidx.test.core.app.ApplicationProvider
+import com.intempt.core.types.ConsentAction
+import com.intempt.core.types.FeedFields
+import com.intempt.core.types.IntemptCredentials
+import com.intempt.core.types.IntemptValue
+import com.intempt.core.types.Product
 import kotlinx.coroutines.runBlocking
 import org.junit.After
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -41,9 +48,14 @@ class IntemptFacadeTest {
      * on a public SDK facade, and there should not be one just to satisfy a test.
      */
     private fun resetCore() {
-        val field = Intempt::class.java.getDeclaredField("intemptCore")
+        // `instances`, not `intemptCore`: the facade holds a registry of named instances as of
+        // 3.0, not a single core reference. Reflection is still unavoidable — there is no reset on
+        // a public SDK facade and there should not be one just to satisfy a test — but the field
+        // name is now load-bearing, so it is asserted rather than assumed. A silently missing
+        // field would make every test in this class fail in setUp, which is what it did.
+        val field = Intempt::class.java.getDeclaredField("instances")
         field.isAccessible = true
-        field.set(Intempt, null)
+        (field.get(Intempt) as MutableMap<*, *>).clear()
     }
 
     // ------------------------------------------------------------------- state
@@ -109,32 +121,149 @@ class IntemptFacadeTest {
      */
     @Test
     fun `no entry point throws when the sdk was never initialized`() {
+        val attrs = IntemptValue.mapOf(mapOf("plan" to "pro", "seats" to 5, "trial" to false))
+
         Intempt.identify("user@example.com")
-        Intempt.identify("user@example.com", "Signed up", mapOf("plan" to "pro"), mapOf("k" to "v"))
+        Intempt.identify("user@example.com", "Signed up", attrs, attrs)
         Intempt.group("acct-1")
-        Intempt.group("acct-1", "Joined", mapOf("tier" to "enterprise"))
-        Intempt.track("Viewed", mapOf("screen" to "home"))
+        Intempt.group("acct-1", "Joined", attrs)
+        Intempt.track("Viewed")
+        Intempt.track("Viewed", attrs)
         Intempt.record("Custom")
-        Intempt.record("Custom", "acct-1", "user@example.com", mapOf("a" to "b"), mapOf("c" to "d"), mapOf("e" to "f"))
+        Intempt.record("Custom", "user@example.com", "acct-1", attrs, attrs, attrs)
         Intempt.alias("user@example.com", "user-2")
-        Intempt.consent("granted", 1_800_000_000_000L)
-        Intempt.consent("granted", 1_800_000_000_000L, "user@example.com", "why", "marketing")
+        Intempt.consent(ConsentAction.ACCEPT, 1_800_000_000_000L)
+        Intempt.consent(ConsentAction.REJECT, 1_800_000_000_000L, "user@example.com", "why", "marketing")
         Intempt.productAdd("21", 2)
-        Intempt.productOrdered(listOf(mapOf("productId" to "21", "quantity" to 1)))
+        Intempt.productOrdered(listOf(Product("21", 1)))
         Intempt.productView("21")
         Intempt.logOut()
+        Intempt.reset()
+        Intempt.optIn()
+        Intempt.optOut()
+        Intempt.flush()
+        Intempt.flush { }
         Intempt.doNotCaptureText(View(ApplicationProvider.getApplicationContext()))
+    }
+
+    /**
+     * The readers added in 3.0. Each has to answer something rather than throw, and the answer has
+     * to be the one a host app can branch on safely: "" for an identifier it does not have, false
+     * for a capability that is not running, 0 for a timer that is not scheduled.
+     */
+    @Test
+    fun `the 3_0 readers answer safely when the sdk was never initialized`() {
+        assertEquals("", Intempt.getProfileId())
+        assertEquals("", Intempt.getSessionId())
+        assertFalse("a dead SDK is not opted in", Intempt.isOptedIn())
+        assertFalse("hasOptedOut must not claim an opt-out that was never recorded", Intempt.hasOptedOut())
+        assertEquals(0, Intempt.flushInterval)
+
+        // The setter has the same obligation as the getter, and is the half most likely to have
+        // dereferenced the core without a guard.
+        Intempt.flushInterval = 30
+        assertEquals("a write against a dead SDK must not be reported as stored", 0, Intempt.flushInterval)
+    }
+
+    /**
+     * Concurrent initialize() calls produce at most one instance.
+     *
+     * The registry is a ConcurrentHashMap, which makes the map safe and says nothing about what is
+     * built to put in it. An earlier version constructed the whole Dagger graph before taking any
+     * lock, so a losing thread had already started a `DeliveryMessages` HandlerThread and an event
+     * collector before discovering it had lost — and then dropped them on the floor. Construction
+     * now happens under the lock.
+     *
+     * Asserted on the registry's size rather than on threads, because a thread leak is not
+     * observable from here; a second registration would be, and it is the same race.
+     */
+    @Test
+    fun `concurrent initialize calls register at most one instance`() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val threads = 8
+        val start = java.util.concurrent.CountDownLatch(1)
+        val done = java.util.concurrent.CountDownLatch(threads)
+        val results = java.util.Collections.synchronizedList(mutableListOf<Boolean>())
+
+        repeat(threads) {
+            Thread {
+                start.await()
+                results += Intempt.initialize(context)
+                done.countDown()
+            }.start()
+        }
+        start.countDown()
+        assertTrue("threads did not finish", done.await(30, java.util.concurrent.TimeUnit.SECONDS))
+
+        // There is no config asset in this module, so every call must refuse — identically, from
+        // every thread. A race that produced a half-built instance would show up as a mixed result.
+        assertEquals("every concurrent call must agree", 1, results.toSet().size)
+        assertFalse("no instance can exist without credentials", Intempt.isInitialized)
+        assertNull(Intempt.mainInstance())
+    }
+
+    /**
+     * A second initialize for the same name returns the first instance rather than replacing it.
+     *
+     * Replacing it would orphan the first graph — its queue, its HandlerThread and its collector —
+     * while callers holding the old reference kept writing to storage nothing would ever flush.
+     */
+    @Test
+    fun `initializing the same name twice returns the same instance`() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+
+        // Both refuse here (no config asset), which is still the property under test: the second
+        // call must not leave a different registry state than the first.
+        val first = Intempt.initialize(context, null, "tenant-a")
+        val second = Intempt.initialize(context, null, "tenant-a")
+
+        assertEquals(first, second)
+        assertNull("a refused initialize must register nothing", Intempt.instance("tenant-a"))
+    }
+
+    /**
+     * Runtime credentials are refused before Dagger is touched when they are malformed.
+     *
+     * A key without its `<id>.<secret>` separator used to reach the auth path and throw
+     * IndexOutOfBoundsException from inside it — a typo in a credential crashing the host app.
+     */
+    @Test
+    fun `initialize refuses malformed runtime credentials without throwing`() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+
+        assertFalse(Intempt.initialize(context, IntemptCredentials("no-separator", "org", "proj", "src")))
+        assertFalse(Intempt.initialize(context, IntemptCredentials("", "org", "proj", "src")))
+        assertFalse(Intempt.initialize(context, IntemptCredentials("id.secret", "", "proj", "src")))
+        assertFalse(Intempt.isInitialized)
     }
 
     /** The suspend entry point has the same obligation, and must return null rather than throw. */
     @Test
-    fun `recommendation returns null rather than throwing when uninitialized`() =
+    fun `products returns null rather than throwing when uninitialized`() =
         runBlocking {
             assertNull(
-                "a recommendation with no SDK behind it is absent, not an error",
-                Intempt.recommendation("feed-5292", 4, listOf("id"), null),
+                "a feed lookup with no SDK behind it is absent, not an error",
+                Intempt.products("feed-5292", 4, listOf("id"), null),
             )
+
+            // The defaulted arities too — @JvmOverloads generates them, and each is a separate
+            // entry point that has its own chance to have missed the null-core guard.
+            assertNull(Intempt.products("feed-5292"))
+            assertNull(Intempt.products("feed-5292", 4))
         }
+
+    /**
+     * The default field set is compact, and that is load-bearing rather than tidy.
+     *
+     * An unfielded feed request returns every catalog column including raw ML embedding vectors —
+     * 222,919 bytes against 503 for the same 10 products. A default that grew to "everything"
+     * would be a 443x payload nobody asked for, so the contract forbids it and this pins it.
+     */
+    @Test
+    fun `the default feed field set is not everything`() {
+        assertTrue("a default of no fields means the server picks, which is 'all'", FeedFields.DEFAULT.isNotEmpty())
+        assertTrue("the default must stay compact", FeedFields.DEFAULT.size <= 5)
+    }
 
     /**
      * The nested toggles are a separate object each, so they have their own guard and their own
@@ -144,8 +273,8 @@ class IntemptFacadeTest {
     fun `the logging and tracking toggles are no-ops when uninitialized`() {
         Intempt.Logging.start()
         Intempt.Logging.stop()
-        Intempt.Tracking.start()
-        Intempt.Tracking.stop()
+        Intempt.optIn()
+        Intempt.optOut()
     }
 
     /**
@@ -159,7 +288,7 @@ class IntemptFacadeTest {
     @Test
     fun `the toggles report disabled rather than throwing when uninitialized`() {
         assertFalse(Intempt.Logging.isLoggingEnabled())
-        assertFalse(Intempt.Tracking.isTrackingEnabled())
+        assertFalse(Intempt.isOptedIn())
     }
 
     // ------------------------------------------------------------- hostile input
@@ -175,7 +304,7 @@ class IntemptFacadeTest {
         Intempt.identify("")
         Intempt.identify(huge)
         Intempt.track("", emptyMap())
-        Intempt.track(huge, mapOf(huge to huge))
+        Intempt.track(huge, IntemptValue.mapOf(mapOf(huge to huge)))
         Intempt.group("")
         Intempt.alias("", "")
         Intempt.productAdd("", 0)
@@ -188,7 +317,7 @@ class IntemptFacadeTest {
     @Test
     fun `unicode arguments do not throw when uninitialized`() {
         Intempt.identify("ünïcødé@example.com")
-        Intempt.track("购买 🎉", mapOf("категория" to "тест"))
+        Intempt.track("购买 🎉", IntemptValue.mapOf(mapOf("категория" to "тест")))
         Intempt.group("مجموعة")
     }
 
@@ -198,7 +327,7 @@ class IntemptFacadeTest {
      */
     @Test
     fun `a past or zero consent expiry does not throw when uninitialized`() {
-        Intempt.consent("revoked", 0L)
-        Intempt.consent("revoked", -1L)
+        Intempt.consent(ConsentAction.REJECT, 0L)
+        Intempt.consent(ConsentAction.REJECT, -1L)
     }
 }
