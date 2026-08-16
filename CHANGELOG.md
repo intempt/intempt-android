@@ -11,7 +11,12 @@ under Unreleased.
 
 ## [Unreleased]
 
-Targets `3.0.0` (`VERSION` in `gradle.properties`). The major bump is deliberate: `minSdk` moved and
+## [3.0.1] - 2026-08-16
+
+`v3.0.0` was tagged and staged once already, then dropped before release: the tagged commit
+predated the fix for `:app`/`:push` publishing to Maven Central in the same Gradle invocation (see
+`RELEASING.md`), so it was never released. This version carries that fix and is otherwise
+identical to what `3.0.0` would have shipped. The major bump is deliberate: `minSdk` moved and
 several defaults changed behaviour, so a consumer upgrading needs to read this.
 
 ### Added
@@ -122,5 +127,6 @@ The last tagged release. Published to Maven Central as `com.intempt.sdk:intempt-
 No changelog was kept at the time, and this file does not invent one. `git log v2.0.1` is the
 authoritative record of what that tag contains.
 
-[Unreleased]: https://github.com/intempt/intempt-android/compare/v2.0.1...HEAD
+[Unreleased]: https://github.com/intempt/intempt-android/compare/v3.0.1...HEAD
+[3.0.1]: https://github.com/intempt/intempt-android/compare/v2.0.1...v3.0.1
 [2.0.1]: https://github.com/intempt/intempt-android/releases/tag/v2.0.1

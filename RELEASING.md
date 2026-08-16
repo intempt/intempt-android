@@ -12,15 +12,34 @@ can never be cut from a feature branch or a stale local checkout.
 ## How it works
 
 - **Trigger:** pushing a tag matching `v*` (e.g. `v2.0.1`), or a manual run from the
-  Actions tab (`workflow_dispatch`).
+  Actions tab (`workflow_dispatch`). `tag-release.yml` (below) creates that tag push
+  automatically on a merge to `main`, but a real actor pushing the tag by hand works the same way.
 - **Guard:** the job fails unless the tagged/dispatched commit is contained in `origin/main`.
 - **Build & sign:** builds the AAR and signs it in-memory using the release key.
-- **Staged upload:** uploads a *staged* deployment to the Central Portal. **Nothing goes live
-  automatically** — a human must click *Publish*.
+- **Staged upload:** uploads `:app` and `:push` as two separate `./gradlew` invocations (they can't
+  configure in the same Gradle build — see "Two artifacts" below) as *staged* deployments to the
+  Central Portal. **Nothing goes live automatically** — a human must click *Publish*.
+
+## Auto-tagging on merge (`.github/workflows/tag-release.yml`)
+
+Runs on every push to `main`. Reads `VERSION` from `gradle.properties`; if `v<VERSION>` doesn't
+already exist as a tag **and** `CHANGELOG.md` has a matching `## [<VERSION>]` heading, it creates
+and pushes that tag — which is what actually fires `publish.yml`. A merge that doesn't bump
+`VERSION` is a no-op: the workflow never moves or re-creates an existing tag, so it can't
+accidentally re-trigger a release.
+
+**Requires one more repo secret**, beyond the four below: `RELEASE_TAG_PAT`, a Personal Access
+Token (`contents: write` on this repo) used only to push the tag. This is necessary because a tag
+pushed with the default `GITHUB_TOKEN` does **not** trigger other workflows (GitHub's built-in
+loop-prevention rule) — `publish.yml`'s `on: push: tags:` would silently never fire without it.
+
+So cutting a release is now just: land the `VERSION` bump + `CHANGELOG.md` entry on `main` via a
+normal PR. `tag-release.yml` tags it; the tag push fires `publish.yml`; the rest is unchanged
+(staged upload, manual Publish click on the Central Portal).
 
 ## One-time setup (already done)
 
-Four GitHub repository secrets power the workflow (Settings → Secrets and variables → Actions):
+Five GitHub repository secrets power the two workflows (Settings → Secrets and variables → Actions):
 
 | Secret | What |
 | --- | --- |
@@ -28,6 +47,7 @@ Four GitHub repository secrets power the workflow (Settings → Secrets and vari
 | `MAVEN_CENTRAL_PASSWORD` | Central Portal user-token password |
 | `SIGNING_KEY` | ASCII-armored GPG **private** key (whose public half is on a keyserver) |
 | `SIGNING_PASSWORD` | passphrase for that key |
+| `RELEASE_TAG_PAT` | PAT with `contents: write`, used by `tag-release.yml` to push a tag that actually triggers `publish.yml` |
 
 The version is read from `VERSION` in `gradle.properties` (overridable per-release by the tag).
 
@@ -49,7 +69,11 @@ The version is read from `VERSION` in `gradle.properties` (overridable per-relea
    that to `main` too. Use [semver](https://semver.org/): patch for fixes, minor for additive
    features, major for breaking changes.
 
-4. **Tag the release commit on `main` and push the tag:**
+4. **Tagging happens automatically.** Once the `VERSION` bump + `CHANGELOG.md` entry land on
+   `main`, `tag-release.yml` tags that commit and pushes the tag within a minute or two — which
+   in turn triggers `publish.yml`. Confirm in **Actions** that "Tag a release on merge to main"
+   ran and pushed. If you'd rather tag by hand (e.g. `tag-release.yml` is disabled, or you need to
+   re-run a release without bumping `VERSION` again), do it the old way:
 
    ```bash
    git checkout main
