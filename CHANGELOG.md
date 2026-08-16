@@ -99,6 +99,22 @@ several defaults changed behaviour, so a consumer upgrading needs to read this.
 - **Experiments and personalizations.** Those are `intempt.js` features and were never supported by
   this SDK's backend contract.
 
+- **BREAKING: push notifications are no longer bundled in `com.intempt.sdk:intempt-android`.**
+  Firebase Cloud Messaging, the notification-dispatch activity, and the push-notification webhook
+  path moved out to a new, separate artifact: `com.intempt.sdk:intempt-push`. A host app that wants
+  push notifications must now add that dependency explicitly:
+
+  ```kotlin
+  implementation("com.intempt.sdk:intempt-android:3.0.0")
+  implementation("com.intempt.sdk:intempt-push:3.0.0") // add this to keep push working
+  ```
+
+  No code changes are required in either case: `Intempt.initialize()` detects `:intempt-push` at
+  runtime and enables push automatically when it's present, and silently skips it (as it already
+  did for a host app with no Firebase config) when it's absent. This was done to stop shipping
+  Firebase, Jackson, and Glide — none of which any non-push consumer needs — in every install of
+  the core SDK; see `docs/MIGRATION.md` for details.
+
 ## [2.0.1]
 
 The last tagged release. Published to Maven Central as `com.intempt.sdk:intempt-android:2.0.1`.

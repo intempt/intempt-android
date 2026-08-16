@@ -1,3 +1,5 @@
+@file:OptIn(com.intempt.core.internal.InternalIntemptApi::class)
+
 package com.intempt.core.customCapture
 
 import android.view.View

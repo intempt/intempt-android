@@ -1,4 +1,6 @@
-package com.intempt.core.services.firebase.webhook
+@file:OptIn(com.intempt.core.internal.InternalIntemptApi::class)
+
+package com.intempt.push.webhook
 
 import com.fasterxml.jackson.databind.JsonNode
 import com.intempt.core.autocapture.BaseComponent

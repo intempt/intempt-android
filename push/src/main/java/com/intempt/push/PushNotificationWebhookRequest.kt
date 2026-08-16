@@ -1,6 +1,6 @@
-package com.intempt.core.services.firebase
+package com.intempt.push
 
-import com.intempt.core.services.firebase.model.PushNotificationMetadata
+import com.intempt.push.model.PushNotificationMetadata
 
 internal data class PushNotificationWebhookRequest(
     var type: WebhookType,

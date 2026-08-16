@@ -24,6 +24,11 @@ dependencyResolutionManagement {
 rootProject.name = "intempt-android"
 include(":app")
 
+// Optional push-notification module. Depends on :app (not the other way around): a host app that
+// wants push adds this module explicitly; :app itself never references anything in it directly
+// (see com.intempt.core.internal.PushBridge for the presence-gated reflection call).
+include(":push")
+
 // A host app that consumes the library the way a customer does. Not published — it exists so
 // that "the SDK works" is something the build can demonstrate rather than assert.
 include(":sample")

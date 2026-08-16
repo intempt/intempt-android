@@ -438,11 +438,3 @@ public final class com/intempt/core/services/eventPool/EventPoolManagerService_F
 	public static fun newInstance (Lcom/intempt/core/services/ConfigManagerService;Lcom/intempt/core/services/LoggerManagerService;Lcom/intempt/core/services/HttpManagerService;Lcom/intempt/core/services/IntemptEventManagerService;Lcom/intempt/core/queue/DeliveryMessages;Lkotlinx/coroutines/CoroutineDispatcher;Lcom/intempt/core/queue/ConsentAuditLog;)Lcom/intempt/core/services/eventPool/EventPoolManagerService;
 }
 
-public final class com/intempt/core/services/firebase/model/PushNotificationMetadata$Creator : android/os/Parcelable$Creator {
-	public fun <init> ()V
-	public final fun createFromParcel (Landroid/os/Parcel;)Lcom/intempt/core/services/firebase/model/PushNotificationMetadata;
-	public synthetic fun createFromParcel (Landroid/os/Parcel;)Ljava/lang/Object;
-	public final fun newArray (I)[Lcom/intempt/core/services/firebase/model/PushNotificationMetadata;
-	public synthetic fun newArray (I)[Ljava/lang/Object;
-}
-
