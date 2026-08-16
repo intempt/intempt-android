@@ -8,7 +8,7 @@ Add the dependency to your module-level `build.gradle.kts`:
 
 ```kotlin
 dependencies {
-    implementation("com.intempt.sdk:intempt-android:3.0.0")
+    implementation("com.intempt.sdk:intempt-android:3.0.1")
 }
 ```
 
@@ -22,10 +22,19 @@ runs fully for analytics and recommendations. You do **not** need Firebase.
 
 ### With push notifications (Firebase / FCM)
 
-Push notifications are delivered through Firebase Cloud Messaging. The SDK already contains
-all push-handling code and bundles `firebase-messaging` transitively — but **you must add
-Firebase to your app** to enable it. The SDK does not ship a Firebase configuration (that
-belongs to your app), so follow these steps:
+Push notifications are delivered through Firebase Cloud Messaging, and shipped as a separate,
+optional artifact so that apps that don't use push don't pay for Firebase, Jackson, and Glide:
+
+```kotlin
+dependencies {
+    implementation("com.intempt.sdk:intempt-android:3.0.1")
+    implementation("com.intempt.sdk:intempt-push:3.0.1")
+}
+```
+
+`Intempt.initialize()` detects `intempt-push` on the classpath at runtime (via a reflection
+bridge) and enables push automatically when it's present — no extra calls needed. The SDK does
+not ship a Firebase configuration (that belongs to your app), so follow these steps:
 
 **1. Add your app to a Firebase project** and download its `google-services.json` into your
 app module (`app/google-services.json`). The Android package name in Firebase must match your
