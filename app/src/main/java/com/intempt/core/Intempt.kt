@@ -7,7 +7,6 @@ import android.util.Log
 import android.view.View
 import com.intempt.core.intemptCore.DaggerIntemptCoreComponent
 import com.intempt.core.intemptCore.IntemptCoreModule
-import com.intempt.core.intemptCore.IntemptCoreService
 import com.intempt.core.internal.PushBridge
 import com.intempt.core.types.AutocaptureOptions
 import com.intempt.core.types.AutomaticEventsOptions

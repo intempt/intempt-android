@@ -1,9 +1,9 @@
-package com.intempt.core.services.firebase
+package com.intempt.push
 
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
-import com.intempt.core.services.firebase.model.PushNotificationContent
-import com.intempt.core.services.firebase.model.PushNotificationMetadata
+import com.intempt.push.model.PushNotificationContent
+import com.intempt.push.model.PushNotificationMetadata
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows

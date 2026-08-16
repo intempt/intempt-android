@@ -1,3 +1,5 @@
+@file:OptIn(com.intempt.core.internal.InternalIntemptApi::class)
+
 package com.intempt.core
 
 import com.intempt.core.autocapture.AutoCaptureComponent
