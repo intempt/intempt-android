@@ -81,19 +81,18 @@ Since the push-notification module split (see `docs/MIGRATION.md`), this reposit
   on `:app` and is what a host app adds to keep push notifications working.
 
 Both share the same `VERSION` (`gradle.properties`) and are released together; there is no
-independent versioning for `:push` today. `publish.yml`'s `publishToMavenCentral` Gradle
-invocation is unqualified (not scoped to `:app`), so it already runs against every subproject with
-a `mavenPublishing { }` block — no separate workflow step is needed to publish the second artifact.
+independent versioning for `:push` today.
 
-> **Known issue, needs a fix before this actually works end-to-end:** running
-> `./gradlew :push:tasks` (or a build that configures both `:app` and `:push` in the same
-> invocation) currently fails with
+> **Resolved 2026-08-16:** configuring both `:app` and `:push`'s `com.vanniktech.maven.publish`
+> (0.28.0) tasks in the *same* Gradle invocation fails —
 > `IllegalArgumentException: Cannot set the value of task ':push:createStagingRepository'
-> property 'buildService' ...` — a `com.vanniktech.maven.publish` (0.28.0) conflict when the
-> plugin's Sonatype staging-repository build service is registered from two subprojects in the
-> same build. This needs to be resolved (a plugin upgrade past 0.28.0 was tried and did not clear
-> it locally; further investigation is needed) before `publishToMavenCentral` can be run with
-> `:push` in the project.
+> property 'buildService' ...` — because the plugin's Sonatype staging-repository build service
+> can't be registered from two subprojects in one build. `--configure-on-demand` alone does not
+> fix it while both modules' tasks are requested together. The fix is to publish them as **two
+> separate `./gradlew` processes**, each scoped to one module
+> (`:app:publishToMavenCentral` / `:push:publishToMavenCentral`, both with
+> `--configure-on-demand`) — verified locally via dry-run, and `publish.yml` now runs them as two
+> separate steps.
 
 ## Notes & troubleshooting
 

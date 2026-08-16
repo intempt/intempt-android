@@ -67,18 +67,35 @@ jobs:
           fi
           echo "CHANGELOG.md documents ${RELEASE_VERSION}."
 
-      - name: Publish to Maven Central (staged deployment)
+      # Two artifacts publish from this repo (:app -> intempt-android, :push -> intempt-push),
+      # both applying com.vanniktech.maven.publish. Configuring both in the SAME Gradle invocation
+      # fails: `Cannot set the value of task ':push:createStagingRepository' property 'buildService'
+      # ... using a provider of type SonatypeRepositoryBuildService` — the plugin's Sonatype
+      # staging-repository build service can't be registered twice in one build (0.28.0; a plugin
+      # bump was tried and didn't clear it — see RELEASING.md). --configure-on-demand alone does
+      # NOT fix it when both modules' tasks are requested together; the two publishes must be
+      # separate `./gradlew` processes.
+      - name: Publish :app to Maven Central (staged deployment)
         run: |
           chmod +x ./gradlew
-          ./gradlew publishToMavenCentral -PVERSION="$RELEASE_VERSION" --no-configuration-cache --stacktrace
+          ./gradlew :app:publishToMavenCentral -PVERSION="$RELEASE_VERSION" --configure-on-demand --no-configuration-cache --stacktrace
         env:
           ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
           ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
           ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SIGNING_KEY }}
           ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SIGNING_PASSWORD }}
 
-      # NOTE: this uses the STAGED task — after it succeeds, go to central.sonatype.com,
-      # review the deployment, and click "Publish" to release it to Maven Central.
+      - name: Publish :push to Maven Central (staged deployment)
+        run: |
+          ./gradlew :push:publishToMavenCentral -PVERSION="$RELEASE_VERSION" --configure-on-demand --no-configuration-cache --stacktrace
+        env:
+          ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SIGNING_KEY }}
+          ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SIGNING_PASSWORD }}
+
+      # NOTE: both use the STAGED task — after they succeed, go to central.sonatype.com,
+      # review the deployment(s), and click "Publish" to release them to Maven Central.
       # To auto-release instead, change the task to: publishAndReleaseToMavenCentral
 
       # Additive only — does not touch the Maven Central publish above. The CHANGELOG check
