@@ -1,0 +1,48 @@
+name: Tag a release on merge to main
+
+# Reads VERSION from gradle.properties on every push to main. If v<VERSION> doesn't exist yet
+# and CHANGELOG.md documents it, creates and pushes that tag — which is what actually triggers
+# publish.yml (tag pushes only). A merge to main that doesn't bump VERSION is a no-op here: this
+# workflow never re-tags or moves an existing tag, so it can't accidentally re-trigger a release
+# or overwrite a deployment someone already dealt with on the Central Portal.
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # need full tag history to check for an existing tag
+          # A tag pushed with the default GITHUB_TOKEN does NOT trigger other workflows (GitHub's
+          # loop-prevention rule) — publish.yml would never fire. RELEASE_TAG_PAT is a PAT with
+          # `contents: write` on this repo, used only for the push below, so the tag looks like
+          # it came from a real actor and publish.yml's `on: push: tags:` fires normally.
+          token: ${{ secrets.RELEASE_TAG_PAT }}
+
+      - name: Tag the release if VERSION is new
+        run: |
+          set -euo pipefail
+          VERSION="$(grep -E '^VERSION=' gradle.properties | cut -d= -f2)"
+          TAG="v${VERSION}"
+
+          if git rev-parse "refs/tags/${TAG}" >/dev/null 2>&1; then
+            echo "Tag ${TAG} already exists — VERSION wasn't bumped in this push. Nothing to do."
+            exit 0
+          fi
+
+          if ! grep -qE "^## \[${VERSION}\]" CHANGELOG.md; then
+            echo "::notice::CHANGELOG.md has no '## [${VERSION}]' heading yet — not tagging. publish.yml would reject this version anyway; add the entry first."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "Release $TAG"
+          git push origin "$TAG"
+          echo "Pushed ${TAG} — publish.yml will pick it up."
