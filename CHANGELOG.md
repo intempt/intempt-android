@@ -11,8 +11,10 @@ under Unreleased.
 
 ## [Unreleased]
 
-Targets `3.0.0` (`VERSION` in `gradle.properties`). The major bump is deliberate: `minSdk` moved and
-several defaults changed behaviour, so a consumer upgrading needs to read this.
+## [3.0.0] - 2026-08-16
+
+The major bump is deliberate: `minSdk` moved and several defaults changed behaviour, so a consumer
+upgrading needs to read this.
 
 ### Added
 
