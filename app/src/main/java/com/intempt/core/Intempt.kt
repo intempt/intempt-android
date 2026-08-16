@@ -1,11 +1,14 @@
+@file:OptIn(com.intempt.core.internal.InternalIntemptApi::class)
+
 package com.intempt.core
 
 import android.content.Context
 import android.util.Log
 import android.view.View
-import com.google.firebase.FirebaseApp
 import com.intempt.core.intemptCore.DaggerIntemptCoreComponent
 import com.intempt.core.intemptCore.IntemptCoreModule
+import com.intempt.core.intemptCore.IntemptCoreService
+import com.intempt.core.internal.PushBridge
 import com.intempt.core.types.AutocaptureOptions
 import com.intempt.core.types.AutomaticEventsOptions
 import com.intempt.core.types.ConsentAction
@@ -217,16 +220,13 @@ object Intempt {
         // Only after registration, so a screen view emitted by the hooks finds its instance.
         instance.core.startAutocaptureIfConfigured()
 
-        // Push notifications are OPTIONAL. They only work when the host app has configured Firebase
-        // (google-services plugin + google-services.json). If it hasn't, skip gracefully — never
-        // fail core analytics init over a missing push setup.
-        try {
-            if (FirebaseApp.getApps(context).isEmpty()) {
-                FirebaseApp.initializeApp(context)
-            }
-        } catch (e: Exception) {
-            Log.i("FCM", "Firebase not configured; push notifications are disabled.")
-        }
+        // Push notifications are OPTIONAL and live in the separate :push module. This is a
+        // presence-gated reflection call rather than a direct dependency — :app cannot depend on
+        // :push (the dependency direction is :push -> :app) — so it degrades silently to a no-op
+        // when the host app hasn't added :push, and also when it has but hasn't configured
+        // Firebase (google-services plugin + google-services.json). Never fail core analytics
+        // init over a missing or absent push setup.
+        PushBridge.initializeIfPresent(context)
 
         return instance
     }

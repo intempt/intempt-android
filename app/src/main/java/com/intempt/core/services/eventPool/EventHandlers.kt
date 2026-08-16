@@ -1,23 +1,19 @@
+@file:OptIn(com.intempt.core.internal.InternalIntemptApi::class)
+
 package com.intempt.core.services.eventPool
 
 import android.app.Activity
 import android.view.View
+import com.intempt.core.internal.PushBridge
 import com.intempt.core.services.IntemptEventManagerService
 import com.intempt.core.services.LoggerManagerService
-import com.intempt.core.services.firebase.FirebaseService
 import com.intempt.core.types.HandleEventTypeProps
 import com.intempt.core.types.IntemptEventProvider
-import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 
 internal class EventHandlers(
     private val logger: LoggerManagerService,
     private val intemptEvent: IntemptEventManagerService,
-    private val dispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) {
-    private val firebaseService: FirebaseService = FirebaseService()
-
     fun fragment(props: HandleEventTypeProps): Array<IntemptEventProvider> {
         val newEvent = intemptEvent.generateFragmentTransitionEventPayload()
         return newEvent ?: arrayOf()
@@ -74,7 +70,7 @@ internal class EventHandlers(
     suspend fun installOrUpgrade(props: HandleEventTypeProps): Array<IntemptEventProvider> {
         logger.log("EventPool | InstallOrUpgrade called")
 
-        val token = withContext(dispatcher) { firebaseService.initializeToken() }
+        val token = PushBridge.registerTokenIfPresent() ?: ""
         val newEvent = intemptEvent.generateInstallUpgradeEventPayload(token = token)
 
         logger.log("EventPool | App installation/upgrade Event: $newEvent")

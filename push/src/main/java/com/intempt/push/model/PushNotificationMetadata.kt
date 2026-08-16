@@ -1,4 +1,4 @@
-package com.intempt.core.services.firebase.model
+package com.intempt.push.model
 
 import android.os.Parcelable
 import kotlinx.parcelize.Parcelize

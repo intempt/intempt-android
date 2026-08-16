@@ -1,3 +1,5 @@
+@file:OptIn(com.intempt.core.internal.InternalIntemptApi::class)
+
 package com.intempt.core.services.eventPool
 import com.intempt.core.autocapture.BaseComponent
 import com.intempt.core.eventModels.IntemptEvent
@@ -55,10 +57,10 @@ internal open class EventPoolManagerService
         // never been queued, so it does not move to the durable queue.
         private var lastDispatchTime: Long = System.currentTimeMillis()
 
-        // The dispatcher has to be handed down. EventHandlers defaults to Dispatchers.IO,
-        // so omitting it here meant every coroutine EventHandlers launched ran on the real
-        // IO pool no matter what a test injected into this class.
-        private val eventHandlers = EventHandlers(logger, intemptEvent, dispatcher)
+        // EventHandlers no longer takes a dispatcher: its one dispatcher-sensitive call
+        // (fetching the FCM token) moved behind PushBridge.registerTokenIfPresent(), which
+        // wraps its own reflective call in withContext(Dispatchers.IO) internally.
+        private val eventHandlers = EventHandlers(logger, intemptEvent)
         private var eventReceiverJob: Job? = null
 
         // extraBufferCapacity, not replay alone.

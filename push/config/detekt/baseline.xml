@@ -1,0 +1,15 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues></ManuallySuppressedIssues>
+  <CurrentIssues>
+    <ID>LongMethod:FirebaseService.kt$FirebaseService$private fun sendPushNotification( context: Context, content: PushNotificationContent, metadata: PushNotificationMetadata?, webhookService: WebhookService, )</ID>
+    <ID>MaxLineLength:FirebaseService.kt$FirebaseService$intentTest.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)</ID>
+    <ID>ReturnCount:FirebaseService.kt$FirebaseService$private fun notificationsAllowed(context: Context): Boolean</ID>
+    <ID>SwallowedException:PushModuleEntryPoint.kt$PushModuleEntryPoint$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:FirebaseService.kt$FirebaseService$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:FirebaseService.kt$FirebaseService$e: Throwable</ID>
+    <ID>TooGenericExceptionCaught:NotificationDispatcherActivity.kt$NotificationDispatcherActivity$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:PushModuleEntryPoint.kt$PushModuleEntryPoint$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:WebhookService.kt$WebhookService$e: Throwable</ID>
+  </CurrentIssues>
+</SmellBaseline>

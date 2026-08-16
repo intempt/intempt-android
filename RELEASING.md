@@ -64,10 +64,36 @@ The version is read from `VERSION` in `gradle.properties` (overridable per-relea
    - upload a **staged** deployment.
 
 6. **Publish on the portal:** go to [central.sonatype.com](https://central.sonatype.com) →
-   **Deployments**, review `com.intempt.sdk:intempt-android:<version>`, and click **Publish**.
+   **Deployments**, review both `com.intempt.sdk:intempt-android:<version>` **and**
+   `com.intempt.sdk:intempt-push:<version>`, and click **Publish** on each.
 
-7. **Verify:** after it validates and syncs (~15–30 min) the version appears at
-   `https://repo1.maven.org/maven2/com/intempt/sdk/intempt-android/`.
+7. **Verify:** after it validates and syncs (~15–30 min) both versions appear at
+   `https://repo1.maven.org/maven2/com/intempt/sdk/intempt-android/` and
+   `https://repo1.maven.org/maven2/com/intempt/sdk/intempt-push/`.
+
+## Two artifacts
+
+Since the push-notification module split (see `docs/MIGRATION.md`), this repository publishes
+**two** artifacts from the same tag/version:
+
+- `com.intempt.sdk:intempt-android` — the core SDK (`:app`).
+- `com.intempt.sdk:intempt-push` — the optional push-notification module (`:push`), which depends
+  on `:app` and is what a host app adds to keep push notifications working.
+
+Both share the same `VERSION` (`gradle.properties`) and are released together; there is no
+independent versioning for `:push` today. `publish.yml`'s `publishToMavenCentral` Gradle
+invocation is unqualified (not scoped to `:app`), so it already runs against every subproject with
+a `mavenPublishing { }` block — no separate workflow step is needed to publish the second artifact.
+
+> **Known issue, needs a fix before this actually works end-to-end:** running
+> `./gradlew :push:tasks` (or a build that configures both `:app` and `:push` in the same
+> invocation) currently fails with
+> `IllegalArgumentException: Cannot set the value of task ':push:createStagingRepository'
+> property 'buildService' ...` — a `com.vanniktech.maven.publish` (0.28.0) conflict when the
+> plugin's Sonatype staging-repository build service is registered from two subprojects in the
+> same build. This needs to be resolved (a plugin upgrade past 0.28.0 was tried and did not clear
+> it locally; further investigation is needed) before `publishToMavenCentral` can be run with
+> `:push` in the project.
 
 ## Notes & troubleshooting
 
