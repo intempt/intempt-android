@@ -1,3 +1,5 @@
+@file:OptIn(com.intempt.core.internal.InternalIntemptApi::class)
+
 package com.intempt.core.autocapture.lifecycleCallbacksTracker
 import android.R
 import android.app.Activity

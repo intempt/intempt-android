@@ -94,12 +94,35 @@ could be attributed to the previous one.
 workarounds that manually reset identity after `logOut()`, they're now redundant and can be
 removed.
 
-### 6. Jackson is pinned to `2.13.5`
+### 6. Jackson is pinned to `2.13.5` (only if you use `:intempt-push`)
 
-If your app declares a newer Jackson version directly, be aware the SDK needs `2.13.5` or lower on
-its own classpath — `2.16+` references `java.lang.BootstrapMethodError` (API 26) and crashes any
-host app running below Android 8.0 at SDK initialization. Don't force a Jackson BOM override above
-this pin without testing on an API 24–25 device.
+If your app declares a newer Jackson version directly, be aware the push module needs `2.13.5` or
+lower on its own classpath — `2.16+` references `java.lang.BootstrapMethodError` (API 26) and
+crashes any host app running below Android 8.0 at SDK initialization. Don't force a Jackson BOM
+override above this pin without testing on an API 24–25 device. This no longer applies at all if
+you don't add `com.intempt.sdk:intempt-push` — see the next section.
+
+### 7. Push notifications moved to a separate module
+
+**Breaking.** `com.intempt.sdk:intempt-android` no longer bundles Firebase Cloud Messaging, the
+notification-dispatch activity, or the push-notification webhook path. They moved to a new,
+separate artifact, `com.intempt.sdk:intempt-push`, so that an app that doesn't use push
+notifications stops paying for Firebase, Jackson, and Glide in its APK.
+
+If you want to keep push notifications working, add the new dependency alongside the existing one:
+
+```kotlin
+dependencies {
+    implementation("com.intempt.sdk:intempt-android:3.0.0")
+    implementation("com.intempt.sdk:intempt-push:3.0.0") // add this line
+}
+```
+
+No code changes are needed beyond the Gradle dependency. `Intempt.initialize()` looks for
+`:intempt-push` at runtime (via a small reflection bridge) and enables push automatically when
+it's present — exactly the same way it already handled a host app that hadn't configured Firebase
+at all. If you don't use push notifications, no action is needed: `Intempt.initialize()` continues
+to work exactly as before, just without pulling in Firebase/Jackson/Glide.
 
 ### Not breaking, but worth knowing
 

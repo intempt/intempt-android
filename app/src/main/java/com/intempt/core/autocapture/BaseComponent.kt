@@ -1,8 +1,10 @@
 package com.intempt.core.autocapture
 
+import com.intempt.core.internal.InternalIntemptApi
 import com.intempt.core.services.LoggerManagerService
 
-internal open class BaseComponent(logger: LoggerManagerService? = null) {
+@InternalIntemptApi
+open class BaseComponent(logger: LoggerManagerService? = null) {
     private var isInitialized: Boolean = false
 
     init {

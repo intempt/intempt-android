@@ -1,4 +1,6 @@
-package com.intempt.core.services.firebase
+@file:OptIn(com.intempt.core.internal.InternalIntemptApi::class)
+
+package com.intempt.push
 
 import android.content.Intent
 import android.os.Bundle
@@ -8,8 +10,8 @@ import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.intempt.core.services.ConfigManagerService
 import com.intempt.core.services.HttpManagerService
 import com.intempt.core.services.LoggerManagerService
-import com.intempt.core.services.firebase.model.PushNotificationMetadata
-import com.intempt.core.services.firebase.webhook.WebhookService
+import com.intempt.push.model.PushNotificationMetadata
+import com.intempt.push.webhook.WebhookService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext

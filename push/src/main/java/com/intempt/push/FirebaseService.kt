@@ -1,4 +1,6 @@
-package com.intempt.core.services.firebase
+@file:OptIn(com.intempt.core.internal.InternalIntemptApi::class)
+
+package com.intempt.push
 
 import android.Manifest
 import android.annotation.SuppressLint
@@ -24,10 +26,10 @@ import com.google.firebase.messaging.RemoteMessage
 import com.intempt.core.services.ConfigManagerService
 import com.intempt.core.services.HttpManagerService
 import com.intempt.core.services.LoggerManagerService
-import com.intempt.core.services.firebase.model.PushNotificationContent
-import com.intempt.core.services.firebase.model.PushNotificationMetadata
-import com.intempt.core.services.firebase.webhook.WebhookService
 import com.intempt.core.types.IntemptValue
+import com.intempt.push.model.PushNotificationContent
+import com.intempt.push.model.PushNotificationMetadata
+import com.intempt.push.webhook.WebhookService
 import kotlinx.coroutines.tasks.await
 
 internal class FirebaseService : FirebaseMessagingService() {

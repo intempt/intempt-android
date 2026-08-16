@@ -275,14 +275,6 @@ public class com/intempt/core/queue/RemoteService$ServiceUnavailableException : 
 	public fun getRetryAfter ()I
 }
 
-public final class com/intempt/core/services/firebase/model/PushNotificationMetadata$Creator : android/os/Parcelable$Creator {
-	public fun <init> ()V
-	public final fun createFromParcel (Landroid/os/Parcel;)Lcom/intempt/core/services/firebase/model/PushNotificationMetadata;
-	public synthetic fun createFromParcel (Landroid/os/Parcel;)Ljava/lang/Object;
-	public final fun newArray (I)[Lcom/intempt/core/services/firebase/model/PushNotificationMetadata;
-	public synthetic fun newArray (I)[Ljava/lang/Object;
-}
-
 public final class com/intempt/core/types/AutocaptureOptions {
 	public fun <init> ()V
 	public fun <init> (Z)V

@@ -1,6 +1,9 @@
+@file:OptIn(com.intempt.core.internal.InternalIntemptApi::class)
+
 package com.intempt.core.services
 
 import android.util.Log
+import com.intempt.core.internal.InternalIntemptApi
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -38,7 +41,8 @@ import javax.inject.Singleton
  * Both are error-level and fire at most once per process.
  */
 @Singleton
-internal class LoggerManagerService
+@InternalIntemptApi
+class LoggerManagerService
     @Inject
     constructor(
         private val config: ConfigManagerService,

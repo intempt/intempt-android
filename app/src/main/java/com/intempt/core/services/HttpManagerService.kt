@@ -1,5 +1,8 @@
+@file:OptIn(com.intempt.core.internal.InternalIntemptApi::class)
+
 package com.intempt.core.services
 
+import com.intempt.core.internal.InternalIntemptApi
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.get
@@ -17,7 +20,8 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-internal class HttpManagerService
+@InternalIntemptApi
+class HttpManagerService
     @Inject
     constructor(
         private val config: ConfigManagerService,

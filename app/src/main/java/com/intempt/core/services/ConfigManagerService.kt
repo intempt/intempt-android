@@ -1,9 +1,12 @@
+@file:OptIn(com.intempt.core.internal.InternalIntemptApi::class)
+
 package com.intempt.core.services
 
 import android.content.Context
 import android.util.Base64
 import android.util.Log
 import com.intempt.core.autocapture.BaseComponent
+import com.intempt.core.internal.InternalIntemptApi
 import com.intempt.core.types.AutocaptureOptions
 import com.intempt.core.types.AutomaticEventsOptions
 import com.intempt.core.types.ConfigKeys
@@ -19,7 +22,8 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-internal class ConfigManagerService
+@InternalIntemptApi
+class ConfigManagerService
     @Inject
     constructor(
         private val context: Context,

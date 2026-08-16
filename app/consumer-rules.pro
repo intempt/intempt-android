@@ -30,17 +30,6 @@
 -keep class kotlin.Metadata { *; }
 -dontwarn kotlin.reflect.**
 
-# Parcelable implementations read by the notification dispatcher across a process
-# boundary; the CREATOR field must survive.
--keep class com.intempt.core.services.firebase.model.PushNotificationMetadata { *; }
--keepclassmembers class * implements android.os.Parcelable {
-    public static final android.os.Parcelable$Creator *;
-}
-
-# Jackson data binding on the push payload models is reflective over field names.
--keep class com.intempt.core.services.firebase.model.** { *; }
--keepclassmembers class com.intempt.core.services.firebase.PushNotificationWebhookRequest { *; }
-
 # The vendored delivery queue. DeliveryMessages is the entry point Dagger
 # constructs, and its inner Description classes are passed as Message payloads.
 -keep class com.intempt.core.queue.DeliveryMessages { *; }

@@ -11,10 +11,13 @@ under Unreleased.
 
 ## [Unreleased]
 
-## [3.0.0] - 2026-08-16
+## [3.0.1] - 2026-08-16
 
-The major bump is deliberate: `minSdk` moved and several defaults changed behaviour, so a consumer
-upgrading needs to read this.
+`v3.0.0` was tagged and staged once already, then dropped before release: the tagged commit
+predated the fix for `:app`/`:push` publishing to Maven Central in the same Gradle invocation (see
+`RELEASING.md`), so it was never released. This version carries that fix and is otherwise
+identical to what `3.0.0` would have shipped. The major bump is deliberate: `minSdk` moved and
+several defaults changed behaviour, so a consumer upgrading needs to read this.
 
 ### Added
 
@@ -101,6 +104,22 @@ upgrading needs to read this.
 - **Experiments and personalizations.** Those are `intempt.js` features and were never supported by
   this SDK's backend contract.
 
+- **BREAKING: push notifications are no longer bundled in `com.intempt.sdk:intempt-android`.**
+  Firebase Cloud Messaging, the notification-dispatch activity, and the push-notification webhook
+  path moved out to a new, separate artifact: `com.intempt.sdk:intempt-push`. A host app that wants
+  push notifications must now add that dependency explicitly:
+
+  ```kotlin
+  implementation("com.intempt.sdk:intempt-android:3.0.1")
+  implementation("com.intempt.sdk:intempt-push:3.0.1") // add this to keep push working
+  ```
+
+  No code changes are required in either case: `Intempt.initialize()` detects `:intempt-push` at
+  runtime and enables push automatically when it's present, and silently skips it (as it already
+  did for a host app with no Firebase config) when it's absent. This was done to stop shipping
+  Firebase, Jackson, and Glide — none of which any non-push consumer needs — in every install of
+  the core SDK; see `docs/MIGRATION.md` for details.
+
 ## [2.0.1]
 
 The last tagged release. Published to Maven Central as `com.intempt.sdk:intempt-android:2.0.1`.
@@ -108,5 +127,6 @@ The last tagged release. Published to Maven Central as `com.intempt.sdk:intempt-
 No changelog was kept at the time, and this file does not invent one. `git log v2.0.1` is the
 authoritative record of what that tag contains.
 
-[Unreleased]: https://github.com/intempt/intempt-android/compare/v2.0.1...HEAD
+[Unreleased]: https://github.com/intempt/intempt-android/compare/v3.0.1...HEAD
+[3.0.1]: https://github.com/intempt/intempt-android/compare/v2.0.1...v3.0.1
 [2.0.1]: https://github.com/intempt/intempt-android/releases/tag/v2.0.1

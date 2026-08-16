@@ -214,6 +214,10 @@ android {
 
 dependencies {
     implementation(project(":app"))
+    // Push notifications moved to their own optional module (see docs/MIGRATION.md). This
+    // consuming app demonstrates the full experience, including the manifest-merge and
+    // PushRegistrationTest assertions below, so it opts in the same way any other host app would.
+    implementation(project(":push"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
