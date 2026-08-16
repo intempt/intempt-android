@@ -113,8 +113,8 @@ If you want to keep push notifications working, add the new dependency alongside
 
 ```kotlin
 dependencies {
-    implementation("com.intempt.sdk:intempt-android:3.0.0")
-    implementation("com.intempt.sdk:intempt-push:3.0.0") // add this line
+    implementation("com.intempt.sdk:intempt-android:3.0.1")
+    implementation("com.intempt.sdk:intempt-push:3.0.1") // add this line
 }
 ```
 
