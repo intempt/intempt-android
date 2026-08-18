@@ -3,6 +3,7 @@
 package com.intempt.core.services
 
 import com.intempt.core.internal.InternalIntemptApi
+import com.intempt.core.internal.traced
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.get
@@ -27,17 +28,40 @@ class HttpManagerService
         private val config: ConfigManagerService,
         private val logger: LoggerManagerService,
     ) {
-        private val client =
-            HttpClient {
-                install(ContentNegotiation) {
-                    json(
-                        Json {
-                            prettyPrint = true
-                            isLenient = true
-                        },
-                    )
+        /**
+         * `by lazy`, not an eager initializer. Constructing this was **13.79 ms — 53% of the SDK's
+         * entire 26 ms init**, and all of it on the host app's main thread inside
+         * `Application.onCreate`, because `HttpClient {}` with no explicit engine runs
+         * `ServiceLoader` engine discovery: classloading and reflection, not network.
+         *
+         * Nothing on the common path needs it. Event delivery goes through the vendored queue's
+         * own `HttpURLConnection` transport (`queue/HttpService.java`), not through here. The only
+         * two callers are [get]/[post] for the recommendation feed and for consent events, and both
+         * already run inside a coroutine on `Dispatchers.IO` — so the cost does not merely move
+         * later, it moves off the main thread entirely, and an app that never calls
+         * `recommendation()` and records no consent event never pays it at all.
+         *
+         * The default `SYNCHRONIZED` mode is deliberate: `post` and `get` are `suspend` and can be
+         * entered concurrently, and `PUBLICATION` would allow two clients to be built and one
+         * silently discarded along with its connection pool.
+         */
+        private val client by lazy {
+            // Traced so the benchmark can show the cost MOVED rather than vanished. A drop in
+            // Intempt.provideHttp on its own would look identical to R8 having stripped the client
+            // entirely, which would be a bug reported as a win.
+            traced("Intempt.httpClientInit") {
+                HttpClient {
+                    install(ContentNegotiation) {
+                        json(
+                            Json {
+                                prettyPrint = true
+                                isLenient = true
+                            },
+                        )
+                    }
                 }
             }
+        }
 
         suspend fun post(
             url: String,

@@ -258,9 +258,14 @@ profile, so those are indistinguishable from the client.
 ./gradlew :app:testDebugUnitTest :sample:testDebugUnitTest \
           :app:lintDebug :sample:lintDebug \
           :app:ktlintCheck :sample:ktlintCheck \
+          :app:jacocoCoverageVerification \
           :sample:assembleDebug :sample:assembleRelease
 echo "exit: $?"          # read this, not the log
 ```
+
+`jacocoCoverageVerification` is in that list because it was not: PR #29 went red in CI on the
+coverage ratchet alone after a local run that covered tests, lint, ktlint and `apiCheck`. A gate
+CI runs and the local checklist does not is a gate you discover from a red PR.
 
 Then, if packaging or config changed, assert the artifact:
 
@@ -273,3 +278,17 @@ unzip -l /tmp/c.jar | grep intempt_LICENSE
 CI is the gate that matters: compile, unit, lint, **API 23**, **API 34**, and
 non-gating prod delivery. A local pass is necessary, not sufficient — API 23 has
 caught defects that everything else passed.
+
+CI also runs jobs not covered above that this checklist should stay honest about,
+including any it does not yet name (detekt, `apiCheck`, AnimalSniffer,
+`jacocoCoverageVerification`, mutation testing, the method-count ceiling) — check
+the workflow file, not this list, when in doubt:
+
+- **`macrobenchmark-startup`** (non-gating): runs
+  `:baselineprofile:connectedNonMinifiedReleaseAndroidTest`'s `StartupBenchmark`
+  class on one API 34 emulator, measuring `:sample`'s real cold-start timing
+  under `CompilationMode.None()` and `CompilationMode.Partial(Require)`.
+  `continue-on-error: true`, same as `prod-e2e` — an emulator's absolute numbers
+  are not representative of a real device and vary run to run, so this tracks
+  variance over time rather than gating a merge. See
+  `baselineprofile/cold-start-baseline.json` for the first recorded number.

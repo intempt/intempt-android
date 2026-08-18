@@ -13,9 +13,12 @@ val firebaseConfig = file("google-services.json")
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
-    // No baseline here, unlike :app. This module is all new code, so there is nothing to
-    // freeze and no reason to accept anything less than clean.
+    // No ktlint baseline here, unlike :app. This module is all new code, so there is nothing
+    // to freeze and no reason to accept anything less than clean.
     alias(libs.plugins.ktlint)
+    // Consumer side of the :baselineprofile module: wires generateBaselineProfile /
+    // collectBaselineProfile tasks and merges the result into src/main/baselineProfiles.
+    alias(libs.plugins.baseline.profile)
 }
 
 // intempt-config.json is generated rather than committed, because the e2e suite runs against
@@ -238,6 +241,13 @@ dependencies {
     // recommendation() is a suspend function, so the suite needs runBlocking. :app depends on
     // coroutines with `implementation`, which does not reach a consumer's compile classpath.
     androidTestImplementation(libs.kotlinx.coroutines.android)
+
+    // Lets the release build install/refresh its own AOT profile from
+    // assets/dexopt/baseline.prof at first run, rather than relying solely on Play's server-side
+    // distribution. Small (~50KB) and startup-only; does not affect the SDK's public API.
+    implementation(libs.androidx.profileinstaller)
+
+    baselineProfile(project(":baselineprofile"))
 }
 
 // addGeneratedSourceDirectory is the API that actually works: it registers the directory as a
@@ -259,3 +269,7 @@ androidComponents {
         variant.sources.assets?.addGeneratedSourceDirectory(task, WriteIntemptConfigTask::outputDir)
     }
 }
+
+// useConnectedDevices lives on the producer (:baselineprofile) module's extension, not here —
+// the consumer side just declares the `baselineProfile(project(":baselineprofile"))`
+// dependency above and receives the merged .txt into src/main/baselineProfiles.

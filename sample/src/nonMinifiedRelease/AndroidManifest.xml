@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Adds android:profileable only to the nonMinifiedRelease variant that androidx.baselineprofile
+  auto-creates for benchmarking/profile generation — not to the real `release` build type that
+  ships. MacrobenchmarkRule (StartupBenchmark) needs the target app to be profileable or
+  debuggable to attach its Perfetto trace; without this its very first assumeTrue() check fails
+  before any measurement runs ("got: <false>, expected: is <true>" at MacrobenchmarkRule.kt:210).
+  BaselineProfileRule (BaselineProfileGenerator) does not need this — it uses a different
+  collection mechanism — which is why that test already passed without it.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <application>
+        <profileable
+            android:shellEnabled="true"
+            tools:targetApi="29" />
+    </application>
+</manifest>

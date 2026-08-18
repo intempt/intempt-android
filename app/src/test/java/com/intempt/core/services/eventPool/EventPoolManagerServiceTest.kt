@@ -18,8 +18,10 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import org.junit.runner.RunWith
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.whenever
+import org.robolectric.RobolectricTestRunner
 
 /**
  * Guards the consent gate on `dispatchEvent`, the single choke point every autocapture source
@@ -30,7 +32,13 @@ import org.mockito.kotlin.whenever
  * Also guards `emitEvent`'s pass-through of the underlying `SharedFlow.tryEmit` result, which the
  * eventPool's own comment says is expected to return false under a full buffer — a caller that
  * cannot see that return value would never know an event was dropped.
+ *
+ * Robolectric, not plain JUnit: `emitEvent` now opens an `android.os.Trace` section
+ * (`Intempt.trackEnqueue`), and the stub `android.jar` throws "Stub!" from every method on it.
+ * Robolectric is only supplying a real `Trace` here — it is not being trusted for anything
+ * API-level (see CLAUDE.md §2).
  */
+@RunWith(RobolectricTestRunner::class)
 @OptIn(ExperimentalCoroutinesApi::class)
 class EventPoolManagerServiceTest {
     private lateinit var config: ConfigManagerService

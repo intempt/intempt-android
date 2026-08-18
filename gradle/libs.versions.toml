@@ -52,6 +52,14 @@ coroutinesTest="1.9.0"
 robolectricVersion="4.12.2"
 coreKtxVersion = "1.6.1"
 
+# Baseline Profile generation for :sample (targets the SDK's init path executed from
+# :app's Dagger graph). AGP 8.6.1-compatible line: androidx.baselineprofile 1.3.x is the
+# last series verified against AGP 8.x / Kotlin 1.9.x used throughout this repo.
+baselineProfile="1.4.1"
+benchmarkMacroJunit4="1.4.1"
+uiautomator="2.3.0"
+profileinstaller="1.4.0"
+
 [libraries]
 androidx-core-test = { module = "androidx.test:core", version.ref = "core" }
 androidx-rules-test = { module = "androidx.test:rules", version.ref = "core" }
@@ -86,6 +94,10 @@ dagger-compiler = { group = "com.google.dagger", name = "dagger-compiler", versi
 androidx-lifecycle-process = { group = "androidx.lifecycle", name = "lifecycle-process", version.ref = "lifecycleProcess" }
 core-ktx = { group = "androidx.test", name = "core-ktx", version.ref = "coreKtxVersion" }
 
+androidx-benchmark-macro-junit4 = { group = "androidx.benchmark", name = "benchmark-macro-junit4", version.ref = "benchmarkMacroJunit4" }
+androidx-uiautomator = { group = "androidx.test.uiautomator", name = "uiautomator", version.ref = "uiautomator" }
+androidx-profileinstaller = { group = "androidx.profileinstaller", name = "profileinstaller", version.ref = "profileinstaller" }
+
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
@@ -100,3 +112,5 @@ animalsniffer = { id = "ru.vyarus.animalsniffer", version.ref = "animalsniffer" 
 binary-compatibility-validator = { id = "org.jetbrains.kotlinx.binary-compatibility-validator", version.ref = "binaryCompatibilityValidator" }
 dokka = { id = "org.jetbrains.dokka", version.ref = "dokka" }
 dependency-check = { id = "org.owasp.dependencycheck", version.ref = "dependencyCheck" }
+android-test = { id = "com.android.test", version.ref = "agp" }
+baseline-profile = { id = "androidx.baselineprofile", version.ref = "baselineProfile" }

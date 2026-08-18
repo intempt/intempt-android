@@ -1,10 +1,18 @@
+// ConfigManagerService is @InternalIntemptApi: the install/upgrade payload scopes its push-token
+// key by sourceId, so asserting that key means holding a config. Opted in at file level rather
+// than per call site, as the production sources that touch the same SPI do.
+@file:OptIn(com.intempt.core.internal.InternalIntemptApi::class)
+
 package com.intempt.core.eventModels
 
+import com.intempt.core.services.ConfigManagerService
 import com.intempt.core.types.AppVisibilityState
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.mockito.Mockito.mock
+import org.mockito.Mockito.`when`
 
 /**
  * `toFormated()` is the wire contract with api.intempt.com. Every one of these models measured
@@ -376,5 +384,102 @@ class WireFormatTest {
             AppVisibilityState.Background.key,
             AppVisibilityState.Background.toString(),
         )
+    }
+
+    // ------------------------------------------------------- install / upgrade
+
+    /**
+     * The only model this file previously discussed without ever constructing.
+     *
+     * Its 47 lines were "covered" only as a side effect of an autocapture test: nothing awaits
+     * `dispatchEvent`'s `coroutineScope.launch`, and `forkEvery = 1` tears the test JVM down at the
+     * end of each class, so the constructor raced process exit. Three consecutive full runs on one
+     * machine measured 15/47, 15/47 and **0/47** covered — a 1.74-point swing in the bundle ratio,
+     * straddling the 0.66 coverage floor and failing the gate at random.
+     *
+     * Every one of those tests passed in both cases, because `should call installUpgrade` asserts
+     * that `dispatchEvent` was *called* and never that a payload was *built*. Coverage was the sole
+     * observer of this class. Asserting the wire shape directly makes the lines run deterministically
+     * on any machine and, unlike the race, gives them an oracle.
+     */
+    @Test
+    fun `install or upgrade nests its six fields under data and the token under userAttributes`() {
+        val config = mock(ConfigManagerService::class.java)
+        `when`(config.sourceId).thenReturn("src-1")
+
+        val formatted =
+            InstallOrUpgradeEvent(
+                eventId = EVENT_ID,
+                sessionId = SESSION_ID,
+                pageId = PAGE_ID,
+                profileId = PROFILE_ID,
+                timestamp = TIMESTAMP,
+                currentVersionCode = 42L,
+                previousVersionCode = 41L,
+                previousBuildType = "debug",
+                currentBuildType = "release",
+                appVisibilityState = AppVisibilityState.Foreground,
+                isUpgrade = true,
+                token = "fcm-token-value",
+                config = config,
+            ).toFormated()
+
+        assertEnvelope(formatted)
+
+        val data = formatted.data()
+        assertEquals(42L, data["currentVersionCode"])
+        assertEquals(41L, data["previousVersionCode"])
+        assertEquals("debug", data["previousBuildType"])
+        assertEquals("release", data["currentBuildType"])
+        assertEquals(AppVisibilityState.Foreground, data["appVisibilityState"])
+        assertEquals(true, data["isUpgrade"])
+        assertEquals("data carries exactly the six install/upgrade fields", 6, data.size)
+
+        // The token key is source-scoped, and the suffix is the raw sourceId rather than anything
+        // derived. A host app with two sources must land two separate tokens on one profile; if
+        // this key stops varying they overwrite each other and the older device stops receiving
+        // pushes, with a 200 on every request.
+        assertEquals("fcm-token-value", formatted.userAttributes()["fcm_token_src-1"])
+        assertEquals(1, formatted.userAttributes().size)
+
+        assertEquals("envelope plus data plus userAttributes", 7, formatted.size)
+    }
+
+    /**
+     * `EventHandlers.installOrUpgrade` substitutes `""` when `PushBridge.registerTokenIfPresent()`
+     * returns null, which is every app that does not depend on `:push`. The key must still be
+     * present and empty rather than absent: this block is merged onto the profile, and the two are
+     * not the same instruction to the platform.
+     */
+    @Test
+    fun `a missing push token still sends the key, empty`() {
+        val config = mock(ConfigManagerService::class.java)
+        `when`(config.sourceId).thenReturn("src-1")
+
+        val formatted =
+            InstallOrUpgradeEvent(
+                eventId = EVENT_ID,
+                sessionId = SESSION_ID,
+                pageId = PAGE_ID,
+                profileId = PROFILE_ID,
+                timestamp = TIMESTAMP,
+                currentVersionCode = 1L,
+                previousVersionCode = -1L,
+                previousBuildType = "",
+                currentBuildType = "debug",
+                appVisibilityState = AppVisibilityState.Background,
+                isUpgrade = false,
+                token = "",
+                config = config,
+            ).toFormated()
+
+        val attributes = formatted.userAttributes()
+        assertTrue("the key must be present", attributes.containsKey("fcm_token_src-1"))
+        assertEquals("", attributes["fcm_token_src-1"])
+
+        // -1 is the sentinel for "no stored version", i.e. a first install. It must survive to the
+        // wire as -1 rather than being normalised to 0, which is a legitimate version code.
+        assertEquals(-1L, formatted.data()["previousVersionCode"])
+        assertEquals(false, formatted.data()["isUpgrade"])
     }
 }
