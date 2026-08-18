@@ -11,6 +11,43 @@ under Unreleased.
 
 ## [Unreleased]
 
+## [3.0.2] - 2026-08-18
+
+A performance release. No API changes, no behaviour changes a consumer has to adapt to — the one
+behaviour fix is a log line that was lying.
+
+Every figure below was measured with `android.os.Trace` sections read by `TraceSectionMetric` on an
+API 34 emulator, 5 iterations. An earlier internal estimate of "+340 ms of startup cost" was wrong:
+it came from whole-app `timeToInitialDisplayMs`, which has returned anywhere from 417 to 649 ms on
+identical code and cannot resolve a component this small.
+
+### Changed
+
+- **SDK initialization is ~3× faster: 26.18 ms → 7.93 ms.** The ktor `HttpClient` is now built on
+  first use rather than in `Application.onCreate`. Constructing it was 13.79 ms — 53% of the SDK's
+  entire init — because `HttpClient {}` with no explicit engine runs `ServiceLoader` engine
+  discovery, which is classloading and reflection rather than network. Nothing on the common path
+  needs it: event delivery uses the queue's own `HttpURLConnection`, and the two callers that do
+  need ktor already run off the main thread. An app that never calls `recommendation()` and records
+  no consent event never builds it at all.
+- **A Baseline Profile ships inside the AAR**, cutting the SDK's own init a further 23%
+  (27.81 ms → 21.33 ms under `Partial(Require)`).
+- **`ktor-client-cio` removed.** `:app` declared two HTTP engines while pinning neither, so ktor
+  selected one by classpath discovery and the other shipped unused. Removing it cut **1,225 methods**
+  from a consuming app's dex (33,797 → 32,572), measured as an isolated before/after with only that
+  line changed.
+
+### Fixed
+
+- **A rejected consent event no longer logs itself as delivered.** `HttpManagerService.post` reports
+  failures — including every non-2xx — by returning `null` rather than throwing, so a 401 printed
+  `Failed with status code: 401` and `Successfully sent events to server` one line apart, and the
+  internal last-dispatch timestamp advanced for a send that never happened. Consent bypasses the
+  durable queue, so that log line was the only signal a compliance decision failed to reach the
+  platform.
+- **`:push` was missing the `NewApi`/`checkTestSources` lint configuration** that `:app` and
+  `:sample` both carry, so lint was not enforcing the `minSdk` floor on that module.
+
 ## [3.0.1] - 2026-08-16
 
 `v3.0.0` was tagged and staged once already, then dropped before release: the tagged commit
