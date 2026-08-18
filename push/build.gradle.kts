@@ -35,6 +35,14 @@ android {
     kotlinOptions {
         jvmTarget = "1.8"
     }
+
+    lint {
+        // Same reason as :app and :sample — an API-24+ call inside a test is still a call
+        // that cannot run at minSdk. This module lacked the block; NewApi in test sources
+        // went unchecked here even though it's an error everywhere else in the repo.
+        checkTestSources = true
+        error += "NewApi"
+    }
 }
 
 dependencies {
