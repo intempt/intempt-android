@@ -1,7 +1,7 @@
 package com.intempt.core.eventModels
 import com.intempt.core.types.IntemptEventProvider
 
-internal data class SessionEvent(
+internal class SessionEvent(
     override val eventId: String,
     override val sessionId: String,
     override val pageId: String,
@@ -70,5 +70,40 @@ internal data class SessionEvent(
         }
     """
         return output.trimIndent()
+    }
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is SessionEvent) return false
+        return eventId == other.eventId &&
+            sessionId == other.sessionId &&
+            pageId == other.pageId &&
+            profileId == other.profileId &&
+            timestamp == other.timestamp &&
+            sessionStartEventName == other.sessionStartEventName &&
+            deviceName == other.deviceName &&
+            appName == other.appName &&
+            appVersion == other.appVersion &&
+            appIdentifier == other.appIdentifier &&
+            androidId == other.androidId &&
+            source == other.source &&
+            userAttributes == other.userAttributes
+    }
+
+    override fun hashCode(): Int {
+        var result = eventId.hashCode()
+        result = 31 * result + sessionId.hashCode()
+        result = 31 * result + pageId.hashCode()
+        result = 31 * result + profileId.hashCode()
+        result = 31 * result + timestamp.hashCode()
+        result = 31 * result + sessionStartEventName.hashCode()
+        result = 31 * result + deviceName.hashCode()
+        result = 31 * result + appName.hashCode()
+        result = 31 * result + appVersion.hashCode()
+        result = 31 * result + appIdentifier.hashCode()
+        result = 31 * result + androidId.hashCode()
+        result = 31 * result + source.hashCode()
+        result = 31 * result + userAttributes.hashCode()
+        return result
     }
 }

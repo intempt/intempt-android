@@ -1,7 +1,7 @@
 package com.intempt.core.eventModels
 import com.intempt.core.types.IntemptEventProvider
 
-internal data class FragmentTransitionEvent(
+internal class FragmentTransitionEvent(
     override val eventId: String,
     override val sessionId: String,
     override val pageId: String,
@@ -47,5 +47,30 @@ internal data class FragmentTransitionEvent(
 
     override fun getEventTime(): Long {
         return timestamp
+    }
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is FragmentTransitionEvent) return false
+        return eventId == other.eventId &&
+            sessionId == other.sessionId &&
+            pageId == other.pageId &&
+            profileId == other.profileId &&
+            timestamp == other.timestamp &&
+            visibleFragment == other.visibleFragment &&
+            addedFragment == other.addedFragment &&
+            removedFragment == other.removedFragment
+    }
+
+    override fun hashCode(): Int {
+        var result = eventId.hashCode()
+        result = 31 * result + sessionId.hashCode()
+        result = 31 * result + pageId.hashCode()
+        result = 31 * result + profileId.hashCode()
+        result = 31 * result + timestamp.hashCode()
+        result = 31 * result + visibleFragment.hashCode()
+        result = 31 * result + addedFragment.hashCode()
+        result = 31 * result + removedFragment.hashCode()
+        return result
     }
 }

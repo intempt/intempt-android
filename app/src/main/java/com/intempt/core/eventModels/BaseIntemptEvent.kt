@@ -1,6 +1,6 @@
 package com.intempt.core.eventModels
 
-internal data class BaseIntemptEvent(
+internal class BaseIntemptEvent(
     val eventId: String,
     val sessionId: String,
     val pageId: String,

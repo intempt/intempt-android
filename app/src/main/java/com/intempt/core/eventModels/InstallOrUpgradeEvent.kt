@@ -6,7 +6,7 @@ import com.intempt.core.services.ConfigManagerService
 import com.intempt.core.types.AppVisibilityState
 import com.intempt.core.types.IntemptEventProvider
 
-internal data class InstallOrUpgradeEvent(
+internal class InstallOrUpgradeEvent(
     override val eventId: String,
     override val sessionId: String,
     override val pageId: String,
@@ -70,5 +70,40 @@ internal data class InstallOrUpgradeEvent(
             }
         """
         return output.trimIndent()
+    }
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is InstallOrUpgradeEvent) return false
+        return eventId == other.eventId &&
+            sessionId == other.sessionId &&
+            pageId == other.pageId &&
+            profileId == other.profileId &&
+            timestamp == other.timestamp &&
+            currentVersionCode == other.currentVersionCode &&
+            previousVersionCode == other.previousVersionCode &&
+            previousBuildType == other.previousBuildType &&
+            currentBuildType == other.currentBuildType &&
+            appVisibilityState == other.appVisibilityState &&
+            isUpgrade == other.isUpgrade &&
+            token == other.token &&
+            config == other.config
+    }
+
+    override fun hashCode(): Int {
+        var result = eventId.hashCode()
+        result = 31 * result + sessionId.hashCode()
+        result = 31 * result + pageId.hashCode()
+        result = 31 * result + profileId.hashCode()
+        result = 31 * result + timestamp.hashCode()
+        result = 31 * result + currentVersionCode.hashCode()
+        result = 31 * result + previousVersionCode.hashCode()
+        result = 31 * result + previousBuildType.hashCode()
+        result = 31 * result + currentBuildType.hashCode()
+        result = 31 * result + appVisibilityState.hashCode()
+        result = 31 * result + isUpgrade.hashCode()
+        result = 31 * result + token.hashCode()
+        result = 31 * result + config.hashCode()
+        return result
     }
 }
