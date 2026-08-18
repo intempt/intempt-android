@@ -459,11 +459,11 @@ jobs:
           # 34 only: cold-start timing on an API 23 emulator is not representative of a real
           # device anyone runs today, and this job is informational, not a compatibility gate
           # (API 23/34 coverage for that is instrumented-tests above).
-          script: |
-            ./gradlew :baselineprofile:connectedNonMinifiedReleaseAndroidTest \
-              -Pandroid.testInstrumentationRunnerArguments.class=com.intempt.baselineprofile.StartupBenchmark \
-              -Pandroid.testInstrumentationRunnerArguments.androidx.benchmark.enabledRules=Macrobenchmark \
-              --stacktrace
+          # One line, not a backslash-continued block: the emulator-runner action passed a
+          # literal trailing `\` through to gradlew as its own argument ("Task '\' not found"),
+          # unlike a real shell's line continuation. instrumented-tests above never hit this
+          # because its script always fit on one line.
+          script: ./gradlew :baselineprofile:connectedNonMinifiedReleaseAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.intempt.baselineprofile.StartupBenchmark -Pandroid.testInstrumentationRunnerArguments.androidx.benchmark.enabledRules=Macrobenchmark --stacktrace
 
       - name: Upload results
         if: always()
