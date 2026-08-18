@@ -1,7 +1,12 @@
 package com.intempt.core.eventModels
 import com.intempt.core.types.IntemptEventProvider
 
-internal data class ScreenViewEvent(
+// Constructor param count mirrors the fields 1:1, same shape detekt's LongParameterList already
+// exempts for `data class` via ignoreDataClasses (the default). Losing `data` for the method-count
+// trim (see BaseIntemptEvent.kt) lost that exemption too; suppressed rather than baselined since
+// the parameter list itself hasn't grown.
+@Suppress("LongParameterList")
+internal class ScreenViewEvent(
     override val eventId: String,
     override val sessionId: String,
     override val pageId: String,
@@ -52,5 +57,32 @@ internal data class ScreenViewEvent(
             }
         """
         return output.trimIndent()
+    }
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is ScreenViewEvent) return false
+        return eventId == other.eventId &&
+            sessionId == other.sessionId &&
+            pageId == other.pageId &&
+            profileId == other.profileId &&
+            timestamp == other.timestamp &&
+            activity == other.activity &&
+            fullActivity == other.fullActivity &&
+            screenName == other.screenName &&
+            timeOnScreen == other.timeOnScreen
+    }
+
+    override fun hashCode(): Int {
+        var result = eventId.hashCode()
+        result = 31 * result + sessionId.hashCode()
+        result = 31 * result + pageId.hashCode()
+        result = 31 * result + profileId.hashCode()
+        result = 31 * result + timestamp.hashCode()
+        result = 31 * result + activity.hashCode()
+        result = 31 * result + fullActivity.hashCode()
+        result = 31 * result + screenName.hashCode()
+        result = 31 * result + (timeOnScreen?.hashCode() ?: 0)
+        return result
     }
 }

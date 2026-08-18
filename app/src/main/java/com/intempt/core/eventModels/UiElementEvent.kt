@@ -1,7 +1,10 @@
 package com.intempt.core.eventModels
 import com.intempt.core.types.IntemptEventProvider
 
-internal data class UiElementEvent(
+// See ScreenViewEvent.kt: `data class` exempted this from LongParameterList; dropping `data` for
+// the method-count trim lost that exemption without growing the parameter list.
+@Suppress("LongParameterList")
+internal class UiElementEvent(
     override val eventId: String,
     override val sessionId: String,
     override val pageId: String,
@@ -59,5 +62,38 @@ internal data class UiElementEvent(
             }
         """
         return output.trimIndent()
+    }
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is UiElementEvent) return false
+        return eventId == other.eventId &&
+            sessionId == other.sessionId &&
+            pageId == other.pageId &&
+            profileId == other.profileId &&
+            timestamp == other.timestamp &&
+            targetElement == other.targetElement &&
+            hierarchy == other.hierarchy &&
+            targetText == other.targetText &&
+            targetValue == other.targetValue &&
+            targetClass == other.targetClass &&
+            targetId == other.targetId &&
+            fullTargetId == other.fullTargetId
+    }
+
+    override fun hashCode(): Int {
+        var result = eventId.hashCode()
+        result = 31 * result + sessionId.hashCode()
+        result = 31 * result + pageId.hashCode()
+        result = 31 * result + profileId.hashCode()
+        result = 31 * result + timestamp.hashCode()
+        result = 31 * result + targetElement.hashCode()
+        result = 31 * result + hierarchy.hashCode()
+        result = 31 * result + targetText.hashCode()
+        result = 31 * result + targetValue.hashCode()
+        result = 31 * result + targetClass.hashCode()
+        result = 31 * result + targetId.hashCode()
+        result = 31 * result + fullTargetId.hashCode()
+        return result
     }
 }
