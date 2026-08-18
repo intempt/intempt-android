@@ -1,6 +1,9 @@
 package com.intempt.core.eventModels
 import com.intempt.core.types.IntemptEventProvider
 
+// See ScreenViewEvent.kt: `data class` exempted this from LongParameterList; dropping `data` for
+// the method-count trim lost that exemption without growing the parameter list.
+@Suppress("LongParameterList")
 internal class UiElementEvent(
     override val eventId: String,
     override val sessionId: String,

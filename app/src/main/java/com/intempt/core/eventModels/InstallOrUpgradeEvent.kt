@@ -6,6 +6,9 @@ import com.intempt.core.services.ConfigManagerService
 import com.intempt.core.types.AppVisibilityState
 import com.intempt.core.types.IntemptEventProvider
 
+// See ScreenViewEvent.kt: `data class` exempted this from LongParameterList; dropping `data` for
+// the method-count trim lost that exemption without growing the parameter list.
+@Suppress("LongParameterList")
 internal class InstallOrUpgradeEvent(
     override val eventId: String,
     override val sessionId: String,
@@ -72,6 +75,9 @@ internal class InstallOrUpgradeEvent(
         return output.trimIndent()
     }
 
+    // See SessionEvent.kt: complexity is one branch per field, the shape a `data class` would
+    // have generated unlinted.
+    @Suppress("CyclomaticComplexMethod")
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (other !is InstallOrUpgradeEvent) return false

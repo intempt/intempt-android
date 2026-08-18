@@ -37,6 +37,7 @@ class EventModelEqualsHashCodeTest {
 
     // ------------------------------------------------------------ ScreenViewEvent
 
+    @Suppress("LongParameterList")
     private fun screenView(
         eventId: String = EVENT_ID,
         sessionId: String = SESSION_ID,
@@ -47,7 +48,10 @@ class EventModelEqualsHashCodeTest {
         fullActivity: String = "com.example.MainActivity",
         screenName: String = "Home",
         timeOnScreen: Long? = 10L,
-    ) = ScreenViewEvent(eventId, sessionId, pageId, profileId, timestamp, activity, fullActivity, screenName, timeOnScreen)
+    ) = ScreenViewEvent(
+        eventId, sessionId, pageId, profileId, timestamp,
+        activity, fullActivity, screenName, timeOnScreen,
+    )
 
     @Test
     fun `screen view equality and hashCode`() {
@@ -72,6 +76,7 @@ class EventModelEqualsHashCodeTest {
 
     // ------------------------------------------------------------ UiElementEvent
 
+    @Suppress("LongParameterList")
     private fun uiElement(
         eventId: String = EVENT_ID,
         sessionId: String = SESSION_ID,
@@ -115,6 +120,7 @@ class EventModelEqualsHashCodeTest {
 
     // ------------------------------------------------------------ FragmentTransitionEvent
 
+    @Suppress("LongParameterList")
     private fun fragmentTransition(
         eventId: String = EVENT_ID,
         sessionId: String = SESSION_ID,
@@ -124,7 +130,16 @@ class EventModelEqualsHashCodeTest {
         visibleFragment: String = "CartFragment",
         addedFragment: String = "CheckoutFragment",
         removedFragment: String = "BrowseFragment",
-    ) = FragmentTransitionEvent(eventId, sessionId, pageId, profileId, timestamp, visibleFragment, addedFragment, removedFragment)
+    ) = FragmentTransitionEvent(
+        eventId,
+        sessionId,
+        pageId,
+        profileId,
+        timestamp,
+        visibleFragment,
+        addedFragment,
+        removedFragment,
+    )
 
     @Test
     fun `fragment transition equality and hashCode`() {
@@ -167,6 +182,7 @@ class EventModelEqualsHashCodeTest {
         assertNotEquals(a, sessionUserAttributes(platform = "other"))
     }
 
+    @Suppress("LongParameterList")
     private fun sessionEvent(
         eventId: String = EVENT_ID,
         sessionId: String = SESSION_ID,
@@ -212,6 +228,7 @@ class EventModelEqualsHashCodeTest {
 
     // ------------------------------------------------------------ InstallOrUpgradeEvent
 
+    @Suppress("LongParameterList")
     private fun installOrUpgrade(
         eventId: String = EVENT_ID,
         sessionId: String = SESSION_ID,
@@ -225,7 +242,8 @@ class EventModelEqualsHashCodeTest {
         appVisibilityState: AppVisibilityState = AppVisibilityState.Foreground,
         isUpgrade: Boolean = true,
         token: String = "fcm-token-value",
-        config: ConfigManagerService = mock(ConfigManagerService::class.java).also { `when`(it.sourceId).thenReturn("src-1") },
+        config: ConfigManagerService =
+            mock(ConfigManagerService::class.java).also { `when`(it.sourceId).thenReturn("src-1") },
     ) = InstallOrUpgradeEvent(
         eventId, sessionId, pageId, profileId, timestamp,
         currentVersionCode, previousVersionCode, previousBuildType, currentBuildType,

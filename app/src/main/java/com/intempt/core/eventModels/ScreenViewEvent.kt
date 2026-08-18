@@ -1,6 +1,11 @@
 package com.intempt.core.eventModels
 import com.intempt.core.types.IntemptEventProvider
 
+// Constructor param count mirrors the fields 1:1, same shape detekt's LongParameterList already
+// exempts for `data class` via ignoreDataClasses (the default). Losing `data` for the method-count
+// trim (see BaseIntemptEvent.kt) lost that exemption too; suppressed rather than baselined since
+// the parameter list itself hasn't grown.
+@Suppress("LongParameterList")
 internal class ScreenViewEvent(
     override val eventId: String,
     override val sessionId: String,
