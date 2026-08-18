@@ -258,9 +258,14 @@ profile, so those are indistinguishable from the client.
 ./gradlew :app:testDebugUnitTest :sample:testDebugUnitTest \
           :app:lintDebug :sample:lintDebug \
           :app:ktlintCheck :sample:ktlintCheck \
+          :app:jacocoCoverageVerification \
           :sample:assembleDebug :sample:assembleRelease
 echo "exit: $?"          # read this, not the log
 ```
+
+`jacocoCoverageVerification` is in that list because it was not: PR #29 went red in CI on the
+coverage ratchet alone after a local run that covered tests, lint, ktlint and `apiCheck`. A gate
+CI runs and the local checklist does not is a gate you discover from a red PR.
 
 Then, if packaging or config changed, assert the artifact:
 
