@@ -3,6 +3,7 @@
 package com.intempt.core
 
 import android.content.Context
+import android.os.Trace
 import android.util.Log
 import android.view.View
 import com.intempt.core.intemptCore.DaggerIntemptCoreComponent
@@ -165,11 +166,51 @@ object Intempt {
     /**
      * Builds and registers one instance. Callers hold the [instances] monitor.
      *
+     * The work itself is [buildTraced]; this only wraps it in a trace section.
+     */
+    private fun build(
+        context: Context,
+        credentials: IntemptCredentials?,
+        instanceName: String,
+    ): IntemptInstance? =
+        // The whole of init is one named trace section, and each expensive step inside it is its
+        // own. Macrobenchmark's TraceSectionMetric reads these out of the Perfetto trace, which is
+        // the only way to see the SDK's own cost: whole-app timeToInitialDisplay is ~650ms on CI
+        // and ~420ms locally for identical code, so a ~100ms init is well inside the noise.
+        //
+        // android.os.Trace directly (API 18+, minSdk 23) rather than androidx.tracing: a new
+        // dependency would spend the method-count headroom this instrumentation exists to protect.
+        traced("Intempt.initialize") {
+            buildTraced(context, credentials, instanceName)
+        }
+
+    /**
+     * Runs [block] inside a named trace section.
+     *
+     * `finally`, not a trailing `endSection()`: [buildTraced] returns early on an unconfigured
+     * config and catches Throwable, and an unbalanced begin/end corrupts the entire trace — every
+     * other section in it, not just this one.
+     */
+    private inline fun <T> traced(
+        name: String,
+        block: () -> T,
+    ): T {
+        Trace.beginSection(name)
+        try {
+            return block()
+        } finally {
+            Trace.endSection()
+        }
+    }
+
+    /**
+     * The body of [build]. Callers hold the [instances] monitor.
+     *
      * Three exits: unconfigured, construction threw, success. Each is a distinct outcome a caller
      * can act on, and merging them would mean carrying which one happened in a variable.
      */
     @Suppress("ReturnCount")
-    private fun build(
+    private fun buildTraced(
         context: Context,
         credentials: IntemptCredentials?,
         instanceName: String,
@@ -177,8 +218,10 @@ object Intempt {
         val instance: IntemptInstance
         try {
             val component =
-                DaggerIntemptCoreComponent.factory()
-                    .create(IntemptCoreModule(context, credentials, InstanceId(instanceName)))
+                traced("Intempt.daggerGraph") {
+                    DaggerIntemptCoreComponent.factory()
+                        .create(IntemptCoreModule(context, credentials, InstanceId(instanceName)))
+                }
 
             // Credentials are read lazily, so Dagger wires up perfectly against a config asset that
             // does not exist. Before this check, initialize() returned true for an app with no
@@ -188,7 +231,7 @@ object Intempt {
             // The whole reason this returns a Boolean is that it used to return Unit and a host app
             // had no way to tell a working SDK from a dead one. Returning true here made that
             // signal a lie.
-            val config = component.config()
+            val config = traced("Intempt.config") { component.config() }
             if (!config.isConfigured) {
                 Log.e(
                     TAG,
@@ -199,7 +242,7 @@ object Intempt {
                 return null
             }
 
-            instance = IntemptInstance(instanceName, component.initService())
+            instance = IntemptInstance(instanceName, traced("Intempt.initService") { component.initService() })
         } catch (e: Throwable) {
             // Throwable, not Exception. An analytics SDK must never take the host app down, and
             // the failures that actually do are Errors rather than Exceptions: a
@@ -217,7 +260,7 @@ object Intempt {
         instances[instanceName] = instance
 
         // Only after registration, so a screen view emitted by the hooks finds its instance.
-        instance.core.startAutocaptureIfConfigured()
+        traced("Intempt.autocapture") { instance.core.startAutocaptureIfConfigured() }
 
         // Push notifications are OPTIONAL and live in the separate :push module. This is a
         // presence-gated reflection call rather than a direct dependency — :app cannot depend on
@@ -225,7 +268,7 @@ object Intempt {
         // when the host app hasn't added :push, and also when it has but hasn't configured
         // Firebase (google-services plugin + google-services.json). Never fail core analytics
         // init over a missing or absent push setup.
-        PushBridge.initializeIfPresent(context)
+        traced("Intempt.pushBridge") { PushBridge.initializeIfPresent(context) }
 
         return instance
     }

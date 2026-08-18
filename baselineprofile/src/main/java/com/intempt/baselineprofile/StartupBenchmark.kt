@@ -2,8 +2,11 @@ package com.intempt.baselineprofile
 
 import androidx.benchmark.macro.BaselineProfileMode
 import androidx.benchmark.macro.CompilationMode
+import androidx.benchmark.macro.ExperimentalMetricApi
+import androidx.benchmark.macro.Metric
 import androidx.benchmark.macro.StartupMode
 import androidx.benchmark.macro.StartupTimingMetric
+import androidx.benchmark.macro.TraceSectionMetric
 import androidx.benchmark.macro.junit4.MacrobenchmarkRule
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.UiDevice
@@ -50,7 +53,7 @@ class StartupBenchmark {
     private fun measureStartup(compilationMode: CompilationMode) =
         benchmarkRule.measureRepeated(
             packageName = packageName,
-            metrics = listOf(StartupTimingMetric()),
+            metrics = metrics,
             compilationMode = compilationMode,
             startupMode = StartupMode.COLD,
             iterations = 5,
@@ -58,4 +61,33 @@ class StartupBenchmark {
             pressHome()
             startActivityAndWait()
         }
+
+    private companion object {
+        /**
+         * [StartupTimingMetric] plus one [TraceSectionMetric] per section the SDK emits from
+         * `Intempt.build()`.
+         *
+         * The startup metric is kept only for continuity with the historical number; it cannot
+         * answer questions about this SDK. Real runs of the same code measured
+         * `timeToInitialDisplayMs` at a median of 649.4ms on CI (min 615.1, max 652.1) and 417.4ms
+         * locally, a 230ms environment difference against an SDK init of roughly 100ms — the noise
+         * is larger than the whole signal. The trace sections are read straight out of the Perfetto
+         * trace and contain only the SDK's own code, so they are comparable across environments.
+         *
+         * `Mode.Sum` because each section occurs once per startup; Sum then reports that one
+         * duration and fails loudly (as 0) if the section never appeared, rather than silently
+         * averaging over nothing.
+         */
+        @OptIn(ExperimentalMetricApi::class)
+        val metrics: List<Metric> =
+            listOf(
+                StartupTimingMetric(),
+                TraceSectionMetric("Intempt.initialize", mode = TraceSectionMetric.Mode.Sum),
+                TraceSectionMetric("Intempt.daggerGraph", mode = TraceSectionMetric.Mode.Sum),
+                TraceSectionMetric("Intempt.config", mode = TraceSectionMetric.Mode.Sum),
+                TraceSectionMetric("Intempt.initService", mode = TraceSectionMetric.Mode.Sum),
+                TraceSectionMetric("Intempt.autocapture", mode = TraceSectionMetric.Mode.Sum),
+                TraceSectionMetric("Intempt.pushBridge", mode = TraceSectionMetric.Mode.Sum),
+            )
+    }
 }
