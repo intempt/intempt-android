@@ -3,12 +3,12 @@
 package com.intempt.core
 
 import android.content.Context
-import android.os.Trace
 import android.util.Log
 import android.view.View
 import com.intempt.core.intemptCore.DaggerIntemptCoreComponent
 import com.intempt.core.intemptCore.IntemptCoreModule
 import com.intempt.core.internal.PushBridge
+import com.intempt.core.internal.traced
 import com.intempt.core.types.AutocaptureOptions
 import com.intempt.core.types.AutomaticEventsOptions
 import com.intempt.core.types.ConsentAction
@@ -185,25 +185,6 @@ object Intempt {
         }
 
     /**
-     * Runs [block] inside a named trace section.
-     *
-     * `finally`, not a trailing `endSection()`: [buildTraced] returns early on an unconfigured
-     * config and catches Throwable, and an unbalanced begin/end corrupts the entire trace — every
-     * other section in it, not just this one.
-     */
-    private inline fun <T> traced(
-        name: String,
-        block: () -> T,
-    ): T {
-        Trace.beginSection(name)
-        try {
-            return block()
-        } finally {
-            Trace.endSection()
-        }
-    }
-
-    /**
      * The body of [build]. Callers hold the [instances] monitor.
      *
      * Three exits: unconfigured, construction threw, success. Each is a distinct outcome a caller
@@ -295,7 +276,13 @@ object Intempt {
     fun track(
         eventTitle: String,
         data: Map<String, IntemptValue> = emptyMap(),
-    ): Boolean = main("track")?.track(eventTitle, data) ?: false
+    ): Boolean =
+        // The per-event hot path: init runs once, this runs thousands of times a session. The
+        // whole expression is inside the section — wrapping only the left of the elvis would end
+        // the section before the `?: false` and misreport the uninitialised case.
+        traced("Intempt.track") {
+            main("track")?.track(eventTitle, data) ?: false
+        }
 
     /**
      * Associates the current session with [userId], optionally logging [eventTitle] and merging

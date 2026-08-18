@@ -13,6 +13,7 @@ import androidx.test.uiautomator.Until
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
+import java.util.regex.Pattern
 
 /**
  * Measures whether the SDK's UI instrumentation costs frames.
@@ -71,7 +72,11 @@ class FrameBenchmark {
 
             // A tap as well as scrolls: autocapture's control-interaction hook runs on click
             // dispatch, and a scroll-only workload never exercises it.
-            device.findObject(By.text("track"))?.click()
+            //
+            // Case-INSENSITIVE. This was By.text("track") and matched nothing — Button applies
+            // textAllCaps, so the node's text is "TRACK" — so behind the `?.` the tap silently
+            // never happened and the click hook was never in any frame measured here.
+            device.findObject(By.text(Pattern.compile("track", Pattern.CASE_INSENSITIVE)))?.click()
             device.waitForIdle()
         }
 }

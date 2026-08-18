@@ -3,6 +3,7 @@
 package com.intempt.core.services.eventPool
 import com.intempt.core.autocapture.BaseComponent
 import com.intempt.core.eventModels.IntemptEvent
+import com.intempt.core.internal.traced
 import com.intempt.core.queue.ConsentAuditLog
 import com.intempt.core.queue.DeliveryMessages
 import com.intempt.core.services.ConfigManagerService
@@ -137,7 +138,11 @@ internal open class EventPoolManagerService
         }
 
         fun emitEvent(event: IntemptEvent): Boolean {
-            val isEmitted = _eventReceiver.tryEmit(event)
+            // The handoff to the durable queue: the SharedFlow emit that every capture call ends
+            // in. Named for track because track is what drives it thousands of times a session;
+            // identify/group/record and autocapture emits go through the same section, so read
+            // the section's count alongside the workload that produced it.
+            val isEmitted = traced("Intempt.trackEnqueue") { _eventReceiver.tryEmit(event) }
             logger.log("EventPool | Event is emitted: $isEmitted")
             return isEmitted
         }

@@ -3,6 +3,7 @@ package com.intempt.baselineprofile
 import androidx.benchmark.macro.BaselineProfileMode
 import androidx.benchmark.macro.CompilationMode
 import androidx.benchmark.macro.ExperimentalMetricApi
+import androidx.benchmark.macro.MemoryUsageMetric
 import androidx.benchmark.macro.Metric
 import androidx.benchmark.macro.StartupMode
 import androidx.benchmark.macro.StartupTimingMetric
@@ -82,12 +83,25 @@ class StartupBenchmark {
         val metrics: List<Metric> =
             listOf(
                 StartupTimingMetric(),
+                // Nothing has ever measured what the SDK costs in memory: it holds a 256-slot
+                // event buffer, a SQLite queue and a HandlerThread. Mode.Last samples at the end
+                // of the iteration (after init has settled) rather than the peak, so it reports
+                // steady-state footprint; the default sub-metrics are HeapSize/RssAnon/RssFile.
+                MemoryUsageMetric(MemoryUsageMetric.Mode.Last),
                 TraceSectionMetric("Intempt.initialize", mode = TraceSectionMetric.Mode.Sum),
                 TraceSectionMetric("Intempt.daggerGraph", mode = TraceSectionMetric.Mode.Sum),
                 TraceSectionMetric("Intempt.config", mode = TraceSectionMetric.Mode.Sum),
                 TraceSectionMetric("Intempt.initService", mode = TraceSectionMetric.Mode.Sum),
                 TraceSectionMetric("Intempt.autocapture", mode = TraceSectionMetric.Mode.Sum),
                 TraceSectionMetric("Intempt.pushBridge", mode = TraceSectionMetric.Mode.Sum),
+                // Inside initService: one section per expensive Dagger provider. initService was
+                // 21.84ms of a 27.81ms init and nothing said which constructor that was.
+                TraceSectionMetric("Intempt.provideStorage", mode = TraceSectionMetric.Mode.Sum),
+                TraceSectionMetric("Intempt.provideHttp", mode = TraceSectionMetric.Mode.Sum),
+                TraceSectionMetric("Intempt.provideEventManager", mode = TraceSectionMetric.Mode.Sum),
+                TraceSectionMetric("Intempt.provideQueueConfig", mode = TraceSectionMetric.Mode.Sum),
+                TraceSectionMetric("Intempt.provideDelivery", mode = TraceSectionMetric.Mode.Sum),
+                TraceSectionMetric("Intempt.provideEventPool", mode = TraceSectionMetric.Mode.Sum),
             )
     }
 }

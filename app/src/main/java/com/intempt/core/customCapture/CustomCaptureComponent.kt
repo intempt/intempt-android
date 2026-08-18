@@ -16,6 +16,7 @@ import android.widget.TextView
 import android.widget.TimePicker
 import android.widget.ToggleButton
 import com.intempt.core.eventModels.IntemptEvent
+import com.intempt.core.internal.traced
 import com.intempt.core.services.ConfigManagerService
 import com.intempt.core.services.ErrorReporter
 import com.intempt.core.services.IntemptEventManagerService
@@ -206,7 +207,10 @@ internal class CustomCaptureComponent
                 IntemptEvent(
                     name = eventTitle,
                     type = EventType.Track.value,
-                    payload = intemptEvent.generateTrackEventPayload(data),
+                    // The build half of the hot path: property collection plus JSON. Separated
+                    // from Intempt.trackEnqueue so a regression can be attributed to payload
+                    // construction rather than to the handoff.
+                    payload = traced("Intempt.trackPayload") { intemptEvent.generateTrackEventPayload(data) },
                 )
             }
 
