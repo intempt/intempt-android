@@ -37,3 +37,10 @@ include(":sample")
 // library module, so this module applies `java-library` and compiles the same source files out of
 // `:app`. Not published, not part of the SDK artifact. See mutation/build.gradle.kts.
 include(":mutation")
+
+// Generates a Baseline Profile for the SDK's cold-start init path by driving :sample's
+// MainActivity through Macrobenchmark. Not published, not part of the SDK artifact; its
+// output is copied by hand into app/src/main/baselineProfiles (see CLAUDE.md notes on
+// library baseline profile packaging — AGP bundles that source set into the AAR directly,
+// no consumer plugin needed on a library module).
+include(":baselineprofile")

@@ -1,0 +1,29 @@
+{
+  "_comment": [
+    "Starting point for cold-start variance tracking, not a strict SLA.",
+    "Recorded from one manual run of :baselineprofile:connectedNonMinifiedReleaseAndroidTest",
+    "(class com.intempt.baselineprofile.StartupBenchmark) against a single Pixel_10_Pro_XL AVD,",
+    "API 34, 5 iterations per CompilationMode. A prior hand-measurement with adb `am start -W`",
+    "found run-to-run deltas of roughly 100-340ms across separate emulator-boot sessions, so a",
+    "single number here should not be read as precise — it exists so the new CI job",
+    "(macrobenchmark-startup, non-gating) has something to diff against. Revise these numbers",
+    "once a handful of real CI runs establish actual environment variance; until then this file",
+    "is informational only and nothing reads or enforces it automatically."
+  ],
+  "measuredOn": "2026-08-18",
+  "device": "Pixel_10_Pro_XL (AVD), API 34",
+  "iterationsPerMode": 5,
+  "metric": "timeToInitialDisplayMs",
+  "startupMode": "COLD",
+  "results": {
+    "compilationModeNone": {
+      "medianMs": 417.431746,
+      "runsMs": [380.135304, 417.431746, 428.633995, 436.631768, 416.21794]
+    },
+    "compilationModeBaselineProfileRequired": {
+      "medianMs": 436.00787,
+      "runsMs": [438.890931, 436.00787, 418.884347, 397.751012, 445.363625]
+    }
+  },
+  "sourceJson": "baselineprofile/build/outputs/connected_android_test_additional_output/nonMinifiedRelease/connected/Pixel_10_Pro_XL(AVD) - 17/com.intempt.baselineprofile-benchmarkData.json"
+}
