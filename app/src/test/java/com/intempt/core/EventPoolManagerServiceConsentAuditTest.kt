@@ -23,6 +23,9 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.Mockito.mock
 import org.mockito.kotlin.any
+import org.mockito.kotlin.argThat
+import org.mockito.kotlin.never
+import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.robolectric.RobolectricTestRunner
 
@@ -98,6 +101,48 @@ class EventPoolManagerServiceConsentAuditTest {
             val recorded = auditLog.getAll()
             assertEquals(1, recorded.size)
             assertEquals("opt_out", recorded[0].getString("action"))
+        }
+
+    /**
+     * A rejected consent event must not be logged as a delivered one.
+     *
+     * `HttpManagerService.post` catches its own failures -- including every non-2xx -- and reports
+     * them by returning null rather than throwing, so the call above it completed normally on a 401
+     * and the next line logged success unconditionally. Observed on a real device:
+     *
+     *     HttpService post request error: Failed with status code: 401
+     *     Successfully sent events to server
+     *
+     * The throwing case was already covered by the test above; only the null case reached this,
+     * and nothing asserted on the log. Consent bypasses the durable queue, so there is no retry
+     * and no later signal -- this line is the only place a failed compliance decision surfaces.
+     */
+    @Test
+    fun `a rejected consent send is logged as a failure, not as a success`() =
+        runTest {
+            // null, not an exception: this is what a 401, 404 or 500 produces.
+            whenever(http.post(any(), any<JSONObject>(), any())).thenReturn(null)
+
+            val service =
+                EventPoolManagerService(
+                    config,
+                    logger,
+                    http,
+                    intemptEvent,
+                    mock(DeliveryMessages::class.java),
+                    dispatcher = UnconfinedTestDispatcher(testScheduler),
+                    consentAudit = auditLog,
+                )
+
+            service.emitEvent(consentEvent("opt_out"))
+            testScheduler.advanceUntilIdle()
+
+            verify(logger).error(argThat { contains("NOT delivered") })
+            verify(logger, never()).log(argThat { contains("Successfully sent consent") })
+
+            // The local audit record is still the point of the fallback, and it must survive a
+            // failure that is now reported honestly.
+            assertEquals(1, auditLog.getAll().size)
         }
 
     @Test

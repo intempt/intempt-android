@@ -291,9 +291,26 @@ internal open class EventPoolManagerService
 
             coroutineScope.launch {
                 try {
-                    http.post(config.consentUrl, requestBodyJson)
-                    logger.log("Successfully sent events to server")
-                    lastDispatchTime = System.currentTimeMillis()
+                    // The return value is checked, not discarded. HttpManagerService.post catches
+                    // its own failures -- including every non-2xx -- and reports them by returning
+                    // null, so calling it for effect and then logging success meant a 401 printed
+                    //
+                    //   HttpService post request error: Failed with status code: 401
+                    //   Successfully sent events to server
+                    //
+                    // one line after the other, and lastDispatchTime advanced for a dispatch that
+                    // never happened. Consent bypasses the durable queue, so there is no retry and
+                    // no second chance to notice: that log line was the only signal a compliance
+                    // decision failed to reach the platform, and it said the opposite.
+                    if (http.post(config.consentUrl, requestBodyJson) == null) {
+                        logger.error(
+                            "sendConsentEvent | consent event was NOT delivered to ${config.consentUrl}. " +
+                                "It is recorded in the local consent audit log; the platform did not receive it.",
+                        )
+                    } else {
+                        logger.log("Successfully sent consent event to server")
+                        lastDispatchTime = System.currentTimeMillis()
+                    }
                 } catch (e: Exception) {
                     logger.error("sendConsentEvent | Exception occurred while sending events: ${e.message}")
                 }
