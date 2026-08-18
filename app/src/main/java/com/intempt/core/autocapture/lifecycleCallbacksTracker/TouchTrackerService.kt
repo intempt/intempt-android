@@ -9,6 +9,7 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.Window
+import com.intempt.core.internal.traced
 import com.intempt.core.services.ConfigManagerService
 import com.intempt.core.services.UtilsService
 import com.intempt.core.services.eventPool.EventPoolManagerService
@@ -39,15 +40,26 @@ internal class TouchTrackerService
                 object : Window.Callback by originalCallback {
                     override fun dispatchTouchEvent(event: MotionEvent?): Boolean {
                         if (event?.action == MotionEvent.ACTION_UP) {
-                            val rootView = activity.window.decorView
-                            val touchedView = findTouchedView(rootView, event.rawX.toInt(), event.rawY.toInt())
-                            runnableWrapper[0] =
-                                debounceAndLog(
-                                    handler,
-                                    runnableWrapper[0],
-                                    touchedView,
-                                    activity,
-                                )
+                            // Both sections are on the main thread, inside the host app's touch
+                            // dispatch, and neither is debounced — the debounce below only defers
+                            // the event emission, not this. Split in two because the tree walk is
+                            // the part that scales with the host's view hierarchy and the
+                            // bookkeeping is the part that does not; one combined number could not
+                            // tell a deep-hierarchy regression from anything else.
+                            traced("Intempt.touchDispatch") {
+                                val rootView = activity.window.decorView
+                                val touchedView =
+                                    traced("Intempt.findTouchedView") {
+                                        findTouchedView(rootView, event.rawX.toInt(), event.rawY.toInt())
+                                    }
+                                runnableWrapper[0] =
+                                    debounceAndLog(
+                                        handler,
+                                        runnableWrapper[0],
+                                        touchedView,
+                                        activity,
+                                    )
+                            }
                         }
 
                         return originalCallback.dispatchTouchEvent(event)

@@ -31,6 +31,18 @@ import java.util.regex.Pattern
  *   and by autocapture, so its Count can exceed the track count; read the counts, not just the
  *   sums.
  *
+ * Two more sections come from autocapture rather than from `track()`, and are measured here because
+ * this workload already produces 20 real `ACTION_UP`s per iteration:
+ * - `Intempt.touchDispatch` — autocapture's whole `Window.Callback` hook, on the main thread inside
+ *   the host app's touch dispatch.
+ * - `Intempt.findTouchedView` — the recursive view-tree walk inside it, nested in the above. This
+ *   is the only part that scales with the host's hierarchy, and it runs before the 320 ms debounce,
+ *   so it is paid on every touch-up rather than once per burst.
+ *
+ * Caveat on those two: `:sample`'s layout is one `ScrollView` over ~16 direct children. A real app
+ * with a deep Compose or nested-RecyclerView tree walks far more nodes, so read the number as a
+ * floor and a regression tripwire, not as what a production host pays.
+ *
  * Each section is reported as Sum and Average. Mode.Sum already emits a `...Count` measurement of
  * its own, so an explicit Mode.Count metric is not added — the two collide on the same output name
  * and macrobenchmark fails the run ("Multiple metrics produced measurements with overlapping
@@ -106,6 +118,10 @@ class TrackBenchmark {
                 TraceSectionMetric("Intempt.trackPayload", mode = TraceSectionMetric.Mode.Average),
                 TraceSectionMetric("Intempt.trackEnqueue", mode = TraceSectionMetric.Mode.Sum),
                 TraceSectionMetric("Intempt.trackEnqueue", mode = TraceSectionMetric.Mode.Average),
+                TraceSectionMetric("Intempt.touchDispatch", mode = TraceSectionMetric.Mode.Sum),
+                TraceSectionMetric("Intempt.touchDispatch", mode = TraceSectionMetric.Mode.Average),
+                TraceSectionMetric("Intempt.findTouchedView", mode = TraceSectionMetric.Mode.Sum),
+                TraceSectionMetric("Intempt.findTouchedView", mode = TraceSectionMetric.Mode.Average),
             )
     }
 }
