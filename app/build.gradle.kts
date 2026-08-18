@@ -338,8 +338,13 @@ dependencies {
     kapt(libs.dagger.compiler)
     implementation(kotlin("reflect"))
     implementation(libs.ktor.client.core)
+    // Only the Android engine. ktor-client-cio (a second, unused HTTP engine) was declared
+    // alongside it with HttpClient {} never pinning an engine — ktor picked one via classpath
+    // ServiceLoader discovery and the other rode along unused. Nothing in :app or its tests
+    // referenced CIO or a MockEngine. Verified via an isolated before/after dex build of
+    // :sample's release APK: removing it drops 1,225 real methods (33,797 -> 32,572) with the
+    // full unit/lint/ktlint/apiCheck gate and both instrumented API levels unaffected.
     implementation(libs.ktor.client.android)
-    implementation(libs.ktor.client.cio)
     implementation(libs.ktor.serialization.kotlinx.json)
     implementation(libs.ktor.client.content.negotiation)
     implementation(libs.ktor.client.serialization)
