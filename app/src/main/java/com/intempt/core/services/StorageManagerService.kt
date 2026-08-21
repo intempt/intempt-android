@@ -10,7 +10,6 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -49,13 +48,18 @@ internal class StorageManagerService
             value: T,
             applyToPrefs: SharedPreferences.Editor.(String, T) -> Unit,
         ) {
+            // The cache write happens on the caller's thread, BEFORE this returns. It used to
+            // happen inside the coroutine, which made every write invisible to an immediate
+            // read-back — getSessionId() right after the session tracker stored one, or
+            // getProfileId() right after the mint. Persistence is the only slow part, and
+            // SharedPreferences.apply() already has exactly these semantics one level down:
+            // visible now, durable eventually.
+            localStore[key] = value
             coroutineScope.launch {
                 val sharedPreferences = context.getSharedPreferences(scopedPrefs(prefs), Context.MODE_PRIVATE)
                 val editor = sharedPreferences.edit()
                 editor.applyToPrefs(key, value)
                 editor.apply()
-
-                localStore[key] = value
             }
         }
 
@@ -66,7 +70,17 @@ internal class StorageManagerService
             fetchFromPrefs: SharedPreferences.(String, T?) -> T?,
         ): T? {
             @Suppress("UNCHECKED_CAST")
-            return localStore[key] as T?
+            val cached = localStore[key] as T?
+            if (cached != null) return cached
+
+            // Cache miss: read through to SharedPreferences and remember the answer. Every
+            // caller has always passed this lambda, but it was never invoked — the cache was
+            // the only source of truth, so a process restart (or a read that beat the async
+            // population job) returned the fallback even though the value sat on disk.
+            val sharedPreferences = context.getSharedPreferences(scopedPrefs(prefs), Context.MODE_PRIVATE)
+            val fetched = sharedPreferences.fetchFromPrefs(key, fallBack)
+            if (fetched != null) localStore[key] = fetched
+            return fetched
         }
 
         fun getSessionId(): String {
@@ -196,23 +210,27 @@ internal class StorageManagerService
             localStore[StorageKeys.ProfileId.key] = freshProfileId
         }
 
-        suspend fun validateProfileId() =
-            withContext(dispatcher) {
-                val profKey = StorageKeys.ProfileId.key
-                val sharedPreferences =
-                    context.getSharedPreferences(scopedPrefs(StorageKeys.UserPrefs.key), Context.MODE_PRIVATE)
-                val profId = sharedPreferences.getString(profKey, null)
+        /**
+         * Loads the profile id into the cache, minting one if this install has none — all on
+         * the caller's thread, so `getProfileId()` answers correctly the moment this returns.
+         *
+         * This must run before `initialize()` resolves. Its predecessor (`validateProfileId`,
+         * a suspend fun launched fire-and-forget from `startAutomaticEvents`) raced every
+         * immediate read: on a warm device the mint usually won; on a cold one the caller read
+         * an empty id — observed intermittently through the React Native bridge's e2e probe.
+         */
+        fun ensureProfileId() {
+            // Through the read-through getter, not raw prefs: an id minted a moment ago is in
+            // the cache while its persist is still in flight, and reading prefs directly here
+            // would miss it and rotate an identity that already exists.
+            if (getProfileId().isNotEmpty()) return
 
-                if (!profId.isNullOrEmpty()) {
-                    localStore[profKey] = profId
-                } else {
-                    setStorageItem(
-                        prefs = StorageKeys.UserPrefs.key,
-                        key = StorageKeys.ProfileId.key,
-                        value = utils.generateId(IdTypeKeys.ProfileId.key),
-                    ) { key, value ->
-                        putString(key, value)
-                    }
-                }
+            setStorageItem(
+                prefs = StorageKeys.UserPrefs.key,
+                key = StorageKeys.ProfileId.key,
+                value = utils.generateId(IdTypeKeys.ProfileId.key),
+            ) { key, value ->
+                putString(key, value)
             }
+        }
     }

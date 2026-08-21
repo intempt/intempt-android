@@ -167,15 +167,16 @@ class AutocaptureLifecycleTest {
      * not recoverable after the fact.
      */
     @Test
-    fun `the profile id is validated whatever the options say`() =
+    fun `the profile id is ensured synchronously whatever the options say`() =
         runTest(scheduler) {
             `when`(config.automaticEventsOptions)
                 .thenReturn(AutomaticEventsOptions(sessions = false, versionChanges = false, appStateChanges = false))
 
             component.startAutomaticEvents()
+            // Deliberately NO advanceUntilIdle before the verify: the mint must happen on the
+            // caller's thread, before startAutomaticEvents returns, or getProfileId() races it.
+            verify(storage).ensureProfileId()
             scheduler.advanceUntilIdle()
-
-            verify(storage).validateProfileId()
         }
 
     @Test

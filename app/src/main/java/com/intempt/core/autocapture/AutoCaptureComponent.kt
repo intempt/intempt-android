@@ -37,7 +37,7 @@ import javax.inject.Singleton
  * - [startAutocapture] installs the view-layer hooks and is never called implicitly. It is
  *   idempotent, [stopAutocapture] uninstalls, and [isAutocaptureRunning] answers honestly.
  *
- * `validateProfileId` stays on the automatic-events path rather than the autocapture path: the
+ * `ensureProfileId` stays on the automatic-events path rather than the autocapture path: the
  * profile id is needed by every event the SDK sends, so gating it behind UI instrumentation would
  * mean an app that only calls `track()` never mints one.
  */
@@ -66,11 +66,14 @@ internal class AutoCaptureComponent
 
         /** Lifecycle facts, per [ConfigManagerService.automaticEventsOptions]. */
         fun startAutomaticEvents() {
-            coroutineScope.launch {
-                // Unconditional: every event the SDK sends carries a profileId, so this cannot be
-                // gated behind any of the options below.
-                storage.validateProfileId()
+            // Unconditional, and SYNCHRONOUS: every event the SDK sends carries a profileId, so
+            // this cannot be gated behind any of the options below — and it cannot ride the
+            // coroutine either, because initialize() returns as soon as this method does, and
+            // the public contract is that getProfileId() answers from that moment. The session /
+            // install trackers below stay async; they dispatch events, nobody reads them back.
+            storage.ensureProfileId()
 
+            coroutineScope.launch {
                 val options = config.automaticEventsOptions
 
                 if (options.sessions) {

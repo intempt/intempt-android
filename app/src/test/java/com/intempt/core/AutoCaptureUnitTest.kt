@@ -224,6 +224,11 @@ class AutoCaptureUnitTest {
     fun `should call installUpgrade`() =
         runTest {
             interceptHttpRequest()
+            // Fresh-install premise, stated rather than assumed. Before storage reads became
+            // synchronous these tests passed only because a stored version code was invisible
+            // to the read that decides install-vs-upgrade; Robolectric also leaks prefs files
+            // between tests in a class, so the premise must be stubbed, not inherited.
+            doReturn(-1L).`when`(installUpgradeSrv).getStoredVersionCode()
             installUpgradeComponent.start(versionChanges = true, appStateChanges = true)
 
             verify(eventPoolSrv).dispatchEvent(any<DispatchEventProps>(), anyString())
@@ -237,6 +242,7 @@ class AutoCaptureUnitTest {
             doThrow(RuntimeException("Simulated error during dispatchEvent"))
                 .`when`(eventPoolSrv).dispatchEvent(any<DispatchEventProps>(), anyString())
 
+            doReturn(-1L).`when`(installUpgradeSrv).getStoredVersionCode()
             installUpgradeComponent.start(versionChanges = true, appStateChanges = true)
 
             verify(eventPoolSrv).dispatchEvent(any<DispatchEventProps>(), anyString())
