@@ -155,41 +155,45 @@ internal class StorageManagerService
         }
 
         fun clearAllStorage() {
-            coroutineScope.launch {
-                // Clear all entries in SessionPrefs
-                val sessionPrefs =
-                    context.getSharedPreferences(scopedPrefs(StorageKeys.SessionPrefs.key), Context.MODE_PRIVATE)
-                sessionPrefs.edit().clear().apply()
+            // Deliberately NOT launched on a coroutine: reset()/logOut() promise that the very
+            // next getProfileId() already sees the rotated identity. The previous version ran
+            // this whole block fire-and-forget, so a caller reading immediately after reset()
+            // raced the wipe and still saw the old profile id. The work here is cheap —
+            // SharedPreferences are in-memory once loaded and apply() persists asynchronously.
 
-                // Clear all entries in AppPrefs
-                val appPrefs = context.getSharedPreferences(scopedPrefs(StorageKeys.AppPrefs.key), Context.MODE_PRIVATE)
-                appPrefs.edit().clear().apply()
+            // Clear all entries in SessionPrefs
+            val sessionPrefs =
+                context.getSharedPreferences(scopedPrefs(StorageKeys.SessionPrefs.key), Context.MODE_PRIVATE)
+            sessionPrefs.edit().clear().apply()
 
-                // Clear all entries in FragmentPrefs
-                val fragmentPrefs =
-                    context.getSharedPreferences(scopedPrefs(StorageKeys.FragmentPrefs.key), Context.MODE_PRIVATE)
-                fragmentPrefs.edit().clear().apply()
+            // Clear all entries in AppPrefs
+            val appPrefs = context.getSharedPreferences(scopedPrefs(StorageKeys.AppPrefs.key), Context.MODE_PRIVATE)
+            appPrefs.edit().clear().apply()
 
-                val userPrefs =
-                    context.getSharedPreferences(scopedPrefs(StorageKeys.UserPrefs.key), Context.MODE_PRIVATE)
-                userPrefs.edit().clear().apply()
+            // Clear all entries in FragmentPrefs
+            val fragmentPrefs =
+                context.getSharedPreferences(scopedPrefs(StorageKeys.FragmentPrefs.key), Context.MODE_PRIVATE)
+            fragmentPrefs.edit().clear().apply()
 
-                localStore.clear()
+            val userPrefs =
+                context.getSharedPreferences(scopedPrefs(StorageKeys.UserPrefs.key), Context.MODE_PRIVATE)
+            userPrefs.edit().clear().apply()
 
-                // Issue a FRESH anonymous profileId rather than restoring the previous one.
-                //
-                // This previously read getProfileId() before clearing and wrote the same value
-                // back, so logOut() did not actually separate identities: the next user of a
-                // shared device inherited the previous user's profile, and their events were
-                // attributed to it. Rotating here is the whole point of logging out.
-                setStorageItem(
-                    StorageKeys.UserPrefs.key,
-                    StorageKeys.ProfileId.key,
-                    utils.generateId(IdTypeKeys.ProfileId.key),
-                ) { key, value ->
-                    putString(key, value)
-                }
-            }
+            localStore.clear()
+
+            // Issue a FRESH anonymous profileId rather than restoring the previous one.
+            //
+            // This previously read getProfileId() before clearing and wrote the same value
+            // back, so logOut() did not actually separate identities: the next user of a
+            // shared device inherited the previous user's profile, and their events were
+            // attributed to it. Rotating here is the whole point of logging out.
+            //
+            // Written inline rather than through setStorageItem(): that helper launches its own
+            // coroutine, which both delays the localStore update past this method's return and
+            // could interleave with the prefs wipe above.
+            val freshProfileId = utils.generateId(IdTypeKeys.ProfileId.key)
+            userPrefs.edit().putString(StorageKeys.ProfileId.key, freshProfileId).apply()
+            localStore[StorageKeys.ProfileId.key] = freshProfileId
         }
 
         suspend fun validateProfileId() =

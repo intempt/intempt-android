@@ -11,6 +11,16 @@ under Unreleased.
 
 ## [Unreleased]
 
+## [3.0.3] - 2026-08-20
+
+### Fixed
+
+- `reset()` raced its own identity rotation. The rotation added in 3.0.2 ran on a fire-and-forget
+  coroutine inside `clearAllStorage()`, so a caller reading `getProfileId()` immediately after
+  `reset()` could still see the previous user's profile id. The wipe and the fresh mint now run
+  synchronously before `reset()` returns — observed and verified end-to-end through the React
+  Native bridge's e2e probe.
+
 ## [3.0.2] - 2026-08-18
 
 A performance release. No API changes, no behaviour changes a consumer has to adapt to — the one
