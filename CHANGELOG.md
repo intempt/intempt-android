@@ -11,6 +11,19 @@ under Unreleased.
 
 ## [Unreleased]
 
+## [3.0.4] - 2026-08-21
+
+### Fixed
+
+- Identity reads no longer race their writers. `getProfileId()`/`getSessionId()` read only an
+  in-memory cache that background jobs populated, so a read immediately after `initialize()` —
+  or any read after a process restart, before the population job ran — returned `""` even though
+  the value sat in SharedPreferences. Three changes close the class of bug: storage writes update
+  the cache on the caller's thread (persistence stays async, like `apply()`), reads fall through
+  to SharedPreferences on a cache miss, and the profile id is minted synchronously before
+  `initialize()` returns (`ensureProfileId`, replacing the fire-and-forget `validateProfileId`).
+  Observed intermittently through the React Native bridge's e2e probe on cold devices.
+
 ## [3.0.3] - 2026-08-20
 
 ### Fixed

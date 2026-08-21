@@ -2,6 +2,7 @@ package com.intempt.core.services
 
 import android.content.Context
 import com.intempt.core.types.StorageKeys
+import kotlinx.coroutines.Dispatchers
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
@@ -28,7 +29,9 @@ class StorageManagerServiceTest {
         utils = mock(UtilsService::class.java)
         var counter = 0
         `when`(utils.generateId(anyString())).thenAnswer { "prof_fresh_${counter++}" }
-        storage = StorageManagerService(context, utils)
+        // Unconfined so the persist-to-prefs coroutine runs inline: these tests assert
+        // read-back guarantees, not scheduler behaviour.
+        storage = StorageManagerService(context, utils, Dispatchers.Unconfined)
     }
 
     /**
@@ -50,6 +53,49 @@ class StorageManagerServiceTest {
         val rotated = storage.getProfileId()
         assertNotEquals("the old identity must not survive a reset", "prof_old", rotated)
         assertTrue("a fresh id must already be minted, not left blank", rotated.startsWith("prof_fresh_"))
+    }
+
+    /**
+     * Pre-3.0.4, getProfileId() read ONLY the in-memory cache, which a fire-and-forget
+     * coroutine populated some time after initialize() returned. On a cold device the read
+     * won the race and returned "" even though the id sat in SharedPreferences — observed
+     * intermittently through the React Native bridge's e2e probe. ensureProfileId() is the
+     * synchronous replacement; no scheduler-advancing in these tests, on purpose.
+     */
+    @Test
+    fun `ensureProfileId mints synchronously on a fresh install`() {
+        storage.ensureProfileId()
+        val minted = storage.getProfileId()
+        assertTrue("a fresh install must have an id the moment ensure returns", minted.startsWith("prof_fresh_"))
+    }
+
+    @Test
+    fun `ensureProfileId keeps an existing identity rather than rotating it`() {
+        storage.ensureProfileId()
+        val first = storage.getProfileId()
+        storage.ensureProfileId()
+        assertEquals("ensure must be idempotent — only reset() rotates", first, storage.getProfileId())
+    }
+
+    @Test
+    fun `reads fall back to SharedPreferences when the cache is cold`() {
+        storage.ensureProfileId()
+        val minted = storage.getProfileId()
+
+        // A second service over the same context simulates a process restart: empty cache,
+        // same prefs. The read must come back from disk, not return the blank fallback.
+        val restarted = StorageManagerService(context, utils, Dispatchers.Unconfined)
+        assertEquals(minted, restarted.getProfileId())
+    }
+
+    @Test
+    fun `writes are visible to an immediate read-back`() {
+        storage.setStorageItem(
+            StorageKeys.SessionPrefs.key,
+            StorageKeys.SessionId.key,
+            "sess_now",
+        ) { key, value -> putString(key, value) }
+        assertEquals("sess_now", storage.getSessionId())
     }
 
     @Test
