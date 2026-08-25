@@ -2,20 +2,6 @@
 
 package com.intempt.core.customCapture
 
-import kotlinx.serialization.json.double
-import kotlinx.serialization.json.long
-import kotlinx.serialization.json.boolean
-import kotlinx.serialization.json.doubleOrNull
-import kotlinx.serialization.json.longOrNull
-import kotlinx.serialization.json.booleanOrNull
-import kotlinx.serialization.json.contentOrNull
-import kotlinx.serialization.json.jsonPrimitive
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.JsonNull
-import kotlinx.serialization.json.JsonElement
-import com.intempt.core.types.FlagReason
-import com.intempt.core.types.FlagDetail
-import com.intempt.core.types.FlagContext
 import android.view.View
 import android.widget.CheckBox
 import android.widget.CompoundButton
@@ -40,10 +26,24 @@ import com.intempt.core.services.eventPool.EventPoolManagerService
 import com.intempt.core.types.ConsentAction
 import com.intempt.core.types.DefaultConfigs
 import com.intempt.core.types.EventType
+import com.intempt.core.types.FlagContext
+import com.intempt.core.types.FlagDetail
+import com.intempt.core.types.FlagReason
 import com.intempt.core.types.IntemptError
 import com.intempt.core.types.IntemptValue
 import com.intempt.core.types.Product
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.boolean
+import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.double
+import kotlinx.serialization.json.doubleOrNull
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.long
+import kotlinx.serialization.json.longOrNull
 import javax.inject.Inject
 import javax.inject.Singleton
 

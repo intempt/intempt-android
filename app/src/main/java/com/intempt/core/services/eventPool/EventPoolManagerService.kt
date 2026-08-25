@@ -1,8 +1,6 @@
 @file:OptIn(com.intempt.core.internal.InternalIntemptApi::class)
 
 package com.intempt.core.services.eventPool
-import kotlinx.serialization.json.jsonArray
-import com.intempt.core.types.FlagContext
 import com.intempt.core.autocapture.BaseComponent
 import com.intempt.core.eventModels.IntemptEvent
 import com.intempt.core.internal.traced
@@ -14,6 +12,7 @@ import com.intempt.core.services.IntemptEventManagerService
 import com.intempt.core.services.LoggerManagerService
 import com.intempt.core.types.DispatchEventProps
 import com.intempt.core.types.EventType
+import com.intempt.core.types.FlagContext
 import com.intempt.core.types.HandleEventTypeProps
 import com.intempt.core.types.IntemptEventProvider
 import io.ktor.client.statement.bodyAsText
@@ -27,6 +26,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import org.json.JSONObject
 import javax.inject.Inject

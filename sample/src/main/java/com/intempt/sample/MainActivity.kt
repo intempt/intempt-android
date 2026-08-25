@@ -15,18 +15,18 @@ import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import com.intempt.core.Intempt
+import com.intempt.core.types.AutocaptureOptions
+import com.intempt.core.types.ConsentAction
+import com.intempt.core.types.FlagContext
+import com.intempt.core.types.IntemptCredentials
+import com.intempt.core.types.IntemptValue
+import com.intempt.core.types.Product
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
-import com.intempt.core.Intempt
-import com.intempt.core.types.AutocaptureOptions
-import com.intempt.core.types.ConsentAction
-import com.intempt.core.types.IntemptCredentials
-import com.intempt.core.types.FlagContext
-import com.intempt.core.types.IntemptValue
-import com.intempt.core.types.Product
 
 /**
  * Exercises the public API by hand. Built with plain views rather than Compose so this
@@ -147,11 +147,12 @@ class MainActivity : AppCompatActivity() {
             scope.launch {
                 // The reason separates a deliberate holdout from an outage. Without it both are
                 // the same absent value and you cannot tell a rollout decision from a failure.
-                val detail = Intempt.variationDetail(
-                    "pricing_cta",
-                    FlagContext(userId = "user-123"),
-                    "Get started",
-                )
+                val detail =
+                    Intempt.variationDetail(
+                        "pricing_cta",
+                        FlagContext(userId = "user-123"),
+                        "Get started",
+                    )
                 log.append(
                     "  pricing_cta -> ${detail.value} " +
                         "(reason=${detail.reason.wireValue}, variant=${detail.variant ?: "none"})\n",

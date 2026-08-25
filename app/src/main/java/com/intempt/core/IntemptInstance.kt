@@ -2,14 +2,14 @@
 
 package com.intempt.core
 
-import com.intempt.core.types.FlagDetail
-import com.intempt.core.types.FlagContext
 import android.view.View
 import com.intempt.core.intemptCore.IntemptCoreService
 import com.intempt.core.types.AutocaptureOptions
 import com.intempt.core.types.AutomaticEventsOptions
 import com.intempt.core.types.ConsentAction
 import com.intempt.core.types.FeedFields
+import com.intempt.core.types.FlagContext
+import com.intempt.core.types.FlagDetail
 import com.intempt.core.types.IntemptError
 import com.intempt.core.types.IntemptValue
 import com.intempt.core.types.Product
@@ -240,8 +240,7 @@ class IntemptInstance internal constructor(
 
     /** Every key assigned to this person, in one call. */
     @JvmOverloads
-    suspend fun allFlags(context: FlagContext = FlagContext()): Map<String, Any?> =
-        core.capture.allFlags(context)
+    suspend fun allFlags(context: FlagContext = FlagContext()): Map<String, Any?> = core.capture.allFlags(context)
 
     /** Excludes [view] from autocapture so its text is never recorded. Android-only. */
     fun doNotCaptureText(view: View) = core.capture.doNotCaptureText(view)

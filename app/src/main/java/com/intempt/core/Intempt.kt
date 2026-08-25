@@ -2,9 +2,6 @@
 
 package com.intempt.core
 
-import com.intempt.core.types.FlagReason
-import com.intempt.core.types.FlagDetail
-import com.intempt.core.types.FlagContext
 import android.content.Context
 import android.util.Log
 import android.view.View
@@ -16,6 +13,9 @@ import com.intempt.core.types.AutocaptureOptions
 import com.intempt.core.types.AutomaticEventsOptions
 import com.intempt.core.types.ConsentAction
 import com.intempt.core.types.FeedFields
+import com.intempt.core.types.FlagContext
+import com.intempt.core.types.FlagDetail
+import com.intempt.core.types.FlagReason
 import com.intempt.core.types.InstanceId
 import com.intempt.core.types.IntemptCredentials
 import com.intempt.core.types.IntemptError
@@ -611,8 +611,7 @@ object Intempt {
     /** Every key assigned to this person, in one call. Empty when the SDK is not initialized. */
     @JvmStatic
     @JvmOverloads
-    suspend fun allFlags(context: FlagContext = FlagContext()): Map<String, Any?> =
-        main("allFlags")?.allFlags(context) ?: emptyMap()
+    suspend fun allFlags(context: FlagContext = FlagContext()): Map<String, Any?> = main("allFlags")?.allFlags(context) ?: emptyMap()
 
     /**
      * A boolean flag. A served value of the wrong type falls back rather than being coerced:

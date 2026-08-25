@@ -2,7 +2,6 @@
 
 package com.intempt.core.services
 
-import com.intempt.core.types.FlagContext
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.ContentResolver
@@ -43,6 +42,7 @@ import com.intempt.core.eventModels.SessionUserAttributes
 import com.intempt.core.eventModels.TrackEvent
 import com.intempt.core.eventModels.UiElementEvent
 import com.intempt.core.types.AppVisibilityState
+import com.intempt.core.types.FlagContext
 import com.intempt.core.types.IdTypeKeys
 import com.intempt.core.types.IntemptEventProvider
 import com.intempt.core.types.IntemptValue
