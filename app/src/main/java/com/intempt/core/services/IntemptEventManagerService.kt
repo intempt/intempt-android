@@ -2,6 +2,7 @@
 
 package com.intempt.core.services
 
+import com.intempt.core.types.FlagContext
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.ContentResolver
@@ -269,6 +270,33 @@ internal open class IntemptEventManagerService
                     accountAttributes = accountAttributes,
                 ),
             )
+        }
+
+        /**
+         * The choose-api request body.
+         *
+         * `names` is omitted entirely when null, which is how the service is asked for every key
+         * rather than a named subset — sending an empty list would ask for none.
+         */
+        fun generateChooseBody(
+            context: FlagContext,
+            names: List<String>?,
+        ): Map<String, Any?> {
+            val identification = mutableMapOf<String, Any>()
+            identification["sourceId"] = config.sourceId
+            // The device identifier the SDK already holds, unless the caller supplied one. It is
+            // the value that survives sign-in.
+            (context.profileId ?: storage.getProfileId()).takeIf { it.isNotBlank() }?.let {
+                identification["profileId"] = it
+            }
+            context.userId?.takeIf { it.isNotBlank() }?.let { identification["userId"] = it }
+
+            val map = mutableMapOf<String, Any>()
+            map["identification"] = identification
+            map["device"] = "mobile"
+            names?.let { map["names"] = it }
+
+            return map
         }
 
         fun generateRecommendationBody(

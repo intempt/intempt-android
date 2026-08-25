@@ -2,6 +2,9 @@
 
 package com.intempt.core
 
+import com.intempt.core.types.FlagReason
+import com.intempt.core.types.FlagDetail
+import com.intempt.core.types.FlagContext
 import android.content.Context
 import android.util.Log
 import android.view.View
@@ -567,6 +570,90 @@ object Intempt {
         fields: List<String> = FeedFields.DEFAULT,
         productId: String? = null,
     ): JsonObject? = main("products")?.products(feedId, count, fields, productId)
+
+    /**
+     * The value assigned for [key], or [defaultValue] when the service did not answer.
+     *
+     * Ask for a KEY, never a mode. Whether the key names an experiment, a personalization or a
+     * flag is the platform's business: its serving query filters on channel and status and never
+     * on mode. The older surface put the mode in the method name, which forced a caller to know
+     * which it was before reading it.
+     *
+     * [defaultValue] is what comes back on a network failure, a 5xx, a timeout, an unknown key or
+     * an uninitialized SDK. A flag SDK that throws when the service is unreachable takes the host
+     * app down with it.
+     */
+    @JvmStatic
+    @JvmOverloads
+    suspend fun variation(
+        key: String,
+        context: FlagContext = FlagContext(),
+        defaultValue: Any?,
+    ): Any? = main("variation")?.variation(key, context, defaultValue) ?: defaultValue
+
+    /**
+     * As [variation], plus WHY.
+     *
+     * The reason is what lets a caller tell a deliberate off state from a request the service never
+     * answered — the two used to be the same absent entry, which is why this SDK exposed no
+     * assignment at all until the serving contract could distinguish them.
+     */
+    @JvmStatic
+    @JvmOverloads
+    suspend fun variationDetail(
+        key: String,
+        context: FlagContext = FlagContext(),
+        defaultValue: Any?,
+    ): FlagDetail =
+        main("variationDetail")?.variationDetail(key, context, defaultValue)
+            ?: FlagDetail(defaultValue, FlagReason.OFF)
+
+    /** Every key assigned to this person, in one call. Empty when the SDK is not initialized. */
+    @JvmStatic
+    @JvmOverloads
+    suspend fun allFlags(context: FlagContext = FlagContext()): Map<String, Any?> =
+        main("allFlags")?.allFlags(context) ?: emptyMap()
+
+    /**
+     * A boolean flag. A served value of the wrong type falls back rather than being coerced:
+     * the string "false" is truthy in most languages, and a silent coercion is indistinguishable
+     * from a correct answer.
+     */
+    @JvmStatic
+    @JvmOverloads
+    suspend fun boolVariation(
+        key: String,
+        context: FlagContext = FlagContext(),
+        defaultValue: Boolean,
+    ): Boolean = variation(key, context, defaultValue) as? Boolean ?: defaultValue
+
+    @JvmStatic
+    @JvmOverloads
+    suspend fun stringVariation(
+        key: String,
+        context: FlagContext = FlagContext(),
+        defaultValue: String,
+    ): String = variation(key, context, defaultValue) as? String ?: defaultValue
+
+    /** A numeric flag. Note a Boolean is not a Number in Kotlin, so `true` cannot arrive as 1. */
+    @JvmStatic
+    @JvmOverloads
+    suspend fun numberVariation(
+        key: String,
+        context: FlagContext = FlagContext(),
+        defaultValue: Double,
+    ): Double = (variation(key, context, defaultValue) as? Number)?.toDouble() ?: defaultValue
+
+    /**
+     * Returns immediately.
+     *
+     * Present so the cross-SDK surface is the same everywhere, and so a caller porting from an SDK
+     * that polls a local flag store does not have to remove the call. Evaluation here is remote:
+     * each [variation] is a request, so there is no local state to wait for.
+     */
+    @JvmStatic
+    @JvmOverloads
+    suspend fun waitForInitialization(timeoutMs: Long? = null) = Unit
 
     /**
      * Excludes [view] from autocapture so its text is never recorded.

@@ -91,18 +91,6 @@ internal data class ConfigResult(
     val options: IntemptOptions?,
 )
 
-internal data class ModificationBodyParam(
-    val optimizationType: String,
-    val data: List<String>,
-    val paramType: String,
-)
-
-internal data class ModificationGetParam(
-    val optimizationType: String,
-    val data: List<String>,
-    val isNameType: Boolean,
-)
-
 internal data class RecommendationBody(
     val profileId: String,
     val sourceId: String,

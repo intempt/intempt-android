@@ -2,6 +2,8 @@
 
 package com.intempt.core
 
+import com.intempt.core.types.FlagDetail
+import com.intempt.core.types.FlagContext
 import android.view.View
 import com.intempt.core.intemptCore.IntemptCoreService
 import com.intempt.core.types.AutocaptureOptions
@@ -219,6 +221,27 @@ class IntemptInstance internal constructor(
         fields: List<String> = FeedFields.DEFAULT,
         productId: String? = null,
     ): JsonObject? = core.capture.products(feedId, count, fields, productId)
+
+    /** The value assigned for [key], or [defaultValue] when the service did not answer. */
+    @JvmOverloads
+    suspend fun variation(
+        key: String,
+        context: FlagContext = FlagContext(),
+        defaultValue: Any?,
+    ): Any? = variationDetail(key, context, defaultValue).value
+
+    /** As [variation], plus why. */
+    @JvmOverloads
+    suspend fun variationDetail(
+        key: String,
+        context: FlagContext = FlagContext(),
+        defaultValue: Any?,
+    ): FlagDetail = core.capture.variationDetail(key, context, defaultValue)
+
+    /** Every key assigned to this person, in one call. */
+    @JvmOverloads
+    suspend fun allFlags(context: FlagContext = FlagContext()): Map<String, Any?> =
+        core.capture.allFlags(context)
 
     /** Excludes [view] from autocapture so its text is never recorded. Android-only. */
     fun doNotCaptureText(view: View) = core.capture.doNotCaptureText(view)

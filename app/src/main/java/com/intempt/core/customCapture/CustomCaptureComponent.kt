@@ -2,6 +2,20 @@
 
 package com.intempt.core.customCapture
 
+import kotlinx.serialization.json.double
+import kotlinx.serialization.json.long
+import kotlinx.serialization.json.boolean
+import kotlinx.serialization.json.doubleOrNull
+import kotlinx.serialization.json.longOrNull
+import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonElement
+import com.intempt.core.types.FlagReason
+import com.intempt.core.types.FlagDetail
+import com.intempt.core.types.FlagContext
 import android.view.View
 import android.widget.CheckBox
 import android.widget.CompoundButton
@@ -362,6 +376,49 @@ internal class CustomCaptureComponent
         fun productView(productId: String): Boolean {
             return productEvent("productView", "Product viewed", listOf(Product(productId)))
         }
+
+        suspend fun variationDetail(
+            key: String,
+            context: FlagContext,
+            defaultValue: Any?,
+        ): FlagDetail {
+            if (key.isBlank()) {
+                logger.error("variation | key must not be blank")
+                return FlagDetail(defaultValue, FlagReason.OFF)
+            }
+            val choice =
+                eventPool.chooseFlags(context, listOf(key))
+                    .firstOrNull { it["name"]?.jsonPrimitive?.contentOrNull == key }
+                    ?: return FlagDetail(defaultValue, FlagReason.OFF)
+
+            val body = choice["body"]
+            return FlagDetail(
+                value = body?.let { unwrap(it) } ?: defaultValue,
+                reason = FlagReason.fromWire(choice["reason"]?.jsonPrimitive?.contentOrNull),
+                variant = choice["group"]?.jsonPrimitive?.contentOrNull,
+            )
+        }
+
+        suspend fun allFlags(context: FlagContext): Map<String, Any?> =
+            eventPool.chooseFlags(context, null).mapNotNull { choice ->
+                val name = choice["name"]?.jsonPrimitive?.contentOrNull
+                if (name.isNullOrBlank()) null else name to choice["body"]?.let { unwrap(it) }
+            }.toMap()
+
+        /** JSON to a Kotlin value the caller can branch on, with types preserved. */
+        private fun unwrap(element: JsonElement): Any? =
+            when (element) {
+                is JsonNull -> null
+                is JsonPrimitive ->
+                    when {
+                        element.isString -> element.content
+                        element.booleanOrNull != null -> element.boolean
+                        element.longOrNull != null -> element.long
+                        element.doubleOrNull != null -> element.double
+                        else -> element.content
+                    }
+                else -> element
+            }
 
         suspend fun products(
             feedId: String,
