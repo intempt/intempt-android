@@ -1,0 +1,3 @@
+{
+  "app/src/main/java/com/intempt/core/services/CertificatePinning.kt": "SHA-256 over a certificate's SPKI, producing the 'sha256/BASE64' pin OkHttp's CertificatePinner expects. Transport security, and nothing to do with assignment: it hashes a server certificate, never a person, and its result never selects a variant."
+}
