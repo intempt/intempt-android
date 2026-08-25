@@ -1,6 +1,6 @@
 package com.intempt.core.types
 
-/**
+/*
  * Feature flags, experiments and personalizations, read by key.
  *
  * The cross-SDK surface is defined in `intempt-swift/docs/SDK-API-CONTRACT.md`, which every
