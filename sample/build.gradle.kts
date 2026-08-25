@@ -242,6 +242,13 @@ dependencies {
     // coroutines with `implementation`, which does not reach a consumer's compile classpath.
     androidTestImplementation(libs.kotlinx.coroutines.android)
 
+    // The flag API is entirely `suspend`, so a consumer needs coroutines on its own compile
+    // classpath. :app declares them with `implementation`, which deliberately does not leak to
+    // consumers — so an app adding this SDK must add this line too. The sample carries it for the
+    // same reason the androidTest source set does, and its absence would be a compile error here
+    // rather than a surprise in someone's project.
+    implementation(libs.kotlinx.coroutines.android)
+
     // Lets the release build install/refresh its own AOT profile from
     // assets/dexopt/baseline.prof at first run, rather than relying solely on Play's server-side
     // distribution. Small (~50KB) and startup-only; does not affect the SDK's public API.

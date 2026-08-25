@@ -15,10 +15,16 @@ import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import com.intempt.core.Intempt
 import com.intempt.core.types.AutocaptureOptions
 import com.intempt.core.types.ConsentAction
 import com.intempt.core.types.IntemptCredentials
+import com.intempt.core.types.FlagContext
 import com.intempt.core.types.IntemptValue
 import com.intempt.core.types.Product
 
@@ -50,6 +56,13 @@ class MainActivity : AppCompatActivity() {
             ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 0)
         }
     }
+
+    /**
+     * Every flag method is `suspend`. A plain scope rather than lifecycleScope, so this sample
+     * needs only the coroutines dependency it already declares - lifecycleScope would add a
+     * lifecycle-runtime-ktx requirement a reader copying this file might not have.
+     */
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -116,6 +129,42 @@ class MainActivity : AppCompatActivity() {
             )
         }
         button(root, "productView") { Intempt.productView("sku-123") }
+
+        // --- flags ---------------------------------------------------------
+        // Every flag method is `suspend`, so a consumer needs a coroutine scope AND its own
+        // coroutines dependency: :app declares coroutines with `implementation`, which does not
+        // reach a consumer's compile classpath. sample/build.gradle.kts adds it explicitly, and
+        // this sample exists partly to prove that an app really can call these.
+        button(root, "variation (a flag by key)") {
+            scope.launch {
+                // The default is not optional and it is a real decision: it is what runs when
+                // Intempt cannot be reached. Choose the behaviour you already have.
+                val on = Intempt.boolVariation("new_checkout", defaultValue = false)
+                log.append("  new_checkout -> $on\n")
+            }
+        }
+        button(root, "variationDetail (with the reason)") {
+            scope.launch {
+                // The reason separates a deliberate holdout from an outage. Without it both are
+                // the same absent value and you cannot tell a rollout decision from a failure.
+                val detail = Intempt.variationDetail(
+                    "pricing_cta",
+                    FlagContext(userId = "user-123"),
+                    "Get started",
+                )
+                log.append(
+                    "  pricing_cta -> ${detail.value} " +
+                        "(reason=${detail.reason.wireValue}, variant=${detail.variant ?: "none"})\n",
+                )
+            }
+        }
+        button(root, "allFlags") {
+            scope.launch {
+                val flags = Intempt.allFlags()
+                log.append("  allFlags -> ${flags.size} key(s)\n")
+                flags.forEach { (key, value) -> log.append("    $key = $value\n") }
+            }
+        }
         button(root, "productOrdered") {
             Intempt.productOrdered(listOf(Product("sku-123", 2), Product("sku-456", 1)))
         }
@@ -208,5 +257,10 @@ class MainActivity : AppCompatActivity() {
                 }
             },
         )
+    }
+
+    override fun onDestroy() {
+        scope.cancel()
+        super.onDestroy()
     }
 }
