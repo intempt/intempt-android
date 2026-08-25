@@ -611,7 +611,9 @@ object Intempt {
     /** Every key assigned to this person, in one call. Empty when the SDK is not initialized. */
     @JvmStatic
     @JvmOverloads
-    suspend fun allFlags(context: FlagContext = FlagContext()): Map<String, Any?> = main("allFlags")?.allFlags(context) ?: emptyMap()
+    suspend fun allFlags(context: FlagContext = FlagContext()): Map<String, Any?> {
+        return main("allFlags")?.allFlags(context) ?: emptyMap()
+    }
 
     /**
      * A boolean flag. A served value of the wrong type falls back rather than being coerced:
@@ -652,6 +654,12 @@ object Intempt {
      */
     @JvmStatic
     @JvmOverloads
+    // timeoutMs is deliberately ignored, and deliberately still in the signature.
+    // Evaluation is remote — there is no local flag store to finish loading — so there
+    // is nothing to wait for and nothing to time out. The parameter stays because the
+    // cross-SDK contract declares it, and an integrator porting code between SDKs must
+    // not have to delete an argument here and re-add it there.
+    @Suppress("UnusedParameter")
     suspend fun waitForInitialization(timeoutMs: Long? = null) = Unit
 
     /**

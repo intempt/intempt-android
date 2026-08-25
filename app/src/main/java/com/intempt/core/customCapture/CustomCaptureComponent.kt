@@ -386,17 +386,23 @@ internal class CustomCaptureComponent
                 srv.logger.error("variation | key must not be blank")
                 return FlagDetail(defaultValue, FlagReason.OFF)
             }
+            // One exit for both outcomes rather than an early return for the miss:
+            // detekt's ReturnCount caps a function at two, and an absent choice is not
+            // an error path — it is simply the other answer.
             val choice =
                 eventPool.chooseFlags(context, listOf(key))
                     .firstOrNull { it["name"]?.jsonPrimitive?.contentOrNull == key }
-                    ?: return FlagDetail(defaultValue, FlagReason.OFF)
 
-            val body = choice["body"]
-            return FlagDetail(
-                value = body?.let { unwrap(it) } ?: defaultValue,
-                reason = FlagReason.fromWire(choice["reason"]?.jsonPrimitive?.contentOrNull),
-                variant = choice["group"]?.jsonPrimitive?.contentOrNull,
-            )
+            return if (choice == null) {
+                FlagDetail(defaultValue, FlagReason.OFF)
+            } else {
+                val body = choice["body"]
+                FlagDetail(
+                    value = body?.let { unwrap(it) } ?: defaultValue,
+                    reason = FlagReason.fromWire(choice["reason"]?.jsonPrimitive?.contentOrNull),
+                    variant = choice["group"]?.jsonPrimitive?.contentOrNull,
+                )
+            }
         }
 
         suspend fun allFlags(context: FlagContext): Map<String, Any?> =
