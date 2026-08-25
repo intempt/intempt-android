@@ -383,7 +383,7 @@ internal class CustomCaptureComponent
             defaultValue: Any?,
         ): FlagDetail {
             if (key.isBlank()) {
-                logger.error("variation | key must not be blank")
+                srv.logger.error("variation | key must not be blank")
                 return FlagDetail(defaultValue, FlagReason.OFF)
             }
             val choice =
