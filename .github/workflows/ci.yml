@@ -171,6 +171,35 @@ jobs:
       - name: Run unit tests
         run: ./gradlew :app:testDebugUnitTest --stacktrace
 
+      # Gradle prints no total, so a reviewer reading this job has no idea whether it ran 3 tests
+      # or 300 - and "Unit tests: green" on a suite that silently stopped collecting is
+      # indistinguishable from a real pass. The JUnit XML is already written; this reads it.
+      - name: Report the unit test total
+        if: always()
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          files=(app/build/test-results/testDebugUnitTest/*.xml)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "::error::no JUnit XML under app/build/test-results/testDebugUnitTest/ - the suite did not run"
+            exit 1
+          fi
+          python3 - "${files[@]}" <<'PY'
+          import sys, xml.etree.ElementTree as ET
+          t = f = e = sk = 0
+          for path in sys.argv[1:]:
+              r = ET.parse(path).getroot()
+              for s in ([r] if r.tag == 'testsuite' else r.iter('testsuite')):
+                  t  += int(s.get('tests', 0));    f  += int(s.get('failures', 0))
+                  e  += int(s.get('errors', 0));   sk += int(s.get('skipped', 0))
+          print(f"Tests run: {t}, Failures: {f}, Errors: {e}, Skipped: {sk}")
+          with open(__import__('os').environ['GITHUB_STEP_SUMMARY'], 'a') as h:
+              h.write(f"**Unit tests** — run {t}, failures {f}, errors {e}, skipped {sk}\n")
+          # A green job that collected nothing is the failure this step exists to catch.
+          if t == 0:
+              raise SystemExit("::error::the JUnit XML reports 0 tests")
+          PY
+
       # Boots the SDK inside a host application at API 24 and 34 and calls every public
       # entry point. All three API-level crashes fixed on this branch are reachable from
       # initialize() plus one tracking call, and none were caught by the library's own
