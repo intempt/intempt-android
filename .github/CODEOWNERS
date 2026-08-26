@@ -1,10 +1,20 @@
-# Review routing for this SDK. Engineering owns it by default.
-*                       @romchik2612
+# Review routing for this SDK.
+#
+# EVERY SDK BELONGS TO BESO, and that is a standing rule rather than this repo's preference:
+# "Every SDK belongs to Beso — all of them, client and server. This covers the code, the CI, the
+# release workflows AND the docs. Do not send an SDK PR to Roman because it is 'engineering'; the
+# general department routing does not apply here."
+#
+# This file said `* @romchik2612`, which quietly overrode that. GitHub re-requests from CODEOWNERS
+# on every push, so removing Roman by hand on a PR did nothing — he was re-added within seconds,
+# and the routing rule was unenforceable from the PR side. Fixed at the source.
+*                       @beska0013
 
 # The vendored delivery substrate from mixpanel-android. Review these as provenance —
 # confirm they match upstream and that the Apache 2.0 change notices are intact — rather
-# than line by line.
-/app/src/main/java/com/intempt/core/queue/   @romchik2612
+# than line by line. Roman stays on these: provenance review is the one thing here that is
+# about the Android platform rather than about the SDK surface.
+/app/src/main/java/com/intempt/core/queue/   @beska0013 @romchik2612
 
 # Licensing and anything that ships legal text inside the artifact.
 /LICENSE                @beska0013
@@ -12,7 +22,8 @@
 /SECURITY.md            @beska0013
 /app/src/main/resources/META-INF/   @beska0013
 
-# Build, release and CI configuration.
+# Build, release and CI configuration. A release workflow here publishes to Maven Central, which
+# cannot be withdrawn, so both sign off.
 /.github/workflows/     @beska0013 @romchik2612
-/app/build.gradle.kts   @romchik2612
-/gradle/                @romchik2612
+/app/build.gradle.kts   @beska0013 @romchik2612
+/gradle/                @beska0013 @romchik2612
