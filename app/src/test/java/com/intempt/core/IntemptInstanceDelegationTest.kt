@@ -92,8 +92,8 @@ class IntemptInstanceDelegationTest {
         i.optOut()
         verify(f.capture).optOut()
 
-        i.consent(ConsentAction.GRANTED, 0L, null, null)
-        verify(f.capture).consent(ConsentAction.GRANTED, 0L, null, null)
+        i.consent(ConsentAction.ACCEPT, 0L, null, null)
+        verify(f.capture).consent(ConsentAction.ACCEPT, 0L, null, null)
     }
 
     @Test
