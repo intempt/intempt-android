@@ -25,8 +25,7 @@ import org.robolectric.RobolectricTestRunner
 class ConfigValidationTest {
     private fun config() = ConfigManagerService(ApplicationProvider.getApplicationContext())
 
-    private fun config(options: IntemptRuntimeOptions?) =
-        ConfigManagerService(ApplicationProvider.getApplicationContext(), null, options)
+    private fun config(options: IntemptRuntimeOptions?) = ConfigManagerService(ApplicationProvider.getApplicationContext(), null, options)
 
     @Test
     fun `a missing config asset reports itself as unconfigured`() {
