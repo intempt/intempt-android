@@ -2,6 +2,7 @@
 
 package com.intempt.core
 
+import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.intempt.core.services.ConfigManagerService
 import com.intempt.core.types.IntemptRuntimeOptions
@@ -23,9 +24,9 @@ import org.robolectric.RobolectricTestRunner
  */
 @RunWith(RobolectricTestRunner::class)
 class ConfigValidationTest {
-    private fun config() = ConfigManagerService(ApplicationProvider.getApplicationContext())
+    private val appContext: Context get() = ApplicationProvider.getApplicationContext()
 
-    private fun config(options: IntemptRuntimeOptions?) = ConfigManagerService(ApplicationProvider.getApplicationContext(), null, options)
+    private fun config(options: IntemptRuntimeOptions? = null) = ConfigManagerService(appContext, null, options)
 
     @Test
     fun `a missing config asset reports itself as unconfigured`() {
