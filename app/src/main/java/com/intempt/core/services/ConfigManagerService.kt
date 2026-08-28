@@ -15,6 +15,7 @@ import com.intempt.core.types.Constants
 import com.intempt.core.types.DefaultConfigs
 import com.intempt.core.types.IntemptConfigs
 import com.intempt.core.types.IntemptCredentials
+import com.intempt.core.types.IntemptOptions
 import com.intempt.core.types.IntemptRuntimeOptions
 import org.json.JSONObject
 import java.io.InputStream

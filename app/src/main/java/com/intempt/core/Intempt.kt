@@ -15,12 +15,12 @@ import com.intempt.core.types.ConsentAction
 import com.intempt.core.types.FeedFields
 import com.intempt.core.types.InstanceId
 import com.intempt.core.types.IntemptCredentials
-import com.intempt.core.types.IntemptRuntimeOptions
 import com.intempt.core.types.IntemptError
+import com.intempt.core.types.IntemptRuntimeOptions
 import com.intempt.core.types.IntemptValue
 import com.intempt.core.types.Product
-import kotlinx.serialization.json.JsonObject
 import java.util.concurrent.ConcurrentHashMap
+import kotlinx.serialization.json.JsonObject
 
 /**
  * The SDK's whole public surface.

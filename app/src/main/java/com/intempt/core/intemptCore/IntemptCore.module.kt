@@ -20,8 +20,8 @@ import com.intempt.core.services.UtilsService
 import com.intempt.core.services.eventPool.EventPoolManagerService
 import com.intempt.core.types.InstanceId
 import com.intempt.core.types.IntemptCredentials
-import com.intempt.core.types.IntemptRuntimeOptions
 import com.intempt.core.types.IntemptError
+import com.intempt.core.types.IntemptRuntimeOptions
 import dagger.Component
 import dagger.Module
 import dagger.Provides
