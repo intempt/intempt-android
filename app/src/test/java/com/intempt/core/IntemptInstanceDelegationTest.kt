@@ -45,10 +45,11 @@ class IntemptInstanceDelegationTest {
             `when`(autoCapture.logger).thenReturn(mock(LoggerManagerService::class.java))
         }
 
-        fun instance(): IntemptInstance = IntemptInstance(
-            "default",
-            IntemptCoreService(autoCapture, capture, config, errors),
-        )
+        fun instance(): IntemptInstance =
+            IntemptInstance(
+                "default",
+                IntemptCoreService(autoCapture, capture, config, errors),
+            )
     }
 
     @Test
