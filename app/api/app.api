@@ -80,9 +80,6 @@ public final class com/intempt/core/Intempt {
 	public static final fun variation (Ljava/lang/String;Lcom/intempt/core/types/FlagContext;Ljava/lang/Object;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static final fun variation (Ljava/lang/String;Ljava/lang/Object;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static synthetic fun variation$default (Ljava/lang/String;Lcom/intempt/core/types/FlagContext;Ljava/lang/Object;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
-	public static final fun variationDetail (Ljava/lang/String;Lcom/intempt/core/types/FlagContext;Ljava/lang/Object;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
-	public static final fun variationDetail (Ljava/lang/String;Ljava/lang/Object;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
-	public static synthetic fun variationDetail$default (Ljava/lang/String;Lcom/intempt/core/types/FlagContext;Ljava/lang/Object;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public static final fun waitForInitialization (Ljava/lang/Long;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static final fun waitForInitialization (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static synthetic fun waitForInitialization$default (Ljava/lang/Long;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
@@ -169,9 +166,6 @@ public final class com/intempt/core/IntemptInstance {
 	public final fun variation (Ljava/lang/String;Lcom/intempt/core/types/FlagContext;Ljava/lang/Object;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun variation (Ljava/lang/String;Ljava/lang/Object;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static synthetic fun variation$default (Lcom/intempt/core/IntemptInstance;Ljava/lang/String;Lcom/intempt/core/types/FlagContext;Ljava/lang/Object;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
-	public final fun variationDetail (Ljava/lang/String;Lcom/intempt/core/types/FlagContext;Ljava/lang/Object;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
-	public final fun variationDetail (Ljava/lang/String;Ljava/lang/Object;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
-	public static synthetic fun variationDetail$default (Lcom/intempt/core/IntemptInstance;Ljava/lang/String;Lcom/intempt/core/types/FlagContext;Ljava/lang/Object;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 }
 
 public final class com/intempt/core/IntemptInstance$Autocapture {
@@ -377,40 +371,6 @@ public final class com/intempt/core/types/FlagContext {
 	public final fun getUserId ()Ljava/lang/String;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
-}
-
-public final class com/intempt/core/types/FlagDetail {
-	public fun <init> (Ljava/lang/Object;Lcom/intempt/core/types/FlagReason;)V
-	public fun <init> (Ljava/lang/Object;Lcom/intempt/core/types/FlagReason;Ljava/lang/String;)V
-	public synthetic fun <init> (Ljava/lang/Object;Lcom/intempt/core/types/FlagReason;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
-	public final fun component1 ()Ljava/lang/Object;
-	public final fun component2 ()Lcom/intempt/core/types/FlagReason;
-	public final fun component3 ()Ljava/lang/String;
-	public final fun copy (Ljava/lang/Object;Lcom/intempt/core/types/FlagReason;Ljava/lang/String;)Lcom/intempt/core/types/FlagDetail;
-	public static synthetic fun copy$default (Lcom/intempt/core/types/FlagDetail;Ljava/lang/Object;Lcom/intempt/core/types/FlagReason;Ljava/lang/String;ILjava/lang/Object;)Lcom/intempt/core/types/FlagDetail;
-	public fun equals (Ljava/lang/Object;)Z
-	public final fun getReason ()Lcom/intempt/core/types/FlagReason;
-	public final fun getValue ()Ljava/lang/Object;
-	public final fun getVariant ()Ljava/lang/String;
-	public fun hashCode ()I
-	public fun toString ()Ljava/lang/String;
-}
-
-public final class com/intempt/core/types/FlagReason : java/lang/Enum {
-	public static final field Companion Lcom/intempt/core/types/FlagReason$Companion;
-	public static final field HOLDOUT Lcom/intempt/core/types/FlagReason;
-	public static final field NOT_TARGETED Lcom/intempt/core/types/FlagReason;
-	public static final field OFF Lcom/intempt/core/types/FlagReason;
-	public static final field TARGETED Lcom/intempt/core/types/FlagReason;
-	public static final fun fromWire (Ljava/lang/String;)Lcom/intempt/core/types/FlagReason;
-	public static fun getEntries ()Lkotlin/enums/EnumEntries;
-	public final fun getWireValue ()Ljava/lang/String;
-	public static fun valueOf (Ljava/lang/String;)Lcom/intempt/core/types/FlagReason;
-	public static fun values ()[Lcom/intempt/core/types/FlagReason;
-}
-
-public final class com/intempt/core/types/FlagReason$Companion {
-	public final fun fromWire (Ljava/lang/String;)Lcom/intempt/core/types/FlagReason;
 }
 
 public final class com/intempt/core/types/IntemptCredentials {
