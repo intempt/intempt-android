@@ -19,8 +19,8 @@ import com.intempt.core.types.IntemptError
 import com.intempt.core.types.IntemptRuntimeOptions
 import com.intempt.core.types.IntemptValue
 import com.intempt.core.types.Product
-import java.util.concurrent.ConcurrentHashMap
 import kotlinx.serialization.json.JsonObject
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * The SDK's whole public surface.
@@ -228,7 +228,10 @@ object Intempt {
                     DaggerIntemptCoreComponent.factory()
                         .create(
                             IntemptCoreModule(
-                                context, credentials, options, InstanceId(instanceName),
+                                context,
+                                credentials,
+                                options,
+                                InstanceId(instanceName),
                             ),
                         )
                 }
