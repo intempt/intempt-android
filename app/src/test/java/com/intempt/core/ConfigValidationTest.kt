@@ -4,6 +4,7 @@ package com.intempt.core
 
 import androidx.test.core.app.ApplicationProvider
 import com.intempt.core.services.ConfigManagerService
+import com.intempt.core.types.IntemptRuntimeOptions
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -23,6 +24,9 @@ import org.robolectric.RobolectricTestRunner
 @RunWith(RobolectricTestRunner::class)
 class ConfigValidationTest {
     private fun config() = ConfigManagerService(ApplicationProvider.getApplicationContext())
+
+    private fun config(options: IntemptRuntimeOptions?) =
+        ConfigManagerService(ApplicationProvider.getApplicationContext(), null, options)
 
     @Test
     fun `a missing config asset reports itself as unconfigured`() {
@@ -100,6 +104,53 @@ class ConfigValidationTest {
     @Test
     fun `geolocation defaults to enabled`() {
         assertTrue(config().useIpAddressForGeolocation)
+    }
+
+    // ------------------------------------------- runtime options
+
+    /**
+     * A React Native app has no asset file to edit, so an asset-file-only option is unreachable
+     * from the only place an RN developer configures anything. Before this the bridge could accept
+     * `useIpAddressForGeolocation: false` and silently drop it.
+     */
+    @Test
+    fun `a runtime option turns geolocation off`() {
+        val configured = config(IntemptRuntimeOptions(useIpAddressForGeolocation = false))
+
+        assertFalse(configured.useIpAddressForGeolocation)
+        assertTrue(
+            "the flag must reach the wire, not just the accessor",
+            configured.eventsUrl.endsWith("?ip=0"),
+        )
+    }
+
+    @Test
+    fun `a runtime option can turn geolocation on explicitly`() {
+        val configured = config(IntemptRuntimeOptions(useIpAddressForGeolocation = true))
+
+        assertTrue(configured.useIpAddressForGeolocation)
+        assertTrue(configured.eventsUrl.endsWith("?ip=1"))
+    }
+
+    /** Null means "whatever the asset file or the default says", not "off". */
+    @Test
+    fun `a null runtime option leaves the default alone`() {
+        assertTrue(config(IntemptRuntimeOptions()).useIpAddressForGeolocation)
+        assertTrue(config(null).useIpAddressForGeolocation)
+    }
+
+    /**
+     * The override is per field. An empty options object must not blank out everything else the
+     * asset file supplies, which is what a wholesale replacement would do.
+     */
+    @Test
+    fun `runtime options do not wipe the other configuration`() {
+        val baseline = config()
+        val withOptions = config(IntemptRuntimeOptions(useIpAddressForGeolocation = false))
+
+        assertEquals(baseline.apiUrl, withOptions.apiUrl)
+        assertEquals(baseline.isQueueEnabled, withOptions.isQueueEnabled)
+        assertEquals(baseline.itemsInQueue, withOptions.itemsInQueue)
     }
 
     /**

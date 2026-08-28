@@ -20,6 +20,7 @@ import com.intempt.core.services.UtilsService
 import com.intempt.core.services.eventPool.EventPoolManagerService
 import com.intempt.core.types.InstanceId
 import com.intempt.core.types.IntemptCredentials
+import com.intempt.core.types.IntemptRuntimeOptions
 import com.intempt.core.types.IntemptError
 import dagger.Component
 import dagger.Module
@@ -36,6 +37,11 @@ internal class IntemptCoreModule(
     private val consumerContext: Context,
     /** Null means "read assets/intempt-config.json", which is the pre-3.0 behaviour. */
     private val runtimeCredentials: IntemptCredentials? = null,
+    /**
+     * Options supplied at runtime, overriding the asset file per field. Null means the asset file
+     * decides everything, which is the pre-3.0 behaviour.
+     */
+    private val runtimeOptions: IntemptRuntimeOptions? = null,
     /**
      * Which named instance this graph belongs to.
      *
@@ -64,6 +70,11 @@ internal class IntemptCoreModule(
     @Provides
     @Singleton
     fun provideRuntimeCredentials(): IntemptCredentials? = runtimeCredentials
+
+    /** Nullable for the same reason as [provideRuntimeCredentials]: the binding must exist. */
+    @Provides
+    @Singleton
+    fun provideRuntimeOptions(): IntemptRuntimeOptions? = runtimeOptions
 
     @Provides
     fun provideContext(): Context {

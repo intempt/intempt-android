@@ -15,6 +15,7 @@ import com.intempt.core.types.ConsentAction
 import com.intempt.core.types.FeedFields
 import com.intempt.core.types.InstanceId
 import com.intempt.core.types.IntemptCredentials
+import com.intempt.core.types.IntemptRuntimeOptions
 import com.intempt.core.types.IntemptError
 import com.intempt.core.types.IntemptValue
 import com.intempt.core.types.Product
@@ -105,7 +106,28 @@ object Intempt {
         context: Context,
         credentials: IntemptCredentials?,
         instanceName: String,
-    ): IntemptInstance? = start(context, credentials, instanceName)
+    ): IntemptInstance? = start(context, credentials, instanceName, null)
+
+    /**
+     * Starts a **named** instance with options supplied at runtime, or null on failure.
+     *
+     * [options] overrides `assets/intempt-config.json` **per field**, exactly as [credentials]
+     * does: a field set here wins, a field left null falls through to the asset file and then to
+     * the default. An app that sets one option keeps every other value from its asset file.
+     *
+     * The asset file remains the documented setup for a plain Android app. This overload exists
+     * for callers that have no asset file to edit — React Native, Flutter and any other bridge,
+     * where the host app configures the SDK in JavaScript and cannot reach the native bundle's
+     * assets. Before it, such a bridge could accept an option and silently drop it, which is worse
+     * than not offering it.
+     */
+    @JvmStatic
+    fun initialize(
+        context: Context,
+        credentials: IntemptCredentials?,
+        instanceName: String,
+        options: IntemptRuntimeOptions?,
+    ): IntemptInstance? = start(context, credentials, instanceName, options)
 
     /** The `"default"` instance, or null when it is not running. */
     @JvmStatic
@@ -123,6 +145,7 @@ object Intempt {
         context: Context,
         credentials: IntemptCredentials?,
         instanceName: String,
+        options: IntemptRuntimeOptions? = null,
     ): IntemptInstance? {
         instances[instanceName]?.let {
             Log.i(TAG, "Instance \"$instanceName\" is already initialized; returning it")
@@ -159,7 +182,7 @@ object Intempt {
                 Log.i(TAG, "Instance \"$instanceName\" was initialized concurrently; using the first")
                 return it
             }
-            return build(context, credentials, instanceName)
+            return build(context, credentials, instanceName, options)
         }
     }
 
@@ -172,6 +195,7 @@ object Intempt {
         context: Context,
         credentials: IntemptCredentials?,
         instanceName: String,
+        options: IntemptRuntimeOptions?,
     ): IntemptInstance? =
         // The whole of init is one named trace section, and each expensive step inside it is its
         // own. Macrobenchmark's TraceSectionMetric reads these out of the Perfetto trace, which is
@@ -181,7 +205,7 @@ object Intempt {
         // android.os.Trace directly (API 18+, minSdk 23) rather than androidx.tracing: a new
         // dependency would spend the method-count headroom this instrumentation exists to protect.
         traced("Intempt.initialize") {
-            buildTraced(context, credentials, instanceName)
+            buildTraced(context, credentials, instanceName, options)
         }
 
     /**
@@ -195,13 +219,18 @@ object Intempt {
         context: Context,
         credentials: IntemptCredentials?,
         instanceName: String,
+        options: IntemptRuntimeOptions?,
     ): IntemptInstance? {
         val instance: IntemptInstance
         try {
             val component =
                 traced("Intempt.daggerGraph") {
                     DaggerIntemptCoreComponent.factory()
-                        .create(IntemptCoreModule(context, credentials, InstanceId(instanceName)))
+                        .create(
+                            IntemptCoreModule(
+                                context, credentials, options, InstanceId(instanceName),
+                            ),
+                        )
                 }
 
             // Credentials are read lazily, so Dagger wires up perfectly against a config asset that
