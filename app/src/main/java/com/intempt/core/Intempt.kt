@@ -14,8 +14,6 @@ import com.intempt.core.types.AutomaticEventsOptions
 import com.intempt.core.types.ConsentAction
 import com.intempt.core.types.FeedFields
 import com.intempt.core.types.FlagContext
-import com.intempt.core.types.FlagDetail
-import com.intempt.core.types.FlagReason
 import com.intempt.core.types.InstanceId
 import com.intempt.core.types.IntemptCredentials
 import com.intempt.core.types.IntemptError
@@ -590,23 +588,6 @@ object Intempt {
         context: FlagContext = FlagContext(),
         defaultValue: Any?,
     ): Any? = main("variation")?.variation(key, context, defaultValue) ?: defaultValue
-
-    /**
-     * As [variation], plus WHY.
-     *
-     * The reason is what lets a caller tell a deliberate off state from a request the service never
-     * answered — the two used to be the same absent entry, which is why this SDK exposed no
-     * assignment at all until the serving contract could distinguish them.
-     */
-    @JvmStatic
-    @JvmOverloads
-    suspend fun variationDetail(
-        key: String,
-        context: FlagContext = FlagContext(),
-        defaultValue: Any?,
-    ): FlagDetail =
-        main("variationDetail")?.variationDetail(key, context, defaultValue)
-            ?: FlagDetail(defaultValue, FlagReason.OFF)
 
     /** Every key assigned to this person, in one call. Empty when the SDK is not initialized. */
     @JvmStatic

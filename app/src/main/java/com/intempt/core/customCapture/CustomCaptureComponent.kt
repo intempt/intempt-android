@@ -377,7 +377,19 @@ internal class CustomCaptureComponent
             return productEvent("productView", "Product viewed", listOf(Product(productId)))
         }
 
-        suspend fun variationDetail(
+        /**
+         * Internal. NOT public, deliberately.
+         *
+         * It returns a reason, and the platform does not send one: a held-back person's experience is
+         * absent from the evaluation response entirely rather than present with a cause. So every
+         * reason would read OFF — including for someone who WAS targeted and did receive the variant.
+         * That is a wrong answer, not a missing one, and a method whose only job is explaining why
+         * must not guess.
+         *
+         * [variation] uses it for the value, which is correct either way. It becomes public when the
+         * serving contract carries a reason.
+         */
+        internal suspend fun variationDetailInternal(
             key: String,
             context: FlagContext,
             defaultValue: Any?,
@@ -400,7 +412,6 @@ internal class CustomCaptureComponent
                 FlagDetail(
                     value = body?.let { unwrap(it) } ?: defaultValue,
                     reason = FlagReason.fromWire(choice["reason"]?.jsonPrimitive?.contentOrNull),
-                    variant = choice["group"]?.jsonPrimitive?.contentOrNull,
                 )
             }
         }

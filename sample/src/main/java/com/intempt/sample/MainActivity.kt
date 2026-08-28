@@ -143,20 +143,15 @@ class MainActivity : AppCompatActivity() {
                 log.append("  new_checkout -> $on\n")
             }
         }
-        button(root, "variationDetail (with the reason)") {
+        button(root, "variation (by key, for one person)") {
             scope.launch {
-                // The reason separates a deliberate holdout from an outage. Without it both are
-                // the same absent value and you cannot tell a rollout decision from a failure.
-                val detail =
-                    Intempt.variationDetail(
+                val cta =
+                    Intempt.variation(
                         "pricing_cta",
                         FlagContext(userId = "user-123"),
                         "Get started",
                     )
-                log.append(
-                    "  pricing_cta -> ${detail.value} " +
-                        "(reason=${detail.reason.wireValue}, variant=${detail.variant ?: "none"})\n",
-                )
+                log.append("  pricing_cta -> $cta\n")
             }
         }
         button(root, "allFlags") {

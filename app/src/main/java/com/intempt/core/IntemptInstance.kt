@@ -9,7 +9,6 @@ import com.intempt.core.types.AutomaticEventsOptions
 import com.intempt.core.types.ConsentAction
 import com.intempt.core.types.FeedFields
 import com.intempt.core.types.FlagContext
-import com.intempt.core.types.FlagDetail
 import com.intempt.core.types.IntemptError
 import com.intempt.core.types.IntemptValue
 import com.intempt.core.types.Product
@@ -228,15 +227,7 @@ class IntemptInstance internal constructor(
         key: String,
         context: FlagContext = FlagContext(),
         defaultValue: Any?,
-    ): Any? = variationDetail(key, context, defaultValue).value
-
-    /** As [variation], plus why. */
-    @JvmOverloads
-    suspend fun variationDetail(
-        key: String,
-        context: FlagContext = FlagContext(),
-        defaultValue: Any?,
-    ): FlagDetail = core.capture.variationDetail(key, context, defaultValue)
+    ): Any? = core.capture.variationDetailInternal(key, context, defaultValue).value
 
     /** Every key assigned to this person, in one call. */
     @JvmOverloads

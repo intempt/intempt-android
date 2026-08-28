@@ -12,7 +12,8 @@ package com.intempt.core.types
  *    filters on channel and status and never on mode.
  * 2. `defaultValue` is REQUIRED. It is what a caller receives on a network failure, a timeout, an
  *    unknown key or a malformed response.
- * 3. [FlagDetail] carries a [FlagReason]. Without it a caller cannot tell a deliberate off state
+ * 3. Assignment detail is NOT exposed. It would carry a [FlagReason] the platform does not send,
+ *    so it could not tell a deliberate off state
  *    from a request the service never answered — which is exactly why this SDK exposed no
  *    assignment at all until the serving contract could distinguish the two.
  * 4. Evaluation is REMOTE only. There is no local rule engine and no flag store to poll.
@@ -22,7 +23,7 @@ package com.intempt.core.types
  */
 
 /** Why an evaluation returned the value it did. */
-enum class FlagReason(val wireValue: String) {
+internal enum class FlagReason(val wireValue: String) {
     TARGETED("targeted"),
     HOLDOUT("holdout"),
     NOT_TARGETED("not_targeted"),
@@ -53,11 +54,10 @@ data class FlagContext
         val profileId: String? = null,
     )
 
-/** A value and why it was returned. [variant] is null when nothing was served. */
-data class FlagDetail
+/** A value and why it was returned. INTERNAL — see the note on variationDetailInternal. */
+internal data class FlagDetail
     @JvmOverloads
     constructor(
         val value: Any?,
         val reason: FlagReason,
-        val variant: String? = null,
     )
