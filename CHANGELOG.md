@@ -11,6 +11,23 @@ under Unreleased.
 
 ## [Unreleased]
 
+### Added
+
+- `IntemptRuntimeOptions` and a four-argument `Intempt.initialize` overload, so a caller can set
+  options at runtime instead of only through `assets/intempt-config.json`. Its first option is
+  `useIpAddressForGeolocation`, which decides whether Intempt derives country, region and city
+  from the address the request arrives on. Absent means on, matching what ingestion assumes for a
+  missing flag. React Native and other bridges cannot ship an asset file on a user's behalf, which
+  is why a file could not stay the only way in. Purely additive to the published binary surface.
+
+### Fixed
+
+- `Intempt.initialize` no longer discards runtime options in silence when the instance already
+  exists. The existing instance still wins, but a second call passing options now logs a warning
+  naming what was not applied. Initialising in `Application.onCreate` and again after a consent
+  banner is the ordinary shape, and an RN JS reload does the same thing — previously either left
+  geolocation on with nothing said.
+
 ## [3.0.4] - 2026-08-21
 
 ### Fixed

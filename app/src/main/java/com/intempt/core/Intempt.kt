@@ -148,7 +148,25 @@ object Intempt {
         options: IntemptRuntimeOptions? = null,
     ): IntemptInstance? {
         instances[instanceName]?.let {
-            Log.i(TAG, "Instance \"$instanceName\" is already initialized; returning it")
+            // The options bag carries a privacy decision, and this return is before it is read,
+            // so passing useIpAddressForGeolocation = false to a second initialize left
+            // collection on with nothing said. "Initialize in Application.onCreate, initialize
+            // again after the consent banner" is the ordinary shape, and an RN JS reload does it
+            // too: the JS instance map resets while the native process does not.
+            //
+            // The existing instance still wins -- changing the flag under an in-flight queue
+            // would be worse -- but silence was the wrong half to keep.
+            if (options?.useIpAddressForGeolocation != null) {
+                Log.w(
+                    TAG,
+                    "Instance \"$instanceName\" already exists; the runtime options passed here " +
+                        "were NOT applied, including " +
+                        "useIpAddressForGeolocation=${options.useIpAddressForGeolocation}. " +
+                        "Pass them on the first initialize, or use a different instanceName.",
+                )
+            } else {
+                Log.i(TAG, "Instance \"$instanceName\" is already initialized; returning it")
+            }
             return it
         }
 

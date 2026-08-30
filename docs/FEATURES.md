@@ -259,6 +259,17 @@ Turn it off in `intempt-config.json`:
 { "options": { "useIpAddressForGeolocation": false } }
 ```
 
+Or at runtime, which is the only route for a bridge that cannot ship an asset file:
+
+```kotlin
+Intempt.initialize(
+    context, credentials, "default",
+    IntemptRuntimeOptions(useIpAddressForGeolocation = false),
+)
+```
+
+A runtime option wins over the asset file, and the asset file over the default.
+
 Defaults to `true`, matching Mixpanel's `UseIpAddressForGeolocation`.
 
 **Until the platform honours `?ip=`, session events carry no geo.** Previously the SDK called
