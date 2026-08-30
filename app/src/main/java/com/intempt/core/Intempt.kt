@@ -156,13 +156,20 @@ object Intempt {
             //
             // The existing instance still wins -- changing the flag under an in-flight queue
             // would be worse -- but silence was the wrong half to keep.
-            if (options?.useIpAddressForGeolocation != null) {
+            // Compare against what the instance is actually running, not merely whether an
+            // option was supplied. Passing the SAME value again is the common case -- an RN JS
+            // reload resets the JS instance map while the native process survives, so initialize
+            // arrives a second time with identical options -- and warning there would say the
+            // opt-out was dropped while it is in force. Only a genuine conflict is worth a line.
+            val requested = options?.useIpAddressForGeolocation
+            if (requested != null && requested != it.core.config.useIpAddressForGeolocation) {
                 Log.w(
                     TAG,
-                    "Instance \"$instanceName\" already exists; the runtime options passed here " +
-                        "were NOT applied, including " +
-                        "useIpAddressForGeolocation=${options.useIpAddressForGeolocation}. " +
-                        "Pass them on the first initialize, or use a different instanceName.",
+                    "Instance \"$instanceName\" already exists with " +
+                        "useIpAddressForGeolocation=${it.core.config.useIpAddressForGeolocation}; " +
+                        "the value $requested passed here was NOT applied. Pass it on the first " +
+                        "initialize. Do not re-initialize under a different instanceName to force " +
+                        "it -- that creates a second instance and duplicates every session.",
                 )
             } else {
                 Log.i(TAG, "Instance \"$instanceName\" is already initialized; returning it")
