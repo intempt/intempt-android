@@ -56,6 +56,31 @@ class StorageManagerServiceTest {
     }
 
     /**
+     * INT-5166's exact assertion: three reads across two rotations must be three DIFFERENT ids.
+     *
+     * The reported symptom was that `before`, `afterLogout` and `afterReset` all came back equal,
+     * because the pre-3.0.3 implementation read the profileId before clearing and wrote the same
+     * value straight back. The existing test above rotates ONCE, which a
+     * "remint only when absent" regression would still pass — an id that survives the second wipe
+     * looks identical to a correctly-kept one. Rotating twice is what distinguishes them.
+     */
+    @Test
+    fun `successive rotations each yield a new profileId (INT-5166)`() {
+        storage.setLocalProp(StorageKeys.ProfileId.key, "prof_old")
+
+        val before = storage.getProfileId()
+        storage.clearAllStorage()
+        val afterLogout = storage.getProfileId()
+        storage.clearAllStorage()
+        val afterReset = storage.getProfileId()
+
+        assertNotEquals("logOut must not leave the previous identity in place", before, afterLogout)
+        assertNotEquals("reset must rotate again, not reuse the id logOut minted", afterLogout, afterReset)
+        assertNotEquals(before, afterReset)
+        assertTrue("a rotated id must be minted, never blank", afterLogout.isNotEmpty() && afterReset.isNotEmpty())
+    }
+
+    /**
      * Pre-3.0.4, getProfileId() read ONLY the in-memory cache, which a fire-and-forget
      * coroutine populated some time after initialize() returned. On a cold device the read
      * won the race and returned "" even though the id sat in SharedPreferences — observed

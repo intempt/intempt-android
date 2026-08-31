@@ -37,6 +37,7 @@ import org.mockito.ArgumentMatchers.anyString
 import org.mockito.Mockito.doNothing
 import org.mockito.Mockito.doThrow
 import org.mockito.Mockito.mock
+import org.mockito.Mockito.never
 import org.mockito.Mockito.spy
 import org.mockito.Mockito.verify
 import org.mockito.Mockito.`when`
@@ -342,5 +343,36 @@ class InstallationUnitTest {
 
         verify(customCaptureSrv).logoutHandler()
         assertTrue(true)
+    }
+
+    // ---- INT-5166: both entry points must REACH the rotation -----------------------------
+    //
+    // INT-5166 reported that neither logOut() nor reset() rotated the anonymous profileId, so a
+    // second user of a shared device inherited the first user's identity and their events were
+    // attributed to it. The defect was real and was fixed in 3.0.3 (417cf91), which made
+    // clearAllStorage() mint a fresh id instead of writing the old one back.
+    //
+    // What was NOT covered is the wiring, and that is the part that can silently regress:
+    // logOut() rotates ONLY because it shares logoutHandler() with reset(). Give either call its
+    // own path in some future refactor and this High-priority privacy bug returns with every
+    // existing test still green — StorageManagerServiceTest asserts clearAllStorage() directly and
+    // would not notice that nothing calls it. These two tests pin the hop.
+
+    @Test
+    fun `logOut reaches the identity rotation and keeps the queue`() {
+        component.logOut()
+
+        verify(customCaptureSrv).logoutHandler()
+        // The documented difference between the two calls: queued events belong to the user who
+        // generated them and are still theirs to send, so logging out must NOT discard them.
+        verify(eventPoolSrv, never()).discardQueuedEvents()
+    }
+
+    @Test
+    fun `reset reaches the identity rotation and discards the queue`() {
+        component.reset()
+
+        verify(customCaptureSrv).logoutHandler()
+        verify(eventPoolSrv).discardQueuedEvents()
     }
 }
