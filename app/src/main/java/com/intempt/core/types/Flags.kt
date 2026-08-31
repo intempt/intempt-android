@@ -153,7 +153,8 @@ internal fun buildChooseBody(
  * shaped `{"name":{}}` would otherwise propagate an exception out of a public `variation()` call,
  * which is the one thing `docs/CONVENTIONS.md` says a service problem must never do.
  */
-internal fun flagNameOf(choice: JsonObject): String? = (choice["name"] as? JsonPrimitive)?.takeIf { it.isString }?.content
+internal fun flagNameOf(choice: JsonObject): String? =
+    (choice["name"] as? JsonPrimitive)?.takeIf { it.isString }?.content
 
 /**
  * The reason a choice carries, decoded.

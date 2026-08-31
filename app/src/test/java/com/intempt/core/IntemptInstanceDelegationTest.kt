@@ -188,7 +188,7 @@ class IntemptInstanceDelegationTest {
 
     @Test
     fun `variation reaches variationDetailInternal with the caller's key, context and default`() =
-        runBlocking {
+        runBlocking<Unit> {
             val f = Fixture()
             val ctx = FlagContext(profileId = "prof-1")
             `when`(f.capture.variationDetailInternal("checkout", ctx, "off"))
