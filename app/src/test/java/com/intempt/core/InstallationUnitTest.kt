@@ -349,8 +349,14 @@ class InstallationUnitTest {
     //
     // INT-5166 reported that neither logOut() nor reset() rotated the anonymous profileId, so a
     // second user of a shared device inherited the first user's identity and their events were
-    // attributed to it. The defect was real and was fixed in 3.0.3 (417cf91), which made
-    // clearAllStorage() mint a fresh id instead of writing the old one back.
+    // attributed to it. Real, and fixed in 3.0.3 (417cf91).
+    //
+    // It was a RACE, not a missing rotation, and the distinction matters for what to test. v3.0.2
+    // did mint a fresh id — through setStorageItem(), which launches a coroutine, inside a
+    // fire-and-forget block — so the rotation landed a few hundred ms AFTER logOut() returned and a
+    // caller reading immediately got the previous id. Reproduced on v3.0.2 on an API 34 emulator:
+    // three reads returned one id, and a fourth five seconds later returned a new one. 417cf91
+    // moved the wipe-and-remint onto the caller's thread.
     //
     // What was NOT covered is the wiring, and that is the part that can silently regress:
     // logOut() rotates ONLY because it shares logoutHandler() with reset(). Give either call its

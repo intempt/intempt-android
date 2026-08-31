@@ -59,8 +59,10 @@ class StorageManagerServiceTest {
      * INT-5166's exact assertion: three reads across two rotations must be three DIFFERENT ids.
      *
      * The reported symptom was that `before`, `afterLogout` and `afterReset` all came back equal,
-     * because the pre-3.0.3 implementation read the profileId before clearing and wrote the same
-     * value straight back. The existing test above rotates ONCE, which a
+     * because v3.0.2 rotated through a coroutine-launching helper inside a fire-and-forget block:
+     * the fresh id landed after the caller had already read. (An even earlier version had the
+     * different bug of writing the old id back, which is what the note in `clearAllStorage` is
+     * about.) The existing test above rotates ONCE, which a
      * "remint only when absent" regression would still pass — an id that survives the second wipe
      * looks identical to a correctly-kept one. Rotating twice is what distinguishes them.
      */

@@ -61,7 +61,10 @@ zero removals or signature changes. Existing integrations need no source or buil
   unit tests assert — including `allFlags` omitting `names` entirely rather than sending `[]`.
 - **Regression coverage for INT-5166** (`logOut()`/`reset()` not rotating the anonymous profile id).
   The defect itself was fixed in 3.0.3 and does not reproduce — three successive reads on an API 34
-  emulator returned three distinct ids. What was missing was coverage of the *wiring*: `logOut()`
+  emulator returned three distinct ids. It was a **race, not a missing rotation**: v3.0.2 minted a
+  fresh id through a coroutine-launching helper inside a fire-and-forget block, so it landed after
+  `logOut()` had already returned. Reproduced on v3.0.2 (one id across three reads, a new one five
+  seconds later) and confirmed fixed on 3.0.4. What was missing was coverage of the *wiring*: `logOut()`
   rotates only because it shares `logoutHandler()` with `reset()`, and the existing tests assert
   `clearAllStorage()` directly, so giving either call its own path would have reintroduced a
   High-priority privacy bug with every test still green. Three tests now pin it — each entry point
