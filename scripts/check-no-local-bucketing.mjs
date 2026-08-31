@@ -19,6 +19,10 @@
  * An entry may be allowed — hashing has legitimate non-bucketing uses, idempotency keys and cache
  * keys among them — by listing it in the sidecar allowlist with a reason. An allowlist entry that
  * no longer matches anything is itself an error, so the file cannot silently rot.
+ *
+ * Two ways this guard could pass while checking nothing, both now closed: an allowlist that has
+ * rotted (above), and a scan root that does not exist (below). The second one bit — GUARD_SRC
+ * defaulted to 'src', which no Android project has, so the guard read zero files and said OK.
  */
 
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
@@ -27,7 +31,10 @@ import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = process.env.GUARD_ROOT ?? join(here, '..');
-const roots = (process.env.GUARD_SRC ?? 'src').split(',').map((d) => d.trim()).filter(Boolean);
+// Defaults to this repo's real source root. It was 'src', which does not exist in an Android
+// project, so a plain `node scripts/check-no-local-bucketing.mjs` scanned nothing and then
+// blamed the allowlist. CI still passes GUARD_SRC explicitly; this only fixes the local run.
+const roots = (process.env.GUARD_SRC ?? 'app/src/main').split(',').map((d) => d.trim()).filter(Boolean);
 const allowPath = join(here, 'no-local-bucketing-allow.json');
 
 const SOURCE = /\.(ts|tsx|js|mjs|cjs|py|php|kt|java|swift)$/;
@@ -56,8 +63,17 @@ const allow = existsSync(allowPath) ? JSON.parse(readFileSync(allowPath, 'utf8')
 const seen = new Set();
 const hits = [];
 
+// A scan root that does not exist is a configuration error, not an empty result. Without this the
+// guard printed "OK -- scanned <dir>" and exited 0 having read no files at all: a rename of the
+// source directory, or a dropped GUARD_SRC, silently disarmed it. The stale-allowlist check below
+// only caught it here by luck, and would not catch it in a repo whose allowlist is empty -- which
+// is every other SDK repo this script is meant to be vendored into.
+const missing = roots.filter((r) => !existsSync(join(root, r)));
+let scanned = 0;
+
 for (const r of roots) {
   for (const file of walk(join(root, r))) {
+    scanned += 1;
     const rel = relative(root, file);
     readFileSync(file, 'utf8').split('\n').forEach((line, i) => {
       if (/^\s*(\/\/|#|\*|--)/.test(line)) return; // a comment explaining the rule is not a breach
@@ -73,6 +89,12 @@ for (const r of roots) {
 }
 
 const problems = [];
+if (missing.length) {
+  problems.push(
+    `scan root(s) do not exist, so nothing was scanned: ${missing.join(', ')} ` +
+      `(set GUARD_SRC to the source root, or GUARD_ROOT to the repo root)`
+  );
+}
 if (hits.length) {
   problems.push(
     `bucket derivation must be server-only (EXP-ASSIGN-001, EXP-ASSIGN-005) — ${hits.length} occurrence(s):\n    ` +
@@ -97,5 +119,6 @@ if (problems.length) {
   process.exit(1);
 }
 console.log(
-  `no-local-bucketing OK — scanned ${roots.join(', ')}, ${Object.keys(allow).length} documented allowance(s)`
+  `no-local-bucketing OK — scanned ${scanned} file(s) under ${roots.join(', ')}, ` +
+    `${Object.keys(allow).length} documented allowance(s)`
 );

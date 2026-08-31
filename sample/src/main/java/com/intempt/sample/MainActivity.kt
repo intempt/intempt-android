@@ -131,10 +131,11 @@ class MainActivity : AppCompatActivity() {
         button(root, "productView") { Intempt.productView("sku-123") }
 
         // --- flags ---------------------------------------------------------
-        // Every flag method is `suspend`, so a consumer needs a coroutine scope AND its own
-        // coroutines dependency: :app declares coroutines with `implementation`, which does not
-        // reach a consumer's compile classpath. sample/build.gradle.kts adds it explicitly, and
-        // this sample exists partly to prove that an app really can call these.
+        // Every flag method is `suspend`, so a consumer needs a coroutine scope. It does NOT need
+        // its own coroutines dependency: :app exposes kotlinx-coroutines-core with `api`, so the
+        // suspend surface is callable out of the box. This sample declares the -android artifact
+        // only because it uses `Dispatchers.Main` directly, which -core does not carry. This
+        // sample exists partly to prove that an app really can call these.
         button(root, "variation (a flag by key)") {
             scope.launch {
                 // The default is not optional and it is a real decision: it is what runs when

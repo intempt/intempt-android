@@ -108,12 +108,10 @@ data class FlagContext
     )
 
 /** A value and why it was returned. INTERNAL — see the note on variationDetailInternal. */
-internal data class FlagDetail
-    @JvmOverloads
-    constructor(
-        val value: Any?,
-        val reason: FlagReason,
-    )
+internal data class FlagDetail(
+    val value: Any?,
+    val reason: FlagReason,
+)
 
 /**
  * The choose-api request body, built from plain values.

@@ -654,7 +654,9 @@ object Intempt {
     // is nothing to wait for and nothing to time out. The parameter stays because the
     // cross-SDK contract declares it, and an integrator porting code between SDKs must
     // not have to delete an argument here and re-add it there.
-    @Suppress("UnusedParameter")
+    // Two ids for one warning: `UnusedParameter` is detekt's rule, `UNUSED_PARAMETER` is the
+    // Kotlin compiler's. Suppressing only the first left the compiler warning firing on every build.
+    @Suppress("UnusedParameter", "UNUSED_PARAMETER")
     suspend fun waitForInitialization(timeoutMs: Long? = null) = Unit
 
     /**

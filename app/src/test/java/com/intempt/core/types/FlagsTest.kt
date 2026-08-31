@@ -129,6 +129,32 @@ class FlagsTest {
         assertNull(selectChoice(listOf(obj("""{"name":{},"body":1}""")), "a"))
     }
 
+    // ---- FlagContext / FlagDetail ----------------------------------------------------------
+
+    /**
+     * The two shapes' accessors.
+     *
+     * Asserted here because `:mutation` compiles this file and nothing else it compiles reads them:
+     * PIT reported `FlagContext.getUserId`, `FlagContext.getProfileId` and `FlagDetail.getValue` as
+     * NO_COVERAGE, holding Flags.kt at 33/36. That was a hole in the gate rather than dead code —
+     * `IntemptInstance` does read `FlagDetail.value` — but a getter outside the gate is a getter
+     * nothing would notice returning "" or null.
+     */
+    @Test
+    fun `the context and detail shapes return what they were given`() {
+        val ctx = FlagContext(userId = "user-9", profileId = "prof-1")
+        assertEquals("user-9", ctx.userId)
+        assertEquals("prof-1", ctx.profileId)
+
+        val defaults = FlagContext()
+        assertNull(defaults.userId)
+        assertNull(defaults.profileId)
+
+        val detail = FlagDetail("on", FlagReason.TARGETED)
+        assertEquals("on", detail.value)
+        assertEquals(FlagReason.TARGETED, detail.reason)
+    }
+
     // ---- FlagReason -----------------------------------------------------------------------
 
     /**

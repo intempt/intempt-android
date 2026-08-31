@@ -6,6 +6,12 @@
 |---|---|
 | Tests | `./gradlew :app:testDebugUnitTest` |
 | Mutation | `./gradlew :mutation:pitest` — **see the mutation module's config** |
+| Server-only bucketing | `node scripts/check-no-local-bucketing.mjs` — no Gradle, no install |
+
+**The bucketing guard reports how many files it read, and that number is the point.** It has two
+ways to be green while checking nothing — a rotted allowlist and a missing scan root — and both
+fail the run rather than passing quietly. `GUARD_SRC` overrides the scan root; CI sets it
+explicitly even though the default now matches this repo.
 
 **The mutation gate is the real bar, not coverage.** Coverage says a line executed; mutation says an
 assertion would have noticed if that line were wrong. A test asserting a value that was already true
