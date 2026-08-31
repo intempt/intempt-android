@@ -16,7 +16,15 @@ package com.intempt.core.types
  * credentials take precedence when supplied; the file is the fallback, not the other way round.
  */
 data class IntemptCredentials(
-    val apiKey: String,
+    /**
+     * Internal on purpose. As a public `val` this generated `getApiKey()` and `component1()`
+     * into the published binary-compatibility surface, so the credential the SDK was configured
+     * with was readable from any host application — and from anything else running in that
+     * process. No other Intempt SDK exposes one. `internal` keeps it usable inside the SDK, where
+     * ConfigManagerService needs it, and out of the ABI. The constructor still takes it, so
+     * callers configure the SDK exactly as before.
+     */
+    internal val apiKey: String,
     val organizationId: String,
     val projectId: String,
     val sourceId: String,
