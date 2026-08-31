@@ -361,7 +361,12 @@ dependencies {
     // artifact that was on the runtime classpath all along rather than adding a new one.
     api(libs.kotlinx.serialization.json)
 
-    implementation(libs.kotlinx.coroutines.core)
+    // `api`, not `implementation`, for the same reason kotlinx-serialization above is: the whole
+    // public flag surface (`variation`, `allFlags`, `boolVariation`, ...) is `suspend`, so a
+    // consumer cannot call ANY of it without kotlinx-coroutines on their own compile classpath.
+    // Leaving this at `implementation` made every integrator add a dependency by hand to call a
+    // public method, which is a packaging bug wearing a documentation note.
+    api(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)

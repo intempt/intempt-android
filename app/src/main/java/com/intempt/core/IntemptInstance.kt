@@ -8,6 +8,7 @@ import com.intempt.core.types.AutocaptureOptions
 import com.intempt.core.types.AutomaticEventsOptions
 import com.intempt.core.types.ConsentAction
 import com.intempt.core.types.FeedFields
+import com.intempt.core.types.FlagContext
 import com.intempt.core.types.IntemptError
 import com.intempt.core.types.IntemptValue
 import com.intempt.core.types.Product
@@ -219,6 +220,23 @@ class IntemptInstance internal constructor(
         fields: List<String> = FeedFields.DEFAULT,
         productId: String? = null,
     ): JsonObject? = core.capture.products(feedId, count, fields, productId)
+
+    /**
+     * The value assigned for [key], or [defaultValue] when the service did not answer.
+     *
+     * A blank [key] throws [IllegalArgumentException] — a validation mistake is the caller's to
+     * fix, a service problem is not. A returned `null` is a served JSON `null`, not a failure.
+     */
+    @JvmOverloads
+    suspend fun variation(
+        key: String,
+        context: FlagContext = FlagContext(),
+        defaultValue: Any?,
+    ): Any? = core.capture.variationDetailInternal(key, context, defaultValue).value
+
+    /** Every key assigned to this person, in one call. */
+    @JvmOverloads
+    suspend fun allFlags(context: FlagContext = FlagContext()): Map<String, Any?> = core.capture.allFlags(context)
 
     /** Excludes [view] from autocapture so its text is never recorded. Android-only. */
     fun doNotCaptureText(view: View) = core.capture.doNotCaptureText(view)

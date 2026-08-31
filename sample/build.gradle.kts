@@ -242,6 +242,12 @@ dependencies {
     // coroutines with `implementation`, which does not reach a consumer's compile classpath.
     androidTestImplementation(libs.kotlinx.coroutines.android)
 
+    // The flag API is entirely `suspend`. `:app` now exposes kotlinx-coroutines-core with `api`,
+    // so a consumer does NOT have to declare it — this line is here only because the sample also
+    // uses the Android dispatchers (`Dispatchers.Main`, `lifecycleScope`) directly, which live in
+    // the -android artifact rather than -core.
+    implementation(libs.kotlinx.coroutines.android)
+
     // Lets the release build install/refresh its own AOT profile from
     // assets/dexopt/baseline.prof at first run, rather than relying solely on Play's server-side
     // distribution. Small (~50KB) and startup-only; does not affect the SDK's public API.
