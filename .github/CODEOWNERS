@@ -1,18 +1,20 @@
-# Review routing for this SDK. Engineering owns it by default.
-*                       @romchik2612
-
-# The vendored delivery substrate from mixpanel-android. Review these as provenance —
-# confirm they match upstream and that the Apache 2.0 change notices are intact — rather
-# than line by line.
-/app/src/main/java/com/intempt/core/queue/   @romchik2612
-
-# Licensing and anything that ships legal text inside the artifact.
-/LICENSE                @beska0013
-/NOTICE                 @beska0013
-/SECURITY.md            @beska0013
-/app/src/main/resources/META-INF/   @beska0013
-
-# Build, release and CI configuration.
-/.github/workflows/     @beska0013 @romchik2612
-/app/build.gradle.kts   @romchik2612
-/gradle/                @romchik2612
+# Review routing for this SDK.
+#
+# Beso owns it. Every SDK routes to him, and a PR carries exactly one reviewer --
+# see brain PROCESS.md, "Exactly one reviewer per PR, and only Sid says when".
+#
+# One wildcard owner is the whole file. The eight per-path rules it replaces all
+# resolved to a person anyway, and one of them -- /.github/workflows/ -- named
+# two, so every CI change requested both reviewers, which is the thing the
+# one-reviewer rule forbids.
+#
+# The file stays rather than being deleted, even though no other SDK has one.
+# `main` sets require_code_owner_reviews, and a branch with that flag and no
+# CODEOWNERS has no owners to require -- any single approval would clear a gate
+# that is supposed to mean the SDK's owner looked at it.
+#
+# Provenance note, previously carried as its own rule: everything under
+# /app/src/main/java/com/intempt/core/queue/ is the vendored delivery substrate
+# from mixpanel-android. Review it as provenance -- confirm it matches upstream
+# and that the Apache 2.0 change notices are intact -- rather than line by line.
+*   @beska0013
