@@ -145,10 +145,16 @@ class MainActivity : AppCompatActivity() {
         }
         button(root, "variation (by key, for one person)") {
             scope.launch {
+                // profileId, NOT userId. Supplying userId changes the identifier the service
+                // derives assignment on - `Identification.anonymousId()` prefers it over
+                // sourceId_profileId - so a person who is anonymous on one call and identified
+                // on the next is re-bucketed mid-session, which EXP-ASSIGN-005 and the
+                // 2026-08-24 ruling forbid. An earlier version of this sample demonstrated
+                // exactly that footgun on screen. See the warning on FlagContext.
                 val cta =
                     Intempt.variation(
                         "pricing_cta",
-                        FlagContext(userId = "user-123"),
+                        FlagContext(profileId = "device-profile-1"),
                         "Get started",
                     )
                 log.append("  pricing_cta -> $cta\n")

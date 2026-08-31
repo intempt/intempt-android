@@ -36,10 +36,15 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # R36: the platform decides which variant a person gets. An SDK that derives its own
-  # bucket can disagree with the server, and the same person is then served differently
-  # depending on the channel they arrive through — silently, because each side is
-  # internally consistent. Runs without install so it cannot be skipped.
+  # EXP-ASSIGN-001 (C) and EXP-ASSIGN-005 (H), brain product/specs/experiences/experiences-spec.md:
+  # the platform decides which variant a person gets, derived server-side from one stable
+  # identifier. An SDK that derives its own bucket can disagree with the server, and the same
+  # person is then served differently depending on the channel they arrive through — silently,
+  # because each side is internally consistent. Runs without install so it cannot be skipped.
+  #
+  # This guard cited "R36" until 2026-08-31. That id resolves to nothing: brain `origin/main` has
+  # zero occurrences of it in this area, and the only R36 anywhere in brain is the i18n plan's,
+  # about locale formatting. The rule was always right; the citation was invented.
   bucketing:
     name: Server-only bucketing
     runs-on: ubuntu-latest
@@ -48,7 +53,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: No SDK derives buckets locally (R36)
+      - name: No SDK derives buckets locally (EXP-ASSIGN-001, EXP-ASSIGN-005)
         run: node scripts/check-no-local-bucketing.mjs
         env:
           GUARD_SRC: app/src/main
@@ -200,8 +205,17 @@ jobs:
               raise SystemExit("::error::the JUnit XML reports 0 tests")
           PY
 
-      # Boots the SDK inside a host application at API 24 and 34 and calls every public
-      # entry point. All three API-level crashes fixed on this branch are reachable from
+      # Boots the SDK inside a host application at API 24 and 34 (Robolectric,
+      # @Config(sdk = [24, 34]) in SdkRunsLocallyTest) and drives its entry points.
+      #
+      # NOT every entry point: the six flag methods added on this branch — variation,
+      # boolVariation, stringVariation, numberVariation, allFlags, waitForInitialization —
+      # are not exercised here, because they need a served experience and the two
+      # SDK-surface experience types are commented out of the production create dialog
+      # (experiences_scenarios.md:1196). They are covered by :app unit tests and the
+      # :mutation gate instead. This comment claimed full coverage while that was false.
+      #
+      # All three API-level crashes fixed on this branch are reachable from
       # initialize() plus one tracking call, and none were caught by the library's own
       # unit tests, because those never start the SDK.
       - name: Run sample app tests (SDK in a host app, JVM at API 24 + 34)

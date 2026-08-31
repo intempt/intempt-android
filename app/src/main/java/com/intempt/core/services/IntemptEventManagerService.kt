@@ -47,6 +47,7 @@ import com.intempt.core.types.IdTypeKeys
 import com.intempt.core.types.IntemptEventProvider
 import com.intempt.core.types.IntemptValue
 import com.intempt.core.types.Product
+import com.intempt.core.types.buildChooseBody
 import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -275,29 +276,25 @@ internal open class IntemptEventManagerService
         /**
          * The choose-api request body.
          *
-         * `names` is omitted entirely when null, which is how the service is asked for every key
-         * rather than a named subset — sending an empty list would ask for none.
+         * The shape decisions live in [buildChooseBody] in `types/Flags.kt`, which has no Android
+         * dependency and is therefore inside the `:mutation` gate. This method's only job is
+         * gathering the values: the profile id the SDK already holds unless the caller supplied
+         * one, and the user id if there is one.
+         *
+         * On [FlagContext.userId], see the warning on that property: supplying it changes the
+         * identifier the service derives assignment on. It is passed through because the shared
+         * request body carries it, not because it is safe to toggle.
          */
         fun generateChooseBody(
             context: FlagContext,
             names: List<String>?,
-        ): Map<String, Any?> {
-            val identification = mutableMapOf<String, Any>()
-            identification["sourceId"] = config.sourceId
-            // The device identifier the SDK already holds, unless the caller supplied one. It is
-            // the value that survives sign-in.
-            (context.profileId ?: storage.getProfileId()).takeIf { it.isNotBlank() }?.let {
-                identification["profileId"] = it
-            }
-            context.userId?.takeIf { it.isNotBlank() }?.let { identification["userId"] = it }
-
-            val map = mutableMapOf<String, Any>()
-            map["identification"] = identification
-            map["device"] = "mobile"
-            names?.let { map["names"] = it }
-
-            return map
-        }
+        ): Map<String, Any?> =
+            buildChooseBody(
+                sourceId = config.sourceId,
+                profileId = context.profileId ?: storage.getProfileId(),
+                userId = context.userId,
+                names = names,
+            )
 
         fun generateRecommendationBody(
             quantity: Int,

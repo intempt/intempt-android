@@ -580,6 +580,13 @@ object Intempt {
      * [defaultValue] is what comes back on a network failure, a 5xx, a timeout, an unknown key or
      * an uninitialized SDK. A flag SDK that throws when the service is unreachable takes the host
      * app down with it.
+     *
+     * A **blank [key] throws** [IllegalArgumentException]. That is not the same class of problem:
+     * a service problem is absorbed, a programming error the caller can fix at the call site is
+     * not. Returning the default for a typo would make it indistinguishable from a paused flag.
+     *
+     * A returned `null` means the flag's configured value is JSON `null`, not that the call failed
+     * — the failure paths all return [defaultValue].
      */
     @JvmStatic
     @JvmOverloads
@@ -587,7 +594,14 @@ object Intempt {
         key: String,
         context: FlagContext = FlagContext(),
         defaultValue: Any?,
-    ): Any? = main("variation")?.variation(key, context, defaultValue) ?: defaultValue
+    ): Any? {
+        // Deliberately NOT `main(..)?.variation(..) ?: defaultValue`. That elvis collapses two
+        // different answers into one: an uninitialized SDK, and a flag whose configured value is
+        // JSON `null` — which `unwrapFlagValue` maps to `null` on purpose so a caller can tell an
+        // explicitly-null payload from an absent one. Resolving the instance first keeps them apart.
+        val instance = main("variation") ?: return defaultValue
+        return instance.variation(key, context, defaultValue)
+    }
 
     /** Every key assigned to this person, in one call. Empty when the SDK is not initialized. */
     @JvmStatic

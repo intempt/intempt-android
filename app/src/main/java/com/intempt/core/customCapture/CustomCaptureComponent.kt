@@ -32,18 +32,11 @@ import com.intempt.core.types.FlagReason
 import com.intempt.core.types.IntemptError
 import com.intempt.core.types.IntemptValue
 import com.intempt.core.types.Product
-import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.JsonNull
+import com.intempt.core.types.flagNameOf
+import com.intempt.core.types.flagReasonOf
+import com.intempt.core.types.selectChoice
+import com.intempt.core.types.unwrapFlagValue
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.boolean
-import kotlinx.serialization.json.booleanOrNull
-import kotlinx.serialization.json.contentOrNull
-import kotlinx.serialization.json.double
-import kotlinx.serialization.json.doubleOrNull
-import kotlinx.serialization.json.jsonPrimitive
-import kotlinx.serialization.json.long
-import kotlinx.serialization.json.longOrNull
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -394,48 +387,34 @@ internal class CustomCaptureComponent
             context: FlagContext,
             defaultValue: Any?,
         ): FlagDetail {
-            if (key.isBlank()) {
-                srv.logger.error("variation | key must not be blank")
-                return FlagDetail(defaultValue, FlagReason.OFF)
-            }
+            // `docs/CONVENTIONS.md`: a validation mistake THROWS, a service problem does not.
+            // A blank key is a programming error the caller can fix at the call site. Returning
+            // the default here instead made a typo'd key indistinguishable from a paused flag and
+            // from an unreachable service — three causes, one value, and only one of them is the
+            // caller's to fix.
+            require(key.isNotBlank()) { "variation | key must not be blank" }
+
             // One exit for both outcomes rather than an early return for the miss:
             // detekt's ReturnCount caps a function at two, and an absent choice is not
             // an error path — it is simply the other answer.
-            val choice =
-                eventPool.chooseFlags(context, listOf(key))
-                    .firstOrNull { it["name"]?.jsonPrimitive?.contentOrNull == key }
+            val choice = selectChoice(eventPool.chooseFlags(context, listOf(key)), key)
 
             return if (choice == null) {
                 FlagDetail(defaultValue, FlagReason.OFF)
             } else {
                 val body = choice["body"]
                 FlagDetail(
-                    value = body?.let { unwrap(it) } ?: defaultValue,
-                    reason = FlagReason.fromWire(choice["reason"]?.jsonPrimitive?.contentOrNull),
+                    value = body?.let { unwrapFlagValue(it) } ?: defaultValue,
+                    reason = flagReasonOf(choice),
                 )
             }
         }
 
         suspend fun allFlags(context: FlagContext): Map<String, Any?> =
             eventPool.chooseFlags(context, null).mapNotNull { choice ->
-                val name = choice["name"]?.jsonPrimitive?.contentOrNull
-                if (name.isNullOrBlank()) null else name to choice["body"]?.let { unwrap(it) }
+                val name = flagNameOf(choice)
+                if (name.isNullOrBlank()) null else name to choice["body"]?.let { unwrapFlagValue(it) }
             }.toMap()
-
-        /** JSON to a Kotlin value the caller can branch on, with types preserved. */
-        private fun unwrap(element: JsonElement): Any? =
-            when (element) {
-                is JsonNull -> null
-                is JsonPrimitive ->
-                    when {
-                        element.isString -> element.content
-                        element.booleanOrNull != null -> element.boolean
-                        element.longOrNull != null -> element.long
-                        element.doubleOrNull != null -> element.double
-                        else -> element.content
-                    }
-                else -> element
-            }
 
         suspend fun products(
             feedId: String,

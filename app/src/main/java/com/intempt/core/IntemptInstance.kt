@@ -221,7 +221,12 @@ class IntemptInstance internal constructor(
         productId: String? = null,
     ): JsonObject? = core.capture.products(feedId, count, fields, productId)
 
-    /** The value assigned for [key], or [defaultValue] when the service did not answer. */
+    /**
+     * The value assigned for [key], or [defaultValue] when the service did not answer.
+     *
+     * A blank [key] throws [IllegalArgumentException] — a validation mistake is the caller's to
+     * fix, a service problem is not. A returned `null` is a served JSON `null`, not a failure.
+     */
     @JvmOverloads
     suspend fun variation(
         key: String,

@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 /**
- * R36: bucket derivation is server-only.
+ * EXP-ASSIGN-001 / EXP-ASSIGN-005: bucket derivation is server-only.
+ *
+ * Cited "R36" until 2026-08-31; no such id exists in brain. The two ids above are the real ones,
+ * in brain product/specs/experiences/experiences-spec.md.
  *
  * The platform decides which variant a person gets, by hashing (experienceId, identifier) and
  * taking the result modulo the bucket count. No SDK may do that arithmetic itself.
@@ -72,7 +75,7 @@ for (const r of roots) {
 const problems = [];
 if (hits.length) {
   problems.push(
-    `bucket derivation must be server-only (R36) — ${hits.length} occurrence(s):\n    ` +
+    `bucket derivation must be server-only (EXP-ASSIGN-001, EXP-ASSIGN-005) — ${hits.length} occurrence(s):\n    ` +
       hits.join('\n    ')
   );
 }

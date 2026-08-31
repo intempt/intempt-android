@@ -242,11 +242,10 @@ dependencies {
     // coroutines with `implementation`, which does not reach a consumer's compile classpath.
     androidTestImplementation(libs.kotlinx.coroutines.android)
 
-    // The flag API is entirely `suspend`, so a consumer needs coroutines on its own compile
-    // classpath. :app declares them with `implementation`, which deliberately does not leak to
-    // consumers — so an app adding this SDK must add this line too. The sample carries it for the
-    // same reason the androidTest source set does, and its absence would be a compile error here
-    // rather than a surprise in someone's project.
+    // The flag API is entirely `suspend`. `:app` now exposes kotlinx-coroutines-core with `api`,
+    // so a consumer does NOT have to declare it — this line is here only because the sample also
+    // uses the Android dispatchers (`Dispatchers.Main`, `lifecycleScope`) directly, which live in
+    // the -android artifact rather than -core.
     implementation(libs.kotlinx.coroutines.android)
 
     // Lets the release build install/refresh its own AOT profile from

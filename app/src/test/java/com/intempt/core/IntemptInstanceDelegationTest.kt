@@ -9,9 +9,14 @@ import com.intempt.core.services.ConfigManagerService
 import com.intempt.core.services.ErrorReporter
 import com.intempt.core.services.LoggerManagerService
 import com.intempt.core.types.ConsentAction
+import com.intempt.core.types.FlagContext
+import com.intempt.core.types.FlagDetail
+import com.intempt.core.types.FlagReason
 import com.intempt.core.types.IntemptValue
 import com.intempt.core.types.Product
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.verify
@@ -172,4 +177,53 @@ class IntemptInstanceDelegationTest {
         verify(f.autoCapture).stopAutocapture()
         assertEquals(true, ac.isRunning)
     }
+
+    // ---- flags -----------------------------------------------------------------------------
+    //
+    // These two were the gap the PR review named: `IntemptInstance` gained `variation` and
+    // `allFlags` and this file — whose whole purpose is catching a delegate wired to the wrong
+    // core method — asserted neither. `variation` is the worst possible case for that class of
+    // bug: it returns `Any?`, so a delegate calling the wrong method still compiles, still
+    // returns a value, and still reads correctly in review.
+
+    @Test
+    fun `variation reaches variationDetailInternal with the caller's key, context and default`() =
+        runBlocking {
+            val f = Fixture()
+            val ctx = FlagContext(profileId = "prof-1")
+            `when`(f.capture.variationDetailInternal("checkout", ctx, "off"))
+                .thenReturn(FlagDetail("on", FlagReason.OFF))
+
+            assertEquals("on", f.instance().variation("checkout", ctx, "off"))
+
+            verify(f.capture).variationDetailInternal("checkout", ctx, "off")
+        }
+
+    /**
+     * `variation` must return the DETAIL'S value, not the default, and must pass a null value
+     * through rather than substituting. A delegate that returned `defaultValue` unconditionally
+     * would pass every other assertion in this class.
+     */
+    @Test
+    fun `variation returns the served value, and a served null stays null`() =
+        runBlocking {
+            val f = Fixture()
+            val ctx = FlagContext()
+            `when`(f.capture.variationDetailInternal("k", ctx, "fallback"))
+                .thenReturn(FlagDetail(null, FlagReason.OFF))
+
+            assertNull(f.instance().variation("k", ctx, "fallback"))
+        }
+
+    @Test
+    fun `allFlags reaches the core allFlags and hands back its map unchanged`() =
+        runBlocking {
+            val f = Fixture()
+            val ctx = FlagContext(userId = "user-9")
+            `when`(f.capture.allFlags(ctx)).thenReturn(mapOf("a" to 1L, "b" to null))
+
+            assertEquals(mapOf("a" to 1L, "b" to null), f.instance().allFlags(ctx))
+
+            verify(f.capture).allFlags(ctx)
+        }
 }
