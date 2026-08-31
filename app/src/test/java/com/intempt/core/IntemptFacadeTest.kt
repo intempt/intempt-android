@@ -1,3 +1,5 @@
+@file:OptIn(com.intempt.core.internal.InternalIntemptApi::class)
+
 package com.intempt.core
 
 import android.view.View
@@ -5,12 +7,14 @@ import androidx.test.core.app.ApplicationProvider
 import com.intempt.core.types.ConsentAction
 import com.intempt.core.types.FeedFields
 import com.intempt.core.types.IntemptCredentials
+import com.intempt.core.types.IntemptRuntimeOptions
 import com.intempt.core.types.IntemptValue
 import com.intempt.core.types.Product
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -219,6 +223,47 @@ class IntemptFacadeTest {
 
         assertEquals(first, second)
         assertNull("a refused initialize must register nothing", Intempt.instance("tenant-a"))
+    }
+
+    /**
+     * The runtime options bag must survive every hop from the public overload to the config.
+     *
+     * The four tests that cover this option construct ConfigManagerService directly, so they
+     * prove the option is *read* and prove nothing about it being *delivered*. Between
+     * `initialize(context, credentials, name, options)` and that constructor sit start, build,
+     * buildTraced and the Dagger module -- four places to drop an argument, none of them covered.
+     * Dropping it at any one of them leaves all four passing.
+     *
+     * This asserts the opposite of the default. `geolocation defaults to enabled` pins that an
+     * unconfigured instance reads true, so false here can only come from the bag actually
+     * arriving -- the assertion cannot be satisfied by the value that was already there.
+     *
+     * Runtime credentials, not an asset, because this module has no assets directory: they
+     * populate the same four fields isConfigured reads, which is what lets an instance start here
+     * at all.
+     */
+    @Test
+    fun `runtime options reach the config through every hop of initialize`() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+
+        val instance =
+            Intempt.initialize(
+                context,
+                IntemptCredentials("id.secret", "org", "proj", "src"),
+                "geo-forwarding",
+                IntemptRuntimeOptions(useIpAddressForGeolocation = false),
+            )
+
+        assertNotNull("valid runtime credentials must produce an instance without an asset", instance)
+        assertFalse(
+            "the option was dropped somewhere between initialize and the config; the instance is " +
+                "running with geolocation on while the caller asked for it off",
+            instance!!.core.config.useIpAddressForGeolocation,
+        )
+        assertTrue(
+            "and it must reach the wire, not just the config object",
+            instance.core.config.eventsUrl.endsWith("?ip=0"),
+        )
     }
 
     /**
