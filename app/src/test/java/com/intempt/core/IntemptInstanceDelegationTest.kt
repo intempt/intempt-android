@@ -206,7 +206,7 @@ class IntemptInstanceDelegationTest {
      */
     @Test
     fun `variation returns the served value, and a served null stays null`() =
-        runBlocking {
+        runBlocking<Unit> {
             val f = Fixture()
             val ctx = FlagContext()
             `when`(f.capture.variationDetailInternal("k", ctx, "fallback"))
@@ -217,7 +217,7 @@ class IntemptInstanceDelegationTest {
 
     @Test
     fun `allFlags reaches the core allFlags and hands back its map unchanged`() =
-        runBlocking {
+        runBlocking<Unit> {
             val f = Fixture()
             val ctx = FlagContext(userId = "user-9")
             `when`(f.capture.allFlags(ctx)).thenReturn(mapOf("a" to 1L, "b" to null))
