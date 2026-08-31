@@ -42,10 +42,12 @@ import com.intempt.core.eventModels.SessionUserAttributes
 import com.intempt.core.eventModels.TrackEvent
 import com.intempt.core.eventModels.UiElementEvent
 import com.intempt.core.types.AppVisibilityState
+import com.intempt.core.types.FlagContext
 import com.intempt.core.types.IdTypeKeys
 import com.intempt.core.types.IntemptEventProvider
 import com.intempt.core.types.IntemptValue
 import com.intempt.core.types.Product
+import com.intempt.core.types.buildChooseBody
 import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -270,6 +272,29 @@ internal open class IntemptEventManagerService
                 ),
             )
         }
+
+        /**
+         * The choose-api request body.
+         *
+         * The shape decisions live in [buildChooseBody] in `types/Flags.kt`, which has no Android
+         * dependency and is therefore inside the `:mutation` gate. This method's only job is
+         * gathering the values: the profile id the SDK already holds unless the caller supplied
+         * one, and the user id if there is one.
+         *
+         * On [FlagContext.userId], see the warning on that property: supplying it changes the
+         * identifier the service derives assignment on. It is passed through because the shared
+         * request body carries it, not because it is safe to toggle.
+         */
+        fun generateChooseBody(
+            context: FlagContext,
+            names: List<String>?,
+        ): Map<String, Any?> =
+            buildChooseBody(
+                sourceId = config.sourceId,
+                profileId = context.profileId ?: storage.getProfileId(),
+                userId = context.userId,
+                names = names,
+            )
 
         fun generateRecommendationBody(
             quantity: Int,

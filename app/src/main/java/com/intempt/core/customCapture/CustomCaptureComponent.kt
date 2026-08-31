@@ -26,9 +26,16 @@ import com.intempt.core.services.eventPool.EventPoolManagerService
 import com.intempt.core.types.ConsentAction
 import com.intempt.core.types.DefaultConfigs
 import com.intempt.core.types.EventType
+import com.intempt.core.types.FlagContext
+import com.intempt.core.types.FlagDetail
+import com.intempt.core.types.FlagReason
 import com.intempt.core.types.IntemptError
 import com.intempt.core.types.IntemptValue
 import com.intempt.core.types.Product
+import com.intempt.core.types.flagNameOf
+import com.intempt.core.types.flagReasonOf
+import com.intempt.core.types.selectChoice
+import com.intempt.core.types.unwrapFlagValue
 import kotlinx.serialization.json.JsonObject
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -362,6 +369,52 @@ internal class CustomCaptureComponent
         fun productView(productId: String): Boolean {
             return productEvent("productView", "Product viewed", listOf(Product(productId)))
         }
+
+        /**
+         * Internal. NOT public, deliberately.
+         *
+         * It returns a reason, and the platform does not send one: a held-back person's experience is
+         * absent from the evaluation response entirely rather than present with a cause. So every
+         * reason would read OFF — including for someone who WAS targeted and did receive the variant.
+         * That is a wrong answer, not a missing one, and a method whose only job is explaining why
+         * must not guess.
+         *
+         * [variation] uses it for the value, which is correct either way. It becomes public when the
+         * serving contract carries a reason.
+         */
+        internal suspend fun variationDetailInternal(
+            key: String,
+            context: FlagContext,
+            defaultValue: Any?,
+        ): FlagDetail {
+            // `docs/CONVENTIONS.md`: a validation mistake THROWS, a service problem does not.
+            // A blank key is a programming error the caller can fix at the call site. Returning
+            // the default here instead made a typo'd key indistinguishable from a paused flag and
+            // from an unreachable service — three causes, one value, and only one of them is the
+            // caller's to fix.
+            require(key.isNotBlank()) { "variation | key must not be blank" }
+
+            // One exit for both outcomes rather than an early return for the miss:
+            // detekt's ReturnCount caps a function at two, and an absent choice is not
+            // an error path — it is simply the other answer.
+            val choice = selectChoice(eventPool.chooseFlags(context, listOf(key)), key)
+
+            return if (choice == null) {
+                FlagDetail(defaultValue, FlagReason.OFF)
+            } else {
+                val body = choice["body"]
+                FlagDetail(
+                    value = body?.let { unwrapFlagValue(it) } ?: defaultValue,
+                    reason = flagReasonOf(choice),
+                )
+            }
+        }
+
+        suspend fun allFlags(context: FlagContext): Map<String, Any?> =
+            eventPool.chooseFlags(context, null).mapNotNull { choice ->
+                val name = flagNameOf(choice)
+                if (name.isNullOrBlank()) null else name to choice["body"]?.let { unwrapFlagValue(it) }
+            }.toMap()
 
         suspend fun products(
             feedId: String,

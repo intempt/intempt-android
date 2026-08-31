@@ -13,6 +13,7 @@ import com.intempt.core.types.AutocaptureOptions
 import com.intempt.core.types.AutomaticEventsOptions
 import com.intempt.core.types.ConsentAction
 import com.intempt.core.types.FeedFields
+import com.intempt.core.types.FlagContext
 import com.intempt.core.types.InstanceId
 import com.intempt.core.types.IntemptCredentials
 import com.intempt.core.types.IntemptError
@@ -567,6 +568,96 @@ object Intempt {
         fields: List<String> = FeedFields.DEFAULT,
         productId: String? = null,
     ): JsonObject? = main("products")?.products(feedId, count, fields, productId)
+
+    /**
+     * The value assigned for [key], or [defaultValue] when the service did not answer.
+     *
+     * Ask for a KEY, never a mode. Whether the key names an experiment, a personalization or a
+     * flag is the platform's business: its serving query filters on channel and status and never
+     * on mode. The older surface put the mode in the method name, which forced a caller to know
+     * which it was before reading it.
+     *
+     * [defaultValue] is what comes back on a network failure, a 5xx, a timeout, an unknown key or
+     * an uninitialized SDK. A flag SDK that throws when the service is unreachable takes the host
+     * app down with it.
+     *
+     * A **blank [key] throws** [IllegalArgumentException]. That is not the same class of problem:
+     * a service problem is absorbed, a programming error the caller can fix at the call site is
+     * not. Returning the default for a typo would make it indistinguishable from a paused flag.
+     *
+     * A returned `null` means the flag's configured value is JSON `null`, not that the call failed
+     * — the failure paths all return [defaultValue].
+     */
+    @JvmStatic
+    @JvmOverloads
+    suspend fun variation(
+        key: String,
+        context: FlagContext = FlagContext(),
+        defaultValue: Any?,
+    ): Any? {
+        // Deliberately NOT `main(..)?.variation(..) ?: defaultValue`. That elvis collapses two
+        // different answers into one: an uninitialized SDK, and a flag whose configured value is
+        // JSON `null` — which `unwrapFlagValue` maps to `null` on purpose so a caller can tell an
+        // explicitly-null payload from an absent one. Resolving the instance first keeps them apart.
+        val instance = main("variation") ?: return defaultValue
+        return instance.variation(key, context, defaultValue)
+    }
+
+    /** Every key assigned to this person, in one call. Empty when the SDK is not initialized. */
+    @JvmStatic
+    @JvmOverloads
+    suspend fun allFlags(context: FlagContext = FlagContext()): Map<String, Any?> {
+        return main("allFlags")?.allFlags(context) ?: emptyMap()
+    }
+
+    /**
+     * A boolean flag. A served value of the wrong type falls back rather than being coerced:
+     * the string "false" is truthy in most languages, and a silent coercion is indistinguishable
+     * from a correct answer.
+     */
+    @JvmStatic
+    @JvmOverloads
+    suspend fun boolVariation(
+        key: String,
+        context: FlagContext = FlagContext(),
+        defaultValue: Boolean,
+    ): Boolean = variation(key, context, defaultValue) as? Boolean ?: defaultValue
+
+    @JvmStatic
+    @JvmOverloads
+    suspend fun stringVariation(
+        key: String,
+        context: FlagContext = FlagContext(),
+        defaultValue: String,
+    ): String = variation(key, context, defaultValue) as? String ?: defaultValue
+
+    /** A numeric flag. Note a Boolean is not a Number in Kotlin, so `true` cannot arrive as 1. */
+    @JvmStatic
+    @JvmOverloads
+    suspend fun numberVariation(
+        key: String,
+        context: FlagContext = FlagContext(),
+        defaultValue: Double,
+    ): Double = (variation(key, context, defaultValue) as? Number)?.toDouble() ?: defaultValue
+
+    /**
+     * Returns immediately.
+     *
+     * Present so the cross-SDK surface is the same everywhere, and so a caller porting from an SDK
+     * that polls a local flag store does not have to remove the call. Evaluation here is remote:
+     * each [variation] is a request, so there is no local state to wait for.
+     */
+    @JvmStatic
+    @JvmOverloads
+    // timeoutMs is deliberately ignored, and deliberately still in the signature.
+    // Evaluation is remote — there is no local flag store to finish loading — so there
+    // is nothing to wait for and nothing to time out. The parameter stays because the
+    // cross-SDK contract declares it, and an integrator porting code between SDKs must
+    // not have to delete an argument here and re-add it there.
+    // Two ids for one warning: `UnusedParameter` is detekt's rule, `UNUSED_PARAMETER` is the
+    // Kotlin compiler's. Suppressing only the first left the compiler warning firing on every build.
+    @Suppress("UnusedParameter", "UNUSED_PARAMETER")
+    suspend fun waitForInitialization(timeoutMs: Long? = null) = Unit
 
     /**
      * Excludes [view] from autocapture so its text is never recorded.

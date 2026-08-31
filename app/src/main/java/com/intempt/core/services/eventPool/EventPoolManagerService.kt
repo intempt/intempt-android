@@ -12,6 +12,7 @@ import com.intempt.core.services.IntemptEventManagerService
 import com.intempt.core.services.LoggerManagerService
 import com.intempt.core.types.DispatchEventProps
 import com.intempt.core.types.EventType
+import com.intempt.core.types.FlagContext
 import com.intempt.core.types.HandleEventTypeProps
 import com.intempt.core.types.IntemptEventProvider
 import io.ktor.client.statement.bodyAsText
@@ -25,6 +26,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import org.json.JSONObject
 import javax.inject.Inject
@@ -200,6 +202,33 @@ internal open class EventPoolManagerService
                     }
             } catch (e: Exception) {
                 logger.log("Error during collection: ${e.message}")
+            }
+        }
+
+        /**
+         * Evaluate flags. Returns an empty list on any failure rather than throwing.
+         *
+         * This is the entire reason a default value is required at the public surface: a network
+         * failure, a 5xx or a timeout must resolve to the value the caller chose. A flag SDK that
+         * throws when the service is unreachable takes the host app down with it, which is the
+         * opposite of what a kill switch is for.
+         */
+        suspend fun chooseFlags(
+            context: FlagContext,
+            names: List<String>?,
+        ): List<JsonObject> {
+            val url = config.optimizationUrl
+            val body = JSONObject(intemptEvent.generateChooseBody(context, names))
+
+            val text = http.post(url, body)?.bodyAsText() ?: return emptyList()
+            return try {
+                Json.parseToJsonElement(text).jsonObject["choices"]
+                    ?.jsonArray
+                    ?.mapNotNull { it as? JsonObject }
+                    ?: emptyList()
+            } catch (e: Exception) {
+                logger.error("chooseFlags | unreadable response: ${e.message}")
+                emptyList()
             }
         }
 
