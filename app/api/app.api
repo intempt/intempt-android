@@ -375,14 +375,12 @@ public final class com/intempt/core/types/FlagContext {
 
 public final class com/intempt/core/types/IntemptCredentials {
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
-	public final fun component1 ()Ljava/lang/String;
 	public final fun component2 ()Ljava/lang/String;
 	public final fun component3 ()Ljava/lang/String;
 	public final fun component4 ()Ljava/lang/String;
 	public final fun copy (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Lcom/intempt/core/types/IntemptCredentials;
 	public static synthetic fun copy$default (Lcom/intempt/core/types/IntemptCredentials;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lcom/intempt/core/types/IntemptCredentials;
 	public fun equals (Ljava/lang/Object;)Z
-	public final fun getApiKey ()Ljava/lang/String;
 	public final fun getOrganizationId ()Ljava/lang/String;
 	public final fun getProjectId ()Ljava/lang/String;
 	public final fun getSourceId ()Ljava/lang/String;
