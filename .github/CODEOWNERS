@@ -24,6 +24,11 @@
 
 # Build, release and CI configuration. A release workflow here publishes to Maven Central, which
 # cannot be withdrawn, so both sign off.
-/.github/workflows/     @beska0013 @romchik2612
-/app/build.gradle.kts   @beska0013 @romchik2612
-/gradle/                @beska0013 @romchik2612
+/.github/workflows/     @beska0013
+/app/build.gradle.kts   @beska0013
+/gradle/                @beska0013
+
+# Roman was removed as a collaborator on this repo on 2026-09-01 (Sid: he does not work on
+# Android). A CODEOWNERS entry naming someone without repo access is a dangling owner: GitHub
+# cannot resolve it, so the path it guards ends up with no owner at all -- weaker than the
+# single-owner rule it was written to strengthen.
