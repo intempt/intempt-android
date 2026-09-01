@@ -75,6 +75,12 @@ sourceSets {
             include("com/intempt/core/types/ConsentAction.kt")
             include("com/intempt/core/types/CaptureOptions.kt")
             include("com/intempt/core/types/FeedFields.kt")
+            // Added for the flag surface. Before this, `targetClasses` below matched NONE of the
+            // six classes that change touched, so the 85/85 was measured entirely over untouched
+            // code. Flags.kt is where its pure decisions were moved to precisely so the gate can
+            // see them — buildChooseBody's null handling, unwrapFlagValue's type preservation,
+            // flagNameOf/flagReasonOf's safe reads and FlagReason.fromWire's fallback.
+            include("com/intempt/core/types/Flags.kt")
         }
     }
     test {
@@ -91,11 +97,16 @@ sourceSets {
             include("com/intempt/core/queue/DeliveryRetryPolicyTest.java")
         }
         kotlin {
-            setSrcDirs(listOf("../app/src/test/java"))
+            // Two roots, mirroring the java block above: the shared tests :app compiles as well,
+            // plus mutation-only Kotlin tests for classes whose dependencies :app's unit-test task
+            // cannot provide (org.json again — ChooseBodyJsonTest).
+            setSrcDirs(listOf("../app/src/test/java", "src/test/java"))
             include("com/intempt/core/types/IntemptValueTest.kt")
             include("com/intempt/core/types/InstanceIdTest.kt")
             include("com/intempt/core/types/IntemptCredentialsTest.kt")
             include("com/intempt/core/types/ContractTypesTest.kt")
+            include("com/intempt/core/types/FlagsTest.kt")
+            include("com/intempt/core/types/ChooseBodyJsonTest.kt")
         }
     }
 }
@@ -105,6 +116,10 @@ dependencies {
     // Android bundles org.json; on the JVM it comes from Maven. Same API, so TrackPayloadBuilder
     // compiles and behaves identically here.
     implementation("org.json:json:20240303")
+    // Flags.kt reads JsonElement/JsonPrimitive. Library only — no @Serializable here, so the
+    // serialization COMPILER plugin is deliberately not applied. Same catalog entry :app uses,
+    // so there is no second version to drift.
+    implementation(libs.kotlinx.serialization.json)
 }
 
 tasks.test {
@@ -121,6 +136,11 @@ pitest {
             "com.intempt.core.types.InstanceId*",
             "com.intempt.core.types.Product*",
             "com.intempt.core.types.ConsentAction*",
+            "com.intempt.core.types.FlagReason*",
+            "com.intempt.core.types.FlagContext*",
+            "com.intempt.core.types.FlagDetail*",
+            // Top-level functions in Flags.kt compile into this facade class.
+            "com.intempt.core.types.FlagsKt*",
             "com.intempt.core.queue.HttpStatusPolicy*",
             "com.intempt.core.queue.TrackPayloadBuilder*",
             "com.intempt.core.queue.QueueConfig*",
@@ -135,6 +155,8 @@ pitest {
             "com.intempt.core.types.InstanceIdTest",
             "com.intempt.core.types.IntemptCredentialsTest",
             "com.intempt.core.types.ContractTypesTest",
+            "com.intempt.core.types.FlagsTest",
+            "com.intempt.core.types.ChooseBodyJsonTest",
             "com.intempt.core.queue.HttpStatusPolicyTest",
             "com.intempt.core.queue.PureJvmQueueTest",
             "com.intempt.core.queue.TrackPayloadBuilderPureTest",

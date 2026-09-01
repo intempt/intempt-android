@@ -28,6 +28,67 @@ under Unreleased.
   banner is the ordinary shape, and an RN JS reload does the same thing — previously either left
   geolocation on with nothing said.
 
+## [3.1.0] - 2026-08-31
+
+A minor release: it adds public API and removes none, so `app/api/app.api` grows by 39 entries with
+zero removals or signature changes. Existing integrations need no source or build change.
+
+### Added
+
+- **Feature flags, experiments and personalizations, read by key.** `variation(key, context,
+  defaultValue)` plus the typed helpers `boolVariation` / `stringVariation` / `numberVariation`, and
+  `allFlags(context)` for every key assigned to a person in one call. `waitForInitialization` is
+  present for cross-SDK parity and returns immediately — evaluation is remote, so there is no local
+  flag store to wait for.
+  - Ask for a **key**, never a mode: the platform's serving query filters on channel and status, so
+    a caller does not have to know whether a key names a flag, an experiment or a personalization.
+  - `defaultValue` is **required**, and it is what comes back on a network failure, a 5xx, a timeout,
+    an unknown key or an uninitialized SDK. A returned `null` means the configured value is JSON
+    `null`, which is deliberately distinguishable from a failure.
+  - A **blank key throws** `IllegalArgumentException`. A service problem is absorbed; a programming
+    error the caller can fix at the call site is not.
+  - Assignment detail is **not** exposed. It would carry a reason the serving response does not send.
+- `FlagContext(userId, profileId)` for evaluating as a specific person. **Supply `userId`
+  consistently or not at all** — the serving side prefers it over `sourceId_profileId` when deriving
+  assignment, so toggling it at sign-in re-buckets the person mid-session.
+
+### Changed
+
+- `kotlinx-coroutines-core` moved from `implementation` to `api`. The whole flag surface is
+  `suspend`, so a consumer could not call a public method without adding the dependency by hand —
+  a packaging bug wearing a documentation note. Purely additive for existing consumers.
+
+### Fixed
+
+- The `no-local-bucketing` guard could pass while scanning nothing. Its scan root defaulted to
+  `src`, which no Android project has, so running it without `GUARD_SRC` set read zero files and
+  then blamed the allowlist. A missing scan root now fails the run, and the output states how many
+  files were read.
+- Two compiler warnings on every build: a `@JvmOverloads` with no effect on `FlagDetail`, and
+  `waitForInitialization`'s unused parameter suppressed under detekt's rule id but not the Kotlin
+  compiler's.
+
+### Testing
+
+- The mutation gate's `targetClasses` allowlist matched **none** of the six classes the flag change
+  touched, so its 85/85 measured untouched code. The pure decisions now live in `types/Flags.kt`,
+  inside the gate: 36 mutants, **36 killed**. Suite: 203/228 (89%) with 380 unit tests passing.
+- Verified on-device against a live backend (API 34 emulator): no crash on any path, every failure
+  and unmatched-key path returns the caller's default, and the request on the wire matches what the
+  unit tests assert — including `allFlags` omitting `names` entirely rather than sending `[]`.
+- **Regression coverage for INT-5166** (`logOut()`/`reset()` not rotating the anonymous profile id).
+  The defect itself was fixed in 3.0.3 and does not reproduce — three successive reads on an API 34
+  emulator returned three distinct ids. It was a **race, not a missing rotation**: v3.0.2 minted a
+  fresh id through a coroutine-launching helper inside a fire-and-forget block, so it landed after
+  `logOut()` had already returned. Reproduced on v3.0.2 (one id across three reads, a new one five
+  seconds later) and confirmed fixed on 3.0.4. What was missing was coverage of the *wiring*: `logOut()`
+  rotates only because it shares `logoutHandler()` with `reset()`, and the existing tests assert
+  `clearAllStorage()` directly, so giving either call its own path would have reintroduced a
+  High-priority privacy bug with every test still green. Three tests now pin it — each entry point
+  reaches the rotation, `logOut` keeps the queue while `reset` discards it, and successive rotations
+  each yield a new id. All three were proven able to fail against planted mutants, including one
+  (rotate once, then reuse) that only the new successive-rotation test catches.
+
 ## [3.0.4] - 2026-08-21
 
 ### Fixed

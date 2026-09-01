@@ -18,9 +18,15 @@ import androidx.core.content.ContextCompat
 import com.intempt.core.Intempt
 import com.intempt.core.types.AutocaptureOptions
 import com.intempt.core.types.ConsentAction
+import com.intempt.core.types.FlagContext
 import com.intempt.core.types.IntemptCredentials
 import com.intempt.core.types.IntemptValue
 import com.intempt.core.types.Product
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 
 /**
  * Exercises the public API by hand. Built with plain views rather than Compose so this
@@ -50,6 +56,13 @@ class MainActivity : AppCompatActivity() {
             ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 0)
         }
     }
+
+    /**
+     * Every flag method is `suspend`. A plain scope rather than lifecycleScope, so this sample
+     * needs only the coroutines dependency it already declares - lifecycleScope would add a
+     * lifecycle-runtime-ktx requirement a reader copying this file might not have.
+     */
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -116,6 +129,45 @@ class MainActivity : AppCompatActivity() {
             )
         }
         button(root, "productView") { Intempt.productView("sku-123") }
+
+        // --- flags ---------------------------------------------------------
+        // Every flag method is `suspend`, so a consumer needs a coroutine scope. It does NOT need
+        // its own coroutines dependency: :app exposes kotlinx-coroutines-core with `api`, so the
+        // suspend surface is callable out of the box. This sample declares the -android artifact
+        // only because it uses `Dispatchers.Main` directly, which -core does not carry. This
+        // sample exists partly to prove that an app really can call these.
+        button(root, "variation (a flag by key)") {
+            scope.launch {
+                // The default is not optional and it is a real decision: it is what runs when
+                // Intempt cannot be reached. Choose the behaviour you already have.
+                val on = Intempt.boolVariation("new_checkout", defaultValue = false)
+                log.append("  new_checkout -> $on\n")
+            }
+        }
+        button(root, "variation (by key, for one person)") {
+            scope.launch {
+                // profileId, NOT userId. Supplying userId changes the identifier the service
+                // derives assignment on - `Identification.anonymousId()` prefers it over
+                // sourceId_profileId - so a person who is anonymous on one call and identified
+                // on the next is re-bucketed mid-session, which EXP-ASSIGN-005 and the
+                // 2026-08-24 ruling forbid. An earlier version of this sample demonstrated
+                // exactly that footgun on screen. See the warning on FlagContext.
+                val cta =
+                    Intempt.variation(
+                        "pricing_cta",
+                        FlagContext(profileId = "device-profile-1"),
+                        "Get started",
+                    )
+                log.append("  pricing_cta -> $cta\n")
+            }
+        }
+        button(root, "allFlags") {
+            scope.launch {
+                val flags = Intempt.allFlags()
+                log.append("  allFlags -> ${flags.size} key(s)\n")
+                flags.forEach { (key, value) -> log.append("    $key = $value\n") }
+            }
+        }
         button(root, "productOrdered") {
             Intempt.productOrdered(listOf(Product("sku-123", 2), Product("sku-456", 1)))
         }
@@ -208,5 +260,10 @@ class MainActivity : AppCompatActivity() {
                 }
             },
         )
+    }
+
+    override fun onDestroy() {
+        scope.cancel()
+        super.onDestroy()
     }
 }
