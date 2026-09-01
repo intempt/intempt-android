@@ -14,7 +14,7 @@
 # confirm they match upstream and that the Apache 2.0 change notices are intact — rather
 # than line by line. Roman stays on these: provenance review is the one thing here that is
 # about the Android platform rather than about the SDK surface.
-/app/src/main/java/com/intempt/core/queue/   @beska0013 @romchik2612
+/app/src/main/java/com/intempt/core/queue/   @beska0013
 
 # Licensing and anything that ships legal text inside the artifact.
 /LICENSE                @beska0013
