@@ -11,6 +11,8 @@ under Unreleased.
 
 ## [Unreleased]
 
+## [4.0.0] - 2026-09-03
+
 ### Removed
 
 - **BREAKING:** `Intempt.alias(userId, anotherUserId)` and `IntemptInstance.alias`. Linking two
