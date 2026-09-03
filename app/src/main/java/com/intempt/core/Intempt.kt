@@ -17,6 +17,7 @@ import com.intempt.core.types.FlagContext
 import com.intempt.core.types.InstanceId
 import com.intempt.core.types.IntemptCredentials
 import com.intempt.core.types.IntemptError
+import com.intempt.core.types.IntemptRuntimeOptions
 import com.intempt.core.types.IntemptValue
 import com.intempt.core.types.Product
 import kotlinx.serialization.json.JsonObject
@@ -106,7 +107,28 @@ object Intempt {
         context: Context,
         credentials: IntemptCredentials?,
         instanceName: String,
-    ): IntemptInstance? = start(context, credentials, instanceName)
+    ): IntemptInstance? = start(context, credentials, instanceName, null)
+
+    /**
+     * Starts a **named** instance with options supplied at runtime, or null on failure.
+     *
+     * [options] overrides `assets/intempt-config.json` **per field**, exactly as [credentials]
+     * does: a field set here wins, a field left null falls through to the asset file and then to
+     * the default. An app that sets one option keeps every other value from its asset file.
+     *
+     * The asset file remains the documented setup for a plain Android app. This overload exists
+     * for callers that have no asset file to edit — React Native, Flutter and any other bridge,
+     * where the host app configures the SDK in JavaScript and cannot reach the native bundle's
+     * assets. Before it, such a bridge could accept an option and silently drop it, which is worse
+     * than not offering it.
+     */
+    @JvmStatic
+    fun initialize(
+        context: Context,
+        credentials: IntemptCredentials?,
+        instanceName: String,
+        options: IntemptRuntimeOptions?,
+    ): IntemptInstance? = start(context, credentials, instanceName, options)
 
     /** The `"default"` instance, or null when it is not running. */
     @JvmStatic
@@ -124,9 +146,35 @@ object Intempt {
         context: Context,
         credentials: IntemptCredentials?,
         instanceName: String,
+        options: IntemptRuntimeOptions? = null,
     ): IntemptInstance? {
         instances[instanceName]?.let {
-            Log.i(TAG, "Instance \"$instanceName\" is already initialized; returning it")
+            // The options bag carries a privacy decision, and this return is before it is read,
+            // so passing useIpAddressForGeolocation = false to a second initialize left
+            // collection on with nothing said. "Initialize in Application.onCreate, initialize
+            // again after the consent banner" is the ordinary shape, and an RN JS reload does it
+            // too: the JS instance map resets while the native process does not.
+            //
+            // The existing instance still wins -- changing the flag under an in-flight queue
+            // would be worse -- but silence was the wrong half to keep.
+            // Compare against what the instance is actually running, not merely whether an
+            // option was supplied. Passing the SAME value again is the common case -- an RN JS
+            // reload resets the JS instance map while the native process survives, so initialize
+            // arrives a second time with identical options -- and warning there would say the
+            // opt-out was dropped while it is in force. Only a genuine conflict is worth a line.
+            val requested = options?.useIpAddressForGeolocation
+            if (requested != null && requested != it.core.config.useIpAddressForGeolocation) {
+                Log.w(
+                    TAG,
+                    "Instance \"$instanceName\" already exists with " +
+                        "useIpAddressForGeolocation=${it.core.config.useIpAddressForGeolocation}; " +
+                        "the value $requested passed here was NOT applied. Pass it on the first " +
+                        "initialize. Do not re-initialize under a different instanceName to force " +
+                        "it -- that creates a second instance and duplicates every session.",
+                )
+            } else {
+                Log.i(TAG, "Instance \"$instanceName\" is already initialized; returning it")
+            }
             return it
         }
 
@@ -160,7 +208,7 @@ object Intempt {
                 Log.i(TAG, "Instance \"$instanceName\" was initialized concurrently; using the first")
                 return it
             }
-            return build(context, credentials, instanceName)
+            return build(context, credentials, instanceName, options)
         }
     }
 
@@ -173,6 +221,7 @@ object Intempt {
         context: Context,
         credentials: IntemptCredentials?,
         instanceName: String,
+        options: IntemptRuntimeOptions?,
     ): IntemptInstance? =
         // The whole of init is one named trace section, and each expensive step inside it is its
         // own. Macrobenchmark's TraceSectionMetric reads these out of the Perfetto trace, which is
@@ -182,7 +231,7 @@ object Intempt {
         // android.os.Trace directly (API 18+, minSdk 23) rather than androidx.tracing: a new
         // dependency would spend the method-count headroom this instrumentation exists to protect.
         traced("Intempt.initialize") {
-            buildTraced(context, credentials, instanceName)
+            buildTraced(context, credentials, instanceName, options)
         }
 
     /**
@@ -196,13 +245,21 @@ object Intempt {
         context: Context,
         credentials: IntemptCredentials?,
         instanceName: String,
+        options: IntemptRuntimeOptions?,
     ): IntemptInstance? {
         val instance: IntemptInstance
         try {
             val component =
                 traced("Intempt.daggerGraph") {
                     DaggerIntemptCoreComponent.factory()
-                        .create(IntemptCoreModule(context, credentials, InstanceId(instanceName)))
+                        .create(
+                            IntemptCoreModule(
+                                context,
+                                credentials,
+                                options,
+                                InstanceId(instanceName),
+                            ),
+                        )
                 }
 
             // Credentials are read lazily, so Dagger wires up perfectly against a config asset that
@@ -309,13 +366,6 @@ object Intempt {
         eventTitle: String? = null,
         accountAttributes: Map<String, IntemptValue>? = null,
     ): Boolean = main("group")?.group(accountId, eventTitle, accountAttributes) ?: false
-
-    /** Merges the profile previously known as [userId] into [anotherUserId]. */
-    @JvmStatic
-    fun alias(
-        userId: String,
-        anotherUserId: String,
-    ): Boolean = main("alias")?.alias(userId, anotherUserId) ?: false
 
     /**
      * Records [eventTitle] and, unlike [track], can attribute it to [userId]/[accountId] and merge

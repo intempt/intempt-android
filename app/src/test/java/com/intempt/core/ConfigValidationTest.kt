@@ -2,10 +2,13 @@
 
 package com.intempt.core
 
+import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.intempt.core.services.ConfigManagerService
+import com.intempt.core.types.IntemptRuntimeOptions
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -22,7 +25,9 @@ import org.robolectric.RobolectricTestRunner
  */
 @RunWith(RobolectricTestRunner::class)
 class ConfigValidationTest {
-    private fun config() = ConfigManagerService(ApplicationProvider.getApplicationContext())
+    private val appContext: Context get() = ApplicationProvider.getApplicationContext()
+
+    private fun config(options: IntemptRuntimeOptions? = null) = ConfigManagerService(appContext, null, options)
 
     @Test
     fun `a missing config asset reports itself as unconfigured`() {
@@ -100,6 +105,76 @@ class ConfigValidationTest {
     @Test
     fun `geolocation defaults to enabled`() {
         assertTrue(config().useIpAddressForGeolocation)
+    }
+
+    // ------------------------------------------- runtime options
+
+    /**
+     * A React Native app has no asset file to edit, so an asset-file-only option is unreachable
+     * from the only place an RN developer configures anything. Before this the bridge could accept
+     * `useIpAddressForGeolocation: false` and silently drop it.
+     */
+    @Test
+    fun `a runtime option turns geolocation off`() {
+        val configured = config(IntemptRuntimeOptions(useIpAddressForGeolocation = false))
+
+        assertFalse(configured.useIpAddressForGeolocation)
+        assertTrue(
+            "the flag must reach the wire, not just the accessor",
+            configured.eventsUrl.endsWith("?ip=0"),
+        )
+    }
+
+    @Test
+    fun `a runtime option can turn geolocation on explicitly`() {
+        val configured = config(IntemptRuntimeOptions(useIpAddressForGeolocation = true))
+
+        assertTrue(configured.useIpAddressForGeolocation)
+        assertTrue(configured.eventsUrl.endsWith("?ip=1"))
+    }
+
+    /** Null means "whatever the asset file or the default says", not "off". */
+    @Test
+    fun `a null runtime option leaves the default alone`() {
+        assertTrue(config(IntemptRuntimeOptions()).useIpAddressForGeolocation)
+        assertTrue(config(null).useIpAddressForGeolocation)
+    }
+
+    /**
+     * The override is per field. An empty options object must not blank out everything else the
+     * asset file supplies, which is what a wholesale replacement would do.
+     */
+    @Test
+    fun `a runtime option changes what it names and nothing else`() {
+        // The previous version of this compared baseline.apiUrl, .isQueueEnabled and
+        // .itemsInQueue across the two, and could not fail for two independent reasons: no
+        // assets/intempt-config.json exists anywhere in this repo, so getConfigs() catches and
+        // returns ConfigResult(null, null) and both sides are defaults; and those three fields are
+        // read only from IntemptOptions, never from IntemptRuntimeOptions, so they are structurally
+        // unreachable from the type under test. A wholesale broken implementation passed it.
+        //
+        // What is actually worth pinning is that the option takes effect at all, and that it is
+        // the ONLY thing this bag moves. So: assert the difference first, then the sameness.
+        val baseline = config()
+        val withOptions = config(IntemptRuntimeOptions(useIpAddressForGeolocation = false))
+
+        assertTrue(
+            "the default must be on, matching what ingestion assumes for an absent flag",
+            baseline.useIpAddressForGeolocation,
+        )
+        assertFalse(
+            "the runtime option has to reach the config, or it is decorative",
+            withOptions.useIpAddressForGeolocation,
+        )
+        assertNotEquals(
+            "the two configs must genuinely differ, or every assertion below is vacuous",
+            baseline.useIpAddressForGeolocation,
+            withOptions.useIpAddressForGeolocation,
+        )
+
+        assertEquals(baseline.apiUrl, withOptions.apiUrl)
+        assertEquals(baseline.isQueueEnabled, withOptions.isQueueEnabled)
+        assertEquals(baseline.itemsInQueue, withOptions.itemsInQueue)
     }
 
     /**

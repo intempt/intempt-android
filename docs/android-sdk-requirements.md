@@ -82,7 +82,7 @@ Consolidated from the three sources. This is the yardstick every inherit-vs-buil
 
 ### R1. Public API surface must not change
 
-14 top-level calls, verified 1:1 against `intemptjs`: `initialize`, `identify`, `group`, `track`, `record`, `alias`, `consent`, `productAdd`, `productOrdered`, `productView`, `recommendation`, `logOut`, `doNotCaptureText`, plus nested `Logging.start/stop` and `Tracking.start/stop` (`Intempt.kt`). Same `eventTitle`-required-when-attributes-present validation rule as intemptjs (`guards/intemptJs.guard.ts:70-98`).
+13 top-level calls, verified 1:1 against `intemptjs`: `initialize`, `identify`, `group`, `track`, `record`, `consent`, `productAdd`, `productOrdered`, `productView`, `recommendation`, `logOut`, `doNotCaptureText`, plus nested `Logging.start/stop` and `Tracking.start/stop` (`Intempt.kt`). Same `eventTitle`-required-when-attributes-present validation rule as intemptjs (`guards/intemptJs.guard.ts:70-98`).
 
 ### R2. One ingestion endpoint, one payload shape
 

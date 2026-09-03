@@ -249,22 +249,6 @@ internal class CustomCaptureComponent
                 )
             }
 
-        fun alias(
-            userId: String,
-            anotherUserId: String,
-        ): Boolean =
-            capture("alias") {
-                IntemptEvent(
-                    // "Alias", not "Identify". Third instance of the same copy-paste in this
-                    // file: group() had it too. An alias event arriving named "Identify" while
-                    // carrying type "alias" makes name and type disagree, so anything grouping
-                    // by event name folds identity merges in with user identification.
-                    name = "Alias",
-                    type = EventType.Alias.value,
-                    payload = intemptEvent.generateAliasEventPayload(userId, anotherUserId),
-                )
-            }
-
         /**
          * Records a consent decision. Three behaviours here are contractual, not incidental.
          *

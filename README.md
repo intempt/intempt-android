@@ -277,17 +277,6 @@ fun record(
 )
 ```
 
-### alias
-
-Link two user identities together (e.g. an anonymous ID to a known user ID).
-
-```kotlin
-Intempt.alias(
-    userId = "john@example.com",
-    anotherUserId = "anon_abc123"
-)
-```
-
 ### consent
 
 Record a user's consent decision. Specify the action, an expiration timestamp (epoch millis), and optional details.
@@ -395,8 +384,18 @@ Intempt.doNotCaptureText(mySecretTextField)
 The SDK does not fetch, store or transmit the device's IP address.
 
 `useIpAddressForGeolocation` controls whether Intempt may derive city / region / country from the
-source IP of the requests it already receives. It defaults to `true`; set it to `false` in
-`intempt-config.json` and no geolocation happens at either end.
+source IP of the requests it already receives. It defaults to `true`. Set it to `false` either in
+`intempt-config.json` or at runtime:
+
+```kotlin
+Intempt.initialize(
+    context, credentials, "default",
+    IntemptRuntimeOptions(useIpAddressForGeolocation = false),
+)
+```
+
+A runtime option wins over the asset file. Pass it on the FIRST `initialize` — a later call
+returns the existing instance and logs that the options were not applied.
 
 Session events carry `deviceType`, `carrier` and `platform` in `userAttributes`. They no longer
 carry `ipAddress`, `city`, `region` or `country` — earlier versions fetched those from a

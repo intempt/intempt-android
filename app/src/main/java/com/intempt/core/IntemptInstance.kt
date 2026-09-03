@@ -60,12 +60,6 @@ class IntemptInstance internal constructor(
         accountAttributes: Map<String, IntemptValue>? = null,
     ): Boolean = core.capture.group(accountId, eventTitle, accountAttributes)
 
-    /** Merges the profile previously known as [userId] into [anotherUserId]. */
-    fun alias(
-        userId: String,
-        anotherUserId: String,
-    ): Boolean = core.capture.alias(userId, anotherUserId)
-
     /** Records [eventTitle] attributed to [userId]/[accountId]. Argument order is contract-frozen. */
     @Suppress("LongParameterList") // frozen by the contract; see Intempt.record
     @JvmOverloads

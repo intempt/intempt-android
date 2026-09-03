@@ -239,16 +239,6 @@ class CustomCaptureUnitTest {
     }
 
     @Test
-    fun `should receive event of type alias`() {
-        component.alias(
-            "test_userId",
-            "test_anotherUserId",
-        )
-
-        assertEnqueued("alias")
-    }
-
-    @Test
     fun `should receive event of type consent`() =
         runTest {
             interceptConsentHttpRequest()
@@ -509,7 +499,6 @@ class CustomCaptureUnitTest {
         component.group("test", "test", IntemptValue.mapOf(mapOf("test" to "test")))
         component.track("test", IntemptValue.mapOf(mapOf("test" to "test")))
         component.record("test", "test")
-        component.alias("test", "test")
         component.logOut()
 
         testScheduler.advanceUntilIdle()

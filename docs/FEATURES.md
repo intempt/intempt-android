@@ -22,7 +22,6 @@
 `group` | `(accountId, eventTitle?, accountAttributes?)` | ✅ |
 `track` | `(eventTitle, data)` | ✅ |
 `record` | `(eventTitle, accountId?, userId?, accountAttributes?, userAttributes?, data?)` | ✅ |
-`alias` | `(userId, anotherUserId)` | ✅ |
 `consent` | `(action, validUntil, email?, message?, category?)` | ✅ |
 `productAdd` | `(productId, quantity)` | ✅ |
 `productOrdered` | `(products: List<Map<String, Any>>)` | ✅ |
@@ -51,7 +50,6 @@ Auth: `Authorization: Basic base64(identifier:secret)` — the canonical form; p
 `group` | `group` | `eventId`, `sessionId`, `pageId`, `profileId`, `timestamp`, `accountId`, `accountAttributes?` | **match** |
 `track` | `track` | `eventId`, `sessionId`, `pageId`, `profileId`, `timestamp`, `data` | **match** |
 `record` | `record` | `eventId`, `sessionId`, `pageId`, `profileId`, `timestamp`, `accountId?`, `userId?`, `accountAttributes?`, `userAttributes?`, `data?` | **match** |
-`alias` | `alias` | `eventId`, `sessionId`, `pageId`, `profileId`, `timestamp`, `userId`, `anotherUserId` | Android adds `sessionId`/`pageId`; harmless superset |
 `productAdd/Ordered/View` | `product` | `eventId`, `sessionId`, `pageId`, `profileId`, `timestamp`, `data:{productId, quantity?}` | **match** |
 `consent` | `consent` | `profileId`, `timestamp`, `sourceId`, `source:"android"`, `validUntil`, `action`, `email?`, `message?`, `category?` | matches; `source` correctly `"android"` vs `"web"` |
 
@@ -258,6 +256,17 @@ Turn it off in `intempt-config.json`:
 ```json
 { "options": { "useIpAddressForGeolocation": false } }
 ```
+
+Or at runtime, which is the only route for a bridge that cannot ship an asset file:
+
+```kotlin
+Intempt.initialize(
+    context, credentials, "default",
+    IntemptRuntimeOptions(useIpAddressForGeolocation = false),
+)
+```
+
+A runtime option wins over the asset file, and the asset file over the default.
 
 Defaults to `true`, matching Mixpanel's `UseIpAddressForGeolocation`.
 

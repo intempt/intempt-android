@@ -16,6 +16,7 @@ import com.intempt.core.types.DefaultConfigs
 import com.intempt.core.types.IntemptConfigs
 import com.intempt.core.types.IntemptCredentials
 import com.intempt.core.types.IntemptOptions
+import com.intempt.core.types.IntemptRuntimeOptions
 import org.json.JSONObject
 import java.io.InputStream
 import javax.inject.Inject
@@ -36,6 +37,15 @@ class ConfigManagerService
          * integration for the benefit of the bridges alone.
          */
         private val runtimeCredentials: IntemptCredentials? = null,
+        /**
+         * Options supplied to `Intempt.initialize(...)` at runtime, or null to read
+         * `assets/intempt-config.json` as before.
+         *
+         * Per field, like [runtimeCredentials]: an option set here wins, an option left null falls
+         * through to the asset file and then to the default. The asset file stays the documented
+         * setup for a plain Android app; this exists for bridges that have no asset file to edit.
+         */
+        private val runtimeOptions: IntemptRuntimeOptions? = null,
     ) : BaseComponent() {
         // Leading underscores: backing fields for the public read-only accessors below. Suppressed
         // at the declaration rather than left to the ktlint baseline, which pins violations by line
@@ -138,7 +148,9 @@ class ConfigManagerService
          * sub-processor disclosure. This replaces that.
          *
          * Defaults to on, as Mixpanel's does, so geo keeps working for customers who want it.
-         * Turned off with `"useIpAddressForGeolocation": false` in intempt-config.json.
+         * Turned off with `"useIpAddressForGeolocation": false` in intempt-config.json, or with
+         * `IntemptRuntimeOptions(useIpAddressForGeolocation = false)` passed to `Intempt.initialize`.
+         * The runtime value wins when both are present.
          */
         val eventsUrl: String
             get() =
@@ -158,9 +170,14 @@ class ConfigManagerService
         init {
             val (configs, options) = getConfigs()
 
-            // Runtime credentials take precedence over the asset file, per field rather than
-            // wholesale — a bridge supplying credentials should not also have to supply the
-            // options, which stay in the asset file where a host app can edit them.
+            // Runtime values take precedence over the asset file, per field rather than wholesale,
+            // so a caller that sets one field keeps every other value the asset file supplies.
+            //
+            // Options used to be asset-file-only, on the reasoning that a bridge supplying
+            // credentials should not also have to supply the options. That held until the platform
+            // began deriving geolocation server-side: a React Native app has no asset file to edit,
+            // so useIpAddressForGeolocation was unreachable from the only place an RN developer
+            // configures anything. An option a caller cannot set is not an option.
             _apiKey = runtimeCredentials?.apiKey ?: configs?.apiKey ?: ""
             _sourceId = runtimeCredentials?.sourceId ?: configs?.sourceId ?: ""
             _organizationId = runtimeCredentials?.organizationId ?: configs?.organizationId ?: ""
@@ -180,7 +197,9 @@ class ConfigManagerService
 
             autocaptureEnabledByConfig = options?.isAutoCaptureEnabled ?: DefaultConfigs.IsAutoCaptureEnabled.value
             _useIpAddressForGeolocation =
-                options?.useIpAddressForGeolocation ?: DefaultConfigs.UseIpAddressForGeolocation.value
+                runtimeOptions?.useIpAddressForGeolocation
+                    ?: options?.useIpAddressForGeolocation
+                    ?: DefaultConfigs.UseIpAddressForGeolocation.value
 
             itemsInQueue = options?.itemsInQueue ?: DefaultConfigs.ItemsInQueue.value
             timeBuffer = options?.timeBuffer ?: DefaultConfigs.TimeBuffer.value

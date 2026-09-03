@@ -8,7 +8,6 @@ public final class com/intempt/core/BuildConfig {
 
 public final class com/intempt/core/Intempt {
 	public static final field INSTANCE Lcom/intempt/core/Intempt;
-	public static final fun alias (Ljava/lang/String;Ljava/lang/String;)Z
 	public static final fun allFlags (Lcom/intempt/core/types/FlagContext;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static final fun allFlags (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static synthetic fun allFlags$default (Lcom/intempt/core/types/FlagContext;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
@@ -42,6 +41,7 @@ public final class com/intempt/core/Intempt {
 	public static final fun initialize (Landroid/content/Context;)Z
 	public static final fun initialize (Landroid/content/Context;Lcom/intempt/core/types/IntemptCredentials;)Z
 	public static final fun initialize (Landroid/content/Context;Lcom/intempt/core/types/IntemptCredentials;Ljava/lang/String;)Lcom/intempt/core/IntemptInstance;
+	public static final fun initialize (Landroid/content/Context;Lcom/intempt/core/types/IntemptCredentials;Ljava/lang/String;Lcom/intempt/core/types/IntemptRuntimeOptions;)Lcom/intempt/core/IntemptInstance;
 	public static final fun instance (Ljava/lang/String;)Lcom/intempt/core/IntemptInstance;
 	public static final fun isInitialized ()Z
 	public static final fun isOptedIn ()Z
@@ -104,7 +104,6 @@ public final class com/intempt/core/Intempt$Logging {
 }
 
 public final class com/intempt/core/IntemptInstance {
-	public final fun alias (Ljava/lang/String;Ljava/lang/String;)Z
 	public final fun allFlags (Lcom/intempt/core/types/FlagContext;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun allFlags (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static synthetic fun allFlags$default (Lcom/intempt/core/IntemptInstance;Lcom/intempt/core/types/FlagContext;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
@@ -468,6 +467,19 @@ public final class com/intempt/core/types/IntemptError$Transport : com/intempt/c
 	public fun <init> (Ljava/lang/String;)V
 	public final fun getDescription ()Ljava/lang/String;
 	public fun getMessage ()Ljava/lang/String;
+}
+
+public final class com/intempt/core/types/IntemptRuntimeOptions {
+	public fun <init> ()V
+	public fun <init> (Ljava/lang/Boolean;)V
+	public synthetic fun <init> (Ljava/lang/Boolean;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/Boolean;
+	public final fun copy (Ljava/lang/Boolean;)Lcom/intempt/core/types/IntemptRuntimeOptions;
+	public static synthetic fun copy$default (Lcom/intempt/core/types/IntemptRuntimeOptions;Ljava/lang/Boolean;ILjava/lang/Object;)Lcom/intempt/core/types/IntemptRuntimeOptions;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getUseIpAddressForGeolocation ()Ljava/lang/Boolean;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
 }
 
 public abstract class com/intempt/core/types/IntemptValue {

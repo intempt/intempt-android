@@ -14,7 +14,7 @@
 # confirm they match upstream and that the Apache 2.0 change notices are intact — rather
 # than line by line. Roman stays on these: provenance review is the one thing here that is
 # about the Android platform rather than about the SDK surface.
-/app/src/main/java/com/intempt/core/queue/   @beska0013 @romchik2612
+/app/src/main/java/com/intempt/core/queue/   @beska0013
 
 # Licensing and anything that ships legal text inside the artifact.
 /LICENSE                @beska0013
@@ -24,6 +24,11 @@
 
 # Build, release and CI configuration. A release workflow here publishes to Maven Central, which
 # cannot be withdrawn, so both sign off.
-/.github/workflows/     @beska0013 @romchik2612
-/app/build.gradle.kts   @beska0013 @romchik2612
-/gradle/                @beska0013 @romchik2612
+/.github/workflows/     @beska0013
+/app/build.gradle.kts   @beska0013
+/gradle/                @beska0013
+
+# Roman was removed as a collaborator on this repo on 2026-09-01 (Sid: he does not work on
+# Android). A CODEOWNERS entry naming someone without repo access is a dangling owner: GitHub
+# cannot resolve it, so the path it guards ends up with no owner at all -- weaker than the
+# single-owner rule it was written to strengthen.

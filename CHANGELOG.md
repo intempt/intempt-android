@@ -11,6 +11,32 @@ under Unreleased.
 
 ## [Unreleased]
 
+### Removed
+
+- **BREAKING:** `Intempt.alias(userId, anotherUserId)` and `IntemptInstance.alias`. Linking two
+  user identities is the CDP's job, not the caller's: identity resolution already converges two
+  user ids the moment they share any identifier, so `alias` only reached the case where two ids
+  never co-occur at all — an id-scheme migration, which belongs in a server-side backfill. A wrong
+  call permanently fused two real people and there is no unmerge. `identify` is unchanged and
+  remains the stitch trigger. `app/api/app.api` loses 2 entries.
+
+### Added
+
+- `IntemptRuntimeOptions` and a four-argument `Intempt.initialize` overload, so a caller can set
+  options at runtime instead of only through `assets/intempt-config.json`. Its first option is
+  `useIpAddressForGeolocation`, which decides whether Intempt derives country, region and city
+  from the address the request arrives on. Absent means on, matching what ingestion assumes for a
+  missing flag. React Native and other bridges cannot ship an asset file on a user's behalf, which
+  is why a file could not stay the only way in. Purely additive to the published binary surface.
+
+### Fixed
+
+- `Intempt.initialize` no longer discards runtime options in silence when the instance already
+  exists. The existing instance still wins, but a second call passing options now logs a warning
+  naming what was not applied. Initialising in `Application.onCreate` and again after a consent
+  banner is the ordinary shape, and an RN JS reload does the same thing — previously either left
+  geolocation on with nothing said.
+
 ## [3.1.0] - 2026-08-31
 
 A minor release: it adds public API and removes none, so `app/api/app.api` grows by 39 entries with

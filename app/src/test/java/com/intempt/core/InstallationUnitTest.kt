@@ -261,20 +261,6 @@ class InstallationUnitTest {
     }
 
     @Test
-    fun `should render main activity if alias fails`() {
-        doThrow(RuntimeException("Simulated error during emitEvent"))
-            .`when`(eventPoolSrv).emitEvent(any())
-
-        component.alias(
-            "test_userID",
-            "test_anotherUserID",
-        )
-
-        verify(eventPoolSrv).emitEvent(any())
-        assertTrue(true)
-    }
-
-    @Test
     fun `should render main activity if consent fails`() {
         doThrow(RuntimeException("Simulated error during emitEvent"))
             .`when`(eventPoolSrv).emitEvent(any())

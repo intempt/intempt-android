@@ -27,7 +27,6 @@ import android.widget.TimePicker
 import android.widget.ToggleButton
 import androidx.core.content.pm.PackageInfoCompat
 import com.intempt.core.R
-import com.intempt.core.eventModels.AliasEvent
 import com.intempt.core.eventModels.BaseIntemptEvent
 import com.intempt.core.eventModels.ConsentEvent
 import com.intempt.core.eventModels.FragmentTransitionEvent
@@ -349,23 +348,6 @@ internal open class IntemptEventManagerService
                     accountAttributes = accountAttributes,
                     userAttributes = userAttributes,
                     data = data,
-                ),
-            )
-        }
-
-        fun generateAliasEventPayload(
-            userId: String,
-            anotherUserId: String,
-        ): Array<IntemptEventProvider> {
-            val eventProps = getBaseEventProps()
-            return arrayOf(
-                AliasEvent(
-                    eventId = eventProps.eventId,
-                    sessionId = eventProps.sessionId,
-                    pageId = eventProps.pageId,
-                    profileId = eventProps.profileId,
-                    userId = userId,
-                    anotherUserId = anotherUserId,
                 ),
             )
         }
