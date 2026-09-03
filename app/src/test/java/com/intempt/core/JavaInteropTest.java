@@ -176,7 +176,6 @@ public class JavaInteropTest {
         final Map<String, IntemptValue> data = typedAttributes();
 
         Intempt.track("Viewed", data);
-        Intempt.alias("user@example.com", "user-2");
         Intempt.productAdd("21", 2);
         Intempt.productView("21");
         Intempt.productOrdered(Collections.singletonList(new Product("21", 1)));

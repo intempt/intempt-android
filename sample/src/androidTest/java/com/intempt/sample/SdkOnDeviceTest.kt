@@ -305,30 +305,6 @@ class SdkOnDeviceTest {
         assertEquals("androidtest-record-user", payload.optString("userId"))
     }
 
-    /** alias() likewise needs nothing from the project to prove it reaches the queue. */
-    @Test
-    fun aliasQueuesBothIdentifiers() {
-        val from = "androidtest-alias-a-${System.nanoTime()}"
-        val to = "androidtest-alias-b-${System.nanoTime()}"
-
-        val emit = { com.intempt.core.Intempt.alias(from, to) }
-        emit()
-
-        // Matched on the generated ids, not merely on type == "alias".
-        // everyPublicCallSurvivesOnThisApiLevel also calls alias(), and with no ordering
-        // guarantee between test methods this found that one instead and compared against
-        // "u-survive". Sharing one app process across tests means every predicate has to be
-        // specific enough to identify its own event.
-        val event =
-            awaitEvent("the alias event this test emitted", reemit = emit) { row ->
-                row.optString("type") == "alias" &&
-                    row.optJSONArray("payload")?.optJSONObject(0)?.optString("userId") == from
-            }
-        val payload = event.getJSONArray("payload").getJSONObject(0)
-        assertEquals(from, payload.optString("userId"))
-        assertEquals(to, payload.optString("anotherUserId"))
-    }
-
     /**
      * identify() used to reject this exact call — userAttributes with no eventTitle — log an
      * error, and return normally having queued nothing. The event is named "Identify" by
@@ -514,7 +490,6 @@ class SdkOnDeviceTest {
             identify(userId = "u-survive", userAttributes = attrs)
             group(accountId = "a-survive", accountAttributes = attrs)
             record(eventTitle = "record ${System.nanoTime()}", userId = "u-survive")
-            alias("u-survive", "u-survive-2")
             productView("sku-1")
             productAdd("sku-1", 2)
             productOrdered(listOf(Product("sku-1", 1)))

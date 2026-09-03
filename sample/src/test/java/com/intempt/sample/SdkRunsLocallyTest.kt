@@ -141,7 +141,6 @@ class SdkRunsLocallyTest {
             userId = "sample-user-1",
             data = IntemptValue.mapOf(mapOf("step" to "checkout")),
         )
-        Intempt.alias("sample-user-1", "sample-user-2")
         Intempt.productView("sku-123")
         Intempt.productAdd("sku-123", 2)
         Intempt.productOrdered(listOf(Product("sku-123", 2)))

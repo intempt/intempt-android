@@ -11,6 +11,15 @@ under Unreleased.
 
 ## [Unreleased]
 
+### Removed
+
+- **BREAKING:** `Intempt.alias(userId, anotherUserId)` and `IntemptInstance.alias`. Linking two
+  user identities is the CDP's job, not the caller's: identity resolution already converges two
+  user ids the moment they share any identifier, so `alias` only reached the case where two ids
+  never co-occur at all — an id-scheme migration, which belongs in a server-side backfill. A wrong
+  call permanently fused two real people and there is no unmerge. `identify` is unchanged and
+  remains the stitch trigger. `app/api/app.api` loses 2 entries.
+
 ### Added
 
 - `IntemptRuntimeOptions` and a four-argument `Intempt.initialize` overload, so a caller can set

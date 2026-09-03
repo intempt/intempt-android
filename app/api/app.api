@@ -8,7 +8,6 @@ public final class com/intempt/core/BuildConfig {
 
 public final class com/intempt/core/Intempt {
 	public static final field INSTANCE Lcom/intempt/core/Intempt;
-	public static final fun alias (Ljava/lang/String;Ljava/lang/String;)Z
 	public static final fun allFlags (Lcom/intempt/core/types/FlagContext;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static final fun allFlags (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static synthetic fun allFlags$default (Lcom/intempt/core/types/FlagContext;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
@@ -105,7 +104,6 @@ public final class com/intempt/core/Intempt$Logging {
 }
 
 public final class com/intempt/core/IntemptInstance {
-	public final fun alias (Ljava/lang/String;Ljava/lang/String;)Z
 	public final fun allFlags (Lcom/intempt/core/types/FlagContext;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun allFlags (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static synthetic fun allFlags$default (Lcom/intempt/core/IntemptInstance;Lcom/intempt/core/types/FlagContext;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;

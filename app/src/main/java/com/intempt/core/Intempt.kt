@@ -367,13 +367,6 @@ object Intempt {
         accountAttributes: Map<String, IntemptValue>? = null,
     ): Boolean = main("group")?.group(accountId, eventTitle, accountAttributes) ?: false
 
-    /** Merges the profile previously known as [userId] into [anotherUserId]. */
-    @JvmStatic
-    fun alias(
-        userId: String,
-        anotherUserId: String,
-    ): Boolean = main("alias")?.alias(userId, anotherUserId) ?: false
-
     /**
      * Records [eventTitle] and, unlike [track], can attribute it to [userId]/[accountId] and merge
      * [userAttributes]/[accountAttributes] onto their profiles in the same call.

@@ -277,17 +277,6 @@ fun record(
 )
 ```
 
-### alias
-
-Link two user identities together (e.g. an anonymous ID to a known user ID).
-
-```kotlin
-Intempt.alias(
-    userId = "john@example.com",
-    anotherUserId = "anon_abc123"
-)
-```
-
 ### consent
 
 Record a user's consent decision. Specify the action, an expiration timestamp (epoch millis), and optional details.
