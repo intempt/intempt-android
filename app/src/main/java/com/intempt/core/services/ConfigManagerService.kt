@@ -17,7 +17,6 @@ import com.intempt.core.types.IntemptConfigs
 import com.intempt.core.types.IntemptCredentials
 import com.intempt.core.types.IntemptOptions
 import com.intempt.core.types.IntemptRuntimeOptions
-import com.intempt.core.types.StorageKeys
 import org.json.JSONObject
 import java.io.InputStream
 import javax.inject.Inject
@@ -67,38 +66,7 @@ class ConfigManagerService
         private val _projectId: String
 
         var isLoggingEnabled: Boolean
-
-        /**
-         * Whether the user has NOT objected to collection.
-         *
-         * Persisted, unlike every other field here. It used to be a plain in-memory `var`
-         * assigned from [DefaultConfigs.IsUserOptIn] in the constructor and never read from or
-         * written to storage, which made an opt-out last exactly as long as the object holding
-         * it. Two consequences, both live:
-         *
-         * 1. The objection did not survive an app restart. Every core gate — `EventPoolManager
-         *    Service`, `CustomCaptureComponent` — read a flag that was back to `true` on the next
-         *    launch, so a user who opted out was silently opted back in.
-         * 2. Any component that builds its OWN `ConfigManagerService` read the default rather
-         *    than the user's answer. `FirebaseService` and `NotificationDispatcherActivity` do
-         *    exactly that, so a gate added there against the old field would have been inert.
-         *
-         * Backed by `SharedPreferences` directly rather than through `StorageManagerService`,
-         * which is instance-scoped and constructed after this.
-         */
         var isUserOptIn: Boolean
-            get() =
-                context
-                    .getSharedPreferences(StorageKeys.ConsentPrefs.key, Context.MODE_PRIVATE)
-                    .getBoolean(StorageKeys.UserOptIn.key, DefaultConfigs.IsUserOptIn.value)
-            set(value) {
-                context
-                    .getSharedPreferences(StorageKeys.ConsentPrefs.key, Context.MODE_PRIVATE)
-                    .edit()
-                    .putBoolean(StorageKeys.UserOptIn.key, value)
-                    .apply()
-            }
-
         var isQueueEnabled: Boolean
         val itemsInQueue: Int
         val timeBuffer: Long
@@ -235,6 +203,7 @@ class ConfigManagerService
 
             itemsInQueue = options?.itemsInQueue ?: DefaultConfigs.ItemsInQueue.value
             timeBuffer = options?.timeBuffer ?: DefaultConfigs.TimeBuffer.value
+            isUserOptIn = DefaultConfigs.IsUserOptIn.value
             isLoggingEnabled = options?.isLoggingEnabled ?: DefaultConfigs.IsLoggingEnabled.value
             isQueueEnabled = options?.isQueueEnabled ?: DefaultConfigs.IsQueueEnabled.value
             apiUrl = options?.apiUrl?.takeIf { it.isNotBlank() } ?: Constants.API_URL

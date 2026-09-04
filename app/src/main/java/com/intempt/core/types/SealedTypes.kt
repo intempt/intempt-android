@@ -24,8 +24,6 @@ internal sealed class StorageKeys(val key: String) {
 
     data object UserPrefs : StorageKeys("user_prefs")
 
-    data object ConsentPrefs : StorageKeys("consent_prefs")
-
     data object FragmentPrefs : StorageKeys("fragment_prefs")
 
     // Keys for various IDs and timestamps
@@ -34,8 +32,6 @@ internal sealed class StorageKeys(val key: String) {
     data object ProfileId : StorageKeys("profile_id")
 
     data object PageId : StorageKeys("page_id")
-
-    data object UserOptIn : StorageKeys("is_user_opt_in")
 
     // Timestamp keys
     data object SessionTimestamp : StorageKeys("session_time")

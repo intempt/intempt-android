@@ -44,26 +44,6 @@ internal class WebhookService(
         coroutineScope.launch {
             var delayMs = INITIAL_RETRY_DELAY_MS
             repeat(MAX_ATTEMPTS) { attempt ->
-                // THE gate, re-asked before EVERY attempt.
-                //
-                // One check here rather than one at each of the three call sites — delivered and
-                // bounced in FirebaseService, opened in NotificationDispatcherActivity — because a
-                // gate per call site is a gate a fourth call site silently does not get. Inside
-                // the loop rather than before it because a retry is a NEW request and the backoff
-                // spans seven seconds, long enough for someone to opt out inside it.
-                //
-                // This module never consulted opt-out at all: `isUserOptIn` appeared zero times
-                // under `push/`. The body carries `masterId` and `accountId`, which identify a
-                // person, so a user who had objected still had their identifiers posted on every
-                // delivery, bounce and open — four times each, once the retry landed.
-                //
-                // Only the REPORT stops. The notification is still rendered: the platform has
-                // already delivered it, and hiding it would be a second, visible change the user
-                // never asked for.
-                if (!config.isUserOptIn) {
-                    logger.debug("[FCM] push webhook not sent: the user has opted out")
-                    return@launch
-                }
                 val sent =
                     try {
                         http.post(config.pushNotificationWebhookUrl, JSONObject(requestBodyJson.toString())) != null
