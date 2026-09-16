@@ -111,7 +111,8 @@ class HttpManagerService
                 client.get(url)
             } catch (e: Exception) {
                 logger.error("HttpService get request error: ${e.message}")
-                throw Exception()
+                // INT-3907 — rethrow the cause; a bare Exception() hid what failed.
+                throw e
             }
         }
     }

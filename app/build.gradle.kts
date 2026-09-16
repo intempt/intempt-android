@@ -372,8 +372,6 @@ dependencies {
     implementation(libs.androidx.appcompat)
     implementation(libs.material)
     implementation(kotlin("script-runtime"))
-// https://mvnrepository.com/artifact/org.projectlombok/lombok
-    compileOnly("org.projectlombok:lombok:1.18.36")
 // https://mvnrepository.com/artifact/androidx.lifecycle/lifecycle-runtime-ktx
     runtimeOnly("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
 

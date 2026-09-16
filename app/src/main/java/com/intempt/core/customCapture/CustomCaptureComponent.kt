@@ -15,6 +15,7 @@ import android.widget.Spinner
 import android.widget.TextView
 import android.widget.TimePicker
 import android.widget.ToggleButton
+import com.intempt.core.types.StorageKeys
 import com.intempt.core.eventModels.IntemptEvent
 import com.intempt.core.internal.traced
 import com.intempt.core.services.ConfigManagerService
@@ -68,6 +69,27 @@ internal class CustomCaptureComponent
         private val storage: StorageManagerService,
         private val errors: ErrorReporter,
     ) {
+        init {
+            // INT-3911 — `ConfigManagerService` resets `isUserOptIn` to the default on
+            // every load and nothing wrote optIn()/optOut() down, so an opt-out lasted
+            // exactly one process lifetime. Restore the persisted decision, if any.
+            utils.withTryCatch("restore optIn fails") {
+                storage.getStorageItem<Boolean>(
+                    prefs = StorageKeys.UserPrefs.key,
+                    key = StorageKeys.IsUserOptIn.key,
+                ) { key, _ -> if (contains(key)) getBoolean(key, true) else null }
+                    ?.let { config.isUserOptIn = it }
+            }
+        }
+
+        private fun persistOptIn(value: Boolean) {
+            storage.setStorageItem(
+                prefs = StorageKeys.UserPrefs.key,
+                key = StorageKeys.IsUserOptIn.key,
+                value = value,
+            ) { key, v -> putBoolean(key, v) }
+        }
+
         fun isLoggingEnabled(): Boolean {
             return utils.withTryCatch("isLoggingEnabled fails") {
                 config.isLoggingEnabled
@@ -104,6 +126,7 @@ internal class CustomCaptureComponent
             utils.withTryCatch("optIn fails") {
                 srv.logger.log("Invoke optIn")
                 config.isUserOptIn = true
+                persistOptIn(true)
                 srv.logger.log("isOptedIn ${isOptedIn()}")
             }
         }
@@ -123,6 +146,7 @@ internal class CustomCaptureComponent
             utils.withTryCatch("optOut fails") {
                 srv.logger.log("Invoke optOut")
                 config.isUserOptIn = false
+                persistOptIn(false)
                 eventPool.discardQueuedEvents()
                 srv.logger.log("isOptedIn ${isOptedIn()}")
             }
