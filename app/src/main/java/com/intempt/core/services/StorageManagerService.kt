@@ -8,10 +8,17 @@ import com.intempt.core.types.InstanceId
 import com.intempt.core.types.StorageKeys
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.launch
+import java.util.concurrent.Executors
 import javax.inject.Inject
 import javax.inject.Singleton
+
+/**
+ * One worker for every storage write in the process, so the durable order is the call order.
+ * See the `dispatcher` parameter below for what went wrong without it.
+ */
+private val SERIAL_STORAGE_DISPATCHER = Executors.newSingleThreadExecutor().asCoroutineDispatcher()
 
 @Singleton
 internal class StorageManagerService
@@ -19,7 +26,13 @@ internal class StorageManagerService
     constructor(
         private val context: Context,
         private val utils: UtilsService,
-        private val dispatcher: CoroutineDispatcher = Dispatchers.IO,
+        // Single-threaded ON PURPOSE (INT-3911). Dispatchers.IO is a pool, so two writes to
+        // the SAME key issued back-to-back could complete in either order: `optOut(); optIn()`
+        // was able to persist `false` last and leave a consenting user opted out on the next
+        // launch. A single worker makes the durable order the call order, for every key, and
+        // keeps the write off the caller's thread. `localStore` never had the problem — it is
+        // written on the caller's thread, which is why only the persisted copy could disagree.
+        private val dispatcher: CoroutineDispatcher = SERIAL_STORAGE_DISPATCHER,
         /**
          * Which instance's storage this is.
          *
@@ -61,32 +74,6 @@ internal class StorageManagerService
                 editor.applyToPrefs(key, value)
                 editor.apply()
             }
-        }
-
-        /**
-         * Like [setStorageItem], but the persistence happens on the CALLER's thread.
-         *
-         * [setStorageItem] launches on `Dispatchers.IO`, a multi-threaded pool, so two writes
-         * to the SAME key issued back-to-back can land in either order — `optIn()` immediately
-         * after `optOut()` could persist `false` and leave a consenting user opted out on the
-         * next launch. `localStore` never sees that, because it is written in call order on the
-         * caller's thread, which is why only the durable copy can disagree.
-         *
-         * For a value written once in a while by a deliberate user action this is the right
-         * trade: a blocking `commit()` costs a disk write on a rare call and removes the race.
-         * Anything written on a hot path keeps using [setStorageItem].
-         */
-        fun <T> setStorageItemBlocking(
-            prefs: String,
-            key: String,
-            value: T,
-            applyToPrefs: SharedPreferences.Editor.(String, T) -> Unit,
-        ) {
-            localStore[key] = value
-            val sharedPreferences = context.getSharedPreferences(scopedPrefs(prefs), Context.MODE_PRIVATE)
-            val editor = sharedPreferences.edit()
-            editor.applyToPrefs(key, value)
-            editor.commit()
         }
 
         fun <T> getStorageItem(
