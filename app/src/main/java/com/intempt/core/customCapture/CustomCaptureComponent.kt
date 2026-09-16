@@ -15,7 +15,6 @@ import android.widget.Spinner
 import android.widget.TextView
 import android.widget.TimePicker
 import android.widget.ToggleButton
-import com.intempt.core.types.StorageKeys
 import com.intempt.core.eventModels.IntemptEvent
 import com.intempt.core.internal.traced
 import com.intempt.core.services.ConfigManagerService
@@ -33,6 +32,7 @@ import com.intempt.core.types.FlagReason
 import com.intempt.core.types.IntemptError
 import com.intempt.core.types.IntemptValue
 import com.intempt.core.types.Product
+import com.intempt.core.types.StorageKeys
 import com.intempt.core.types.flagNameOf
 import com.intempt.core.types.flagReasonOf
 import com.intempt.core.types.selectChoice
