@@ -63,6 +63,32 @@ internal class StorageManagerService
             }
         }
 
+        /**
+         * Like [setStorageItem], but the persistence happens on the CALLER's thread.
+         *
+         * [setStorageItem] launches on `Dispatchers.IO`, a multi-threaded pool, so two writes
+         * to the SAME key issued back-to-back can land in either order — `optIn()` immediately
+         * after `optOut()` could persist `false` and leave a consenting user opted out on the
+         * next launch. `localStore` never sees that, because it is written in call order on the
+         * caller's thread, which is why only the durable copy can disagree.
+         *
+         * For a value written once in a while by a deliberate user action this is the right
+         * trade: a blocking `commit()` costs a disk write on a rare call and removes the race.
+         * Anything written on a hot path keeps using [setStorageItem].
+         */
+        fun <T> setStorageItemBlocking(
+            prefs: String,
+            key: String,
+            value: T,
+            applyToPrefs: SharedPreferences.Editor.(String, T) -> Unit,
+        ) {
+            localStore[key] = value
+            val sharedPreferences = context.getSharedPreferences(scopedPrefs(prefs), Context.MODE_PRIVATE)
+            val editor = sharedPreferences.edit()
+            editor.applyToPrefs(key, value)
+            editor.commit()
+        }
+
         fun <T> getStorageItem(
             prefs: String,
             key: String,

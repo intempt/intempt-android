@@ -83,7 +83,10 @@ internal class CustomCaptureComponent
         }
 
         private fun persistOptIn(value: Boolean) {
-            storage.setStorageItem(
+            // Blocking on purpose: see setStorageItemBlocking. optIn()/optOut() are rare and
+            // user-initiated, and the pair `optOut(); optIn()` must not be able to persist in
+            // the wrong order.
+            storage.setStorageItemBlocking(
                 prefs = StorageKeys.UserPrefs.key,
                 key = StorageKeys.IsUserOptIn.key,
                 value = value,
