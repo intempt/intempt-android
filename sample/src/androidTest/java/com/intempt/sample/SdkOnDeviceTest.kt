@@ -575,9 +575,19 @@ class SdkOnDeviceTest {
         // which failed here as "expected events to be queued before delivery" while delivery
         // was in fact working. Draining is the property worth asserting; how briefly the rows
         // existed is not.
+        // `rows().isEmpty()`, not "none of MY rows remain". This test floods the queue with 45
+        // events, which is past QueueConfig.BULK_UPLOAD_LIMIT (40), so it leaves the delivery
+        // machinery saturated. Waiting only for its own tag let it return while that backlog
+        // was still draining, and the next tests to run — recordQueuesTheEventWithItsIdentifiers
+        // and identifyWithoutAnEventTitleStillQueues — then spent their whole 30s budget racing
+        // it: every row they queued was delivered and deleted between two 25ms polls, so the
+        // sampler saw none of ~40 re-emissions. That is the API 23 failure, and it is why those
+        // tests pass on a laptop (this test is skipped without e2e fixtures, so no flood) and on
+        // the faster API 34 emulator. Draining the queue completely hands the next test a quiet
+        // SDK. It is also a strictly stronger assertion than the one it replaces.
         val drained =
             awaitCondition(timeoutMs = 90_000) {
-                rows().none { it.optString("name").startsWith(tag) }
+                rows().isEmpty()
             }
 
         assertTrue(
