@@ -15,6 +15,8 @@ import org.mockito.Mockito.`when`
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34], manifest = Config.NONE)
@@ -134,5 +136,54 @@ class StorageManagerServiceTest {
         // i.e. the rotation reached SharedPreferences, not only localStore.
         val prefs = context.getSharedPreferences(StorageKeys.UserPrefs.key, Context.MODE_PRIVATE)
         assertEquals(minted, prefs.getString(StorageKeys.ProfileId.key, null))
+    }
+
+    /**
+     * INT-3911 — two writes to the SAME key must land on disk in CALL order.
+     *
+     * The dispatcher defaulted to `Dispatchers.IO`, a thread POOL: `setStorageItem` launches and
+     * returns, so two back-to-back writes ran on two threads and could complete in either order.
+     * `optOut(); optIn()` was therefore able to persist `false` last and leave a consenting user
+     * opted out on the next launch. The default is now a single worker.
+     *
+     * Built on the DEFAULT dispatcher on purpose — a dispatcher the test supplies would prove
+     * only that a serial dispatcher is serial. The first write is held on a latch so the second
+     * is definitely issued while the first is still in flight: on a pool the second overtakes it
+     * and `false` ends up durable. A third write acts as the drain barrier; on one worker it
+     * cannot run until both of the others have fully applied.
+     */
+    @Test
+    fun `two writes to the same key persist in call order`() {
+        val serial = StorageManagerService(context, utils)
+        val key = StorageKeys.IsUserOptIn.key
+        val firstWriteStarted = CountDownLatch(1)
+        val releaseFirstWrite = CountDownLatch(1)
+        val drained = CountDownLatch(1)
+
+        serial.setStorageItem(StorageKeys.UserPrefs.key, key, false) { k, v ->
+            firstWriteStarted.countDown()
+            releaseFirstWrite.await(WAIT_SECONDS, TimeUnit.SECONDS)
+            putBoolean(k, v)
+        }
+        assertTrue(
+            "the first write must be in flight before the second is issued",
+            firstWriteStarted.await(WAIT_SECONDS, TimeUnit.SECONDS),
+        )
+
+        serial.setStorageItem(StorageKeys.UserPrefs.key, key, true) { k, v -> putBoolean(k, v) }
+        releaseFirstWrite.countDown()
+
+        serial.setStorageItem(StorageKeys.UserPrefs.key, "order_barrier", true) { k, v ->
+            putBoolean(k, v)
+            drained.countDown()
+        }
+        assertTrue("both writes must have drained", drained.await(WAIT_SECONDS, TimeUnit.SECONDS))
+
+        val prefs = context.getSharedPreferences(StorageKeys.UserPrefs.key, Context.MODE_PRIVATE)
+        assertTrue("the last call must be the durable value", prefs.getBoolean(key, false))
+    }
+
+    private companion object {
+        const val WAIT_SECONDS = 5L
     }
 }

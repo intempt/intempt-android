@@ -61,8 +61,9 @@ dependencies {
     implementation(libs.androidx.appcompat)
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
 
-    implementation("com.google.firebase:firebase-messaging:24.1.0")
+    // INT-3916 — the BOM below owns the version; a pinned one silently wins over it.
     implementation(platform("com.google.firebase:firebase-bom:33.10.0"))
+    implementation("com.google.firebase:firebase-messaging")
 // Pinned to 2.13.x, NOT the latest. Jackson 2.16+ ships
 // databind/util/ExceptionUtil, whose isFatal() references java.lang.BootstrapMethodError
 // — a class that does not exist below API 26. Loading ObjectMapper therefore throws

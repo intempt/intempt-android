@@ -134,6 +134,12 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407  # v3
+        with:
+          # Only platform-tools. The action default is "tools platform-tools", and Google
+          # removed the legacy "tools" package from the SDK repository, so sdkmanager exits 1
+          # on it and every job died in this step. platforms/build-tools are still fetched
+          # by AGP on demand, exactly as before.
+          packages: platform-tools
 
       - uses: gradle/actions/setup-gradle@48b5f213c81028ace310571dc5ec0fbbca0b2947  # v4
 
@@ -171,6 +177,12 @@ jobs:
           distribution: temurin
           java-version: '17'
       - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407  # v3
+        with:
+          # Only platform-tools. The action default is "tools platform-tools", and Google
+          # removed the legacy "tools" package from the SDK repository, so sdkmanager exits 1
+          # on it and every job died in this step. platforms/build-tools are still fetched
+          # by AGP on demand, exactly as before.
+          packages: platform-tools
       - uses: gradle/actions/setup-gradle@48b5f213c81028ace310571dc5ec0fbbca0b2947  # v4
 
       - name: Run unit tests
@@ -238,6 +250,12 @@ jobs:
           distribution: temurin
           java-version: '17'
       - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407  # v3
+        with:
+          # Only platform-tools. The action default is "tools platform-tools", and Google
+          # removed the legacy "tools" package from the SDK repository, so sdkmanager exits 1
+          # on it and every job died in this step. platforms/build-tools are still fetched
+          # by AGP on demand, exactly as before.
+          packages: platform-tools
       - uses: gradle/actions/setup-gradle@48b5f213c81028ace310571dc5ec0fbbca0b2947  # v4
 
       # This counts the SDK's OWN method count, not the sample app's post-R8 total. The
@@ -311,6 +329,12 @@ jobs:
           distribution: temurin
           java-version: '17'
       - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407  # v3
+        with:
+          # Only platform-tools. The action default is "tools platform-tools", and Google
+          # removed the legacy "tools" package from the SDK repository, so sdkmanager exits 1
+          # on it and every job died in this step. platforms/build-tools are still fetched
+          # by AGP on demand, exactly as before.
+          packages: platform-tools
       - uses: gradle/actions/setup-gradle@48b5f213c81028ace310571dc5ec0fbbca0b2947  # v4
 
       # The NVD feed is large and rate-limited; caching it means every PR after the first does an
@@ -448,6 +472,12 @@ jobs:
           distribution: temurin
           java-version: '17'
       - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407  # v3
+        with:
+          # Only platform-tools. The action default is "tools platform-tools", and Google
+          # removed the legacy "tools" package from the SDK repository, so sdkmanager exits 1
+          # on it and every job died in this step. platforms/build-tools are still fetched
+          # by AGP on demand, exactly as before.
+          packages: platform-tools
       - uses: gradle/actions/setup-gradle@48b5f213c81028ace310571dc5ec0fbbca0b2947  # v4
 
       - name: Enable KVM
@@ -500,6 +530,12 @@ jobs:
           distribution: temurin
           java-version: '17'
       - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407  # v3
+        with:
+          # Only platform-tools. The action default is "tools platform-tools", and Google
+          # removed the legacy "tools" package from the SDK repository, so sdkmanager exits 1
+          # on it and every job died in this step. platforms/build-tools are still fetched
+          # by AGP on demand, exactly as before.
+          packages: platform-tools
       - uses: gradle/actions/setup-gradle@48b5f213c81028ace310571dc5ec0fbbca0b2947  # v4
 
       - name: Enable KVM
@@ -551,6 +587,12 @@ jobs:
           distribution: temurin
           java-version: '17'
       - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407  # v3
+        with:
+          # Only platform-tools. The action default is "tools platform-tools", and Google
+          # removed the legacy "tools" package from the SDK repository, so sdkmanager exits 1
+          # on it and every job died in this step. platforms/build-tools are still fetched
+          # by AGP on demand, exactly as before.
+          packages: platform-tools
       - uses: gradle/actions/setup-gradle@48b5f213c81028ace310571dc5ec0fbbca0b2947  # v4
 
       - name: Delivery against api.intempt.com
