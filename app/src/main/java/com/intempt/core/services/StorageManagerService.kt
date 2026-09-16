@@ -8,17 +8,23 @@ import com.intempt.core.types.InstanceId
 import com.intempt.core.types.StorageKeys
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.asCoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
-import java.util.concurrent.Executors
 import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
  * One worker for every storage write in the process, so the durable order is the call order.
  * See the `dispatcher` parameter below for what went wrong without it.
+ *
+ * `limitedParallelism(1)` rather than a single-thread executor: it gives the same serialisation
+ * by borrowing a thread from the shared IO pool only while work is queued. The executor version
+ * created a non-daemon thread that was never shut down — in an SDK that is a thread leaked for
+ * the host app's whole lifetime.
  */
-private val SERIAL_STORAGE_DISPATCHER = Executors.newSingleThreadExecutor().asCoroutineDispatcher()
+@OptIn(ExperimentalCoroutinesApi::class)
+private val SERIAL_STORAGE_DISPATCHER = Dispatchers.IO.limitedParallelism(1)
 
 @Singleton
 internal class StorageManagerService
