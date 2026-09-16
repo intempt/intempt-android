@@ -24,6 +24,9 @@ internal sealed class StorageKeys(val key: String) {
 
     data object UserPrefs : StorageKeys("user_prefs")
 
+    /** INT-3911 — the user's opt-in/opt-out decision, persisted across launches. */
+    data object IsUserOptIn : StorageKeys("is_user_opt_in")
+
     data object FragmentPrefs : StorageKeys("fragment_prefs")
 
     // Keys for various IDs and timestamps

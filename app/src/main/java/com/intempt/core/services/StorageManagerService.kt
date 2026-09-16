@@ -9,9 +9,22 @@ import com.intempt.core.types.StorageKeys
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
+
+/**
+ * One worker for every storage write in the process, so the durable order is the call order.
+ * See the `dispatcher` parameter below for what went wrong without it.
+ *
+ * `limitedParallelism(1)` rather than a single-thread executor: it gives the same serialisation
+ * by borrowing a thread from the shared IO pool only while work is queued. The executor version
+ * created a non-daemon thread that was never shut down — in an SDK that is a thread leaked for
+ * the host app's whole lifetime.
+ */
+@OptIn(ExperimentalCoroutinesApi::class)
+private val SERIAL_STORAGE_DISPATCHER = Dispatchers.IO.limitedParallelism(1)
 
 @Singleton
 internal class StorageManagerService
@@ -19,7 +32,13 @@ internal class StorageManagerService
     constructor(
         private val context: Context,
         private val utils: UtilsService,
-        private val dispatcher: CoroutineDispatcher = Dispatchers.IO,
+        // Single-threaded ON PURPOSE (INT-3911). Dispatchers.IO is a pool, so two writes to
+        // the SAME key issued back-to-back could complete in either order: `optOut(); optIn()`
+        // was able to persist `false` last and leave a consenting user opted out on the next
+        // launch. A single worker makes the durable order the call order, for every key, and
+        // keeps the write off the caller's thread. `localStore` never had the problem — it is
+        // written on the caller's thread, which is why only the persisted copy could disagree.
+        private val dispatcher: CoroutineDispatcher = SERIAL_STORAGE_DISPATCHER,
         /**
          * Which instance's storage this is.
          *
