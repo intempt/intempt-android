@@ -21,6 +21,8 @@ import org.junit.Assume
 import org.junit.BeforeClass
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 /**
  * The SDK, driven through its public API, inside a real host app, on a real Android image,
@@ -45,8 +47,20 @@ class SdkOnDeviceTest {
         private const val CONFIG = "intempt-config.json"
         private const val TIMEOUT_MS = 30_000L
 
-        /** How often awaitEvent re-runs a repeatable action while waiting. */
-        private const val REEMIT_INTERVAL_MS = 750L
+        /**
+         * How often the sampler reads the queue file. 25ms, not 250ms: with a non-empty queue
+         * the delivery worker posts immediately after every insert, so a row's life on disk is
+         * one HTTP round trip and the sampler has to run faster than the queue drains.
+         */
+        private const val POLL_INTERVAL_MS = 25L
+
+        /**
+         * How many emit-then-prove rounds [awaitEvent] runs before it calls an event missing.
+         *
+         * Rounds, not a longer clock: a round ends when the delivery worker answers, so the
+         * only thing this bounds is a worker that has stopped answering altogether.
+         */
+        private const val ATTEMPTS = 3
 
         /**
          * One cold start for the whole class. The SDK is a singleton initialized from
@@ -116,19 +130,35 @@ class SdkOnDeviceTest {
         }
 
         /**
-         * @param reemit re-runs the action that produces the event, every [REEMIT_INTERVAL_MS].
+         * Waits for a queued row matching [predicate], bounded by the delivery worker's own
+         * progress rather than by the clock.
          *
-         * Polling alone cannot win this race. A row exists exactly once and delivery can create
-         * and delete it entirely inside one poll window, after which no amount of further polling
-         * or a longer timeout will ever see it — the evidence is gone. That is how
-         * recordQueuesTheEventWithItsIdentifiers failed on API 23 while passing on API 34: the
-         * slower emulator widened the window. Its own failure message shows the same thing
-         * happening to unrelated rows, jumping from `e2e delivery ...-17` straight to `-23`.
+         * That distinction is the whole fix. Capture does not write to the queue on the calling
+         * thread: an event becomes an ENQUEUE_EVENTS message on DeliveryMessages' single worker
+         * Looper, and that same Looper also handles FLUSH_QUEUE, which POSTs to the ingestion
+         * endpoint synchronously — and with a non-empty queue the configured bulk-upload limit
+         * makes a flush follow essentially every insert. So one slow round trip holds up every
+         * insert behind it and rows become visible in FIFO bursts. `rows()` itself is not the
+         * lagging part: it opens the database file fresh on every call and caches nothing, so
+         * what it cannot see has not been inserted yet.
          *
-         * Re-emitting turns one chance into many. It does not change what is asserted — the event
-         * still has to reach the queue carrying the right identifiers — it just stops a single
-         * unlucky interleaving from deciding the result. Callers whose action is not safe to
-         * repeat pass nothing and keep the old single-shot behaviour.
+         * On API 23 that backlog drains at roughly two events a second, and the previous version
+         * of this helper spent its whole wait re-emitting one event every 750ms — about forty of
+         * them, all of which reached the worker's message queue and none of which reached disk
+         * inside the budget. The harness was extending the very queue it was waiting on, and
+         * whether the row surfaced in time came down to how deep in that queue it landed. That is
+         * what failed on the slow image and passed on the fast one.
+         *
+         * So a round no longer ends when 30 seconds elapse. It ends when the worker answers a
+         * flush registered after the event was emitted: completions are answered on the worker
+         * thread after the flush that drains them, and the Looper is FIFO, so an answered flush
+         * is evidence the worker has already worked past the insert. A row still missing at that
+         * point is a real absence rather than a slow queue, and the whole wait costs one extra
+         * event per round instead of forty.
+         *
+         * @param reemit re-runs the action that produces the event, once per round — a delivered
+         * row is deleted, so an event that was already taken off the queue has to be made again.
+         * Callers whose action is not safe to repeat pass nothing.
          */
         private fun awaitEvent(
             what: String,
@@ -138,20 +168,25 @@ class SdkOnDeviceTest {
             reemit: (() -> Any?)? = null,
             predicate: (JSONObject) -> Boolean,
         ): JSONObject {
-            val deadline = System.currentTimeMillis() + TIMEOUT_MS
-            var nextReemit = System.currentTimeMillis() + REEMIT_INTERVAL_MS
-            while (System.currentTimeMillis() < deadline) {
-                sample().firstOrNull(predicate)?.let { return it }
-                if (reemit != null && System.currentTimeMillis() >= nextReemit) {
-                    reemit()
-                    nextReemit = System.currentTimeMillis() + REEMIT_INTERVAL_MS
+            var answered = 0
+            repeat(ATTEMPTS) { round ->
+                if (round > 0) reemit?.invoke()
+                // Registered before the flush message is posted and answered on the worker
+                // thread, so this latch is a report of the worker's progress, not a timer.
+                val workerAnswered = CountDownLatch(1)
+                com.intempt.core.Intempt.flush { workerAnswered.countDown() }
+                val deadline = System.currentTimeMillis() + TIMEOUT_MS
+                var acknowledged = false
+                while (!acknowledged && System.currentTimeMillis() < deadline) {
+                    sample().firstOrNull(predicate)?.let { return it }
+                    acknowledged = workerAnswered.await(POLL_INTERVAL_MS, TimeUnit.MILLISECONDS)
                 }
-                // 25ms, not 250ms: delivery can remove a row within a few hundred
-                // milliseconds, so the sampler has to run faster than the queue drains.
-                Thread.sleep(25)
+                sample().firstOrNull(predicate)?.let { return it }
+                if (acknowledged) answered++
             }
             throw AssertionError(
-                "timed out after ${TIMEOUT_MS}ms waiting for $what. Observed: " +
+                "waited $ATTEMPTS rounds for $what; the delivery worker answered $answered of " +
+                    "them, so the queue was not merely slow. Observed: " +
                     sample().map { it.optString("name") },
             )
         }
@@ -498,7 +533,13 @@ class SdkOnDeviceTest {
             getProfileId()
             getSessionId()
             flush()
+            // Set, proven, and put back. JUnit gives no ordering guarantee between test methods,
+            // and a 30-second timer left behind here stretches the queue backlog every later test
+            // has to wait through. What is under test is the setter, not the value it leaves.
+            val previousFlushInterval = flushInterval
             flushInterval = 30
+            assertEquals(30, flushInterval)
+            flushInterval = previousFlushInterval
             logOut()
         }
         with(com.intempt.core.Intempt.Logging) {
