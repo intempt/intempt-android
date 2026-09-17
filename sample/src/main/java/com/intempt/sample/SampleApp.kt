@@ -35,6 +35,10 @@ class SampleApp : Application() {
         // versionChanges and appStateChanges default to OFF: the SDK used to emit both
         // unconditionally, which is an event on every foreground/background transition that
         // nobody asked for.
+        //
+        // This is NOT how push is enabled. The FCM token used to ride the App Install/Upgrade
+        // event, so this line was load-bearing for push and nothing said so; it no longer is.
+        // Adding the intempt-push dependency is the whole opt-in.
         Intempt.automaticEvents =
             AutomaticEventsOptions(
                 sessions = true,

@@ -80,6 +80,16 @@ That's it. `Intempt.initialize(context)` automatically registers the device's FC
 handles incoming push notifications — no extra calls, and no need to declare any Firebase
 services in your manifest (the SDK provides them).
 
+Registration does not depend on `Intempt.automaticEvents`. Adding `intempt-push` is the opt-in,
+and the SDK registers the token on every launch where it has changed — including the first —
+regardless of what `AutomaticEventsOptions.versionChanges` is set to. Up to and including 4.0.0
+the token rode the App Install/Upgrade event, which that flag gates and which defaults to off, so
+an app following these steps obtained a token and never registered it. Rotations are
+handled the same way, so a token FCM replaces on its own does not leave the device unreachable.
+The token is carried as the profile attribute `fcm_token_<sourceId>`, which is what a push
+destination resolves — if pushes are not arriving, that attribute on the profile is the thing to
+check first.
+
 ## Configuration
 
 Create `src/main/assets/intempt-config.json`. The SDK reads it on `initialize()` and will refuse

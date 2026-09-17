@@ -26,7 +26,6 @@ import com.google.firebase.messaging.RemoteMessage
 import com.intempt.core.services.ConfigManagerService
 import com.intempt.core.services.HttpManagerService
 import com.intempt.core.services.LoggerManagerService
-import com.intempt.core.types.IntemptValue
 import com.intempt.push.model.PushNotificationContent
 import com.intempt.push.model.PushNotificationMetadata
 import com.intempt.push.webhook.WebhookService
@@ -129,7 +128,7 @@ internal class FirebaseService : FirebaseMessagingService() {
         this.token = token
 
         try {
-            // The SDK's own instance, via the public facade. This used to construct a SECOND
+            // The SDK's own instance, via the cross-module SPI. This used to construct a SECOND
             // DeliveryMessages here, which meant a second HandlerThread and a second
             // EventDbAdapter opening, writing to and closing the SAME intempt_events file.
             // Two writers on one SQLite file raises SQLiteDatabaseLockedException, which is a
@@ -137,13 +136,16 @@ internal class FirebaseService : FirebaseMessagingService() {
             // routine FCM token rotation could delete the entire undelivered queue. It also
             // leaked a thread per rotation.
             //
-            // Routing through Intempt.track keeps one owner, which is what the Dagger
-            // @Singleton was for. If the SDK is not initialized the call is a logged no-op,
-            // and the token still reaches the backend on the next install/upgrade event.
-            com.intempt.core.Intempt.track(
-                "App install/upgrade",
-                IntemptValue.mapOf(mapOf("deviceToken" to token)),
-            )
+            // It then routed through `Intempt.track("App install/upgrade", {deviceToken})`, which
+            // kept one owner but wrote the wrong shape: events route by TYPE, not name, so that
+            // produced a `track` event carrying `data.deviceToken`. The platform resolves a push
+            // destination from the profile attribute `fcm_token_<sourceId>`, which only the
+            // install/upgrade event writes — so the rotation fix did not fix rotation.
+            //
+            // registerPushToken() re-reads the token and announces it through that one carrier,
+            // skipping the dispatch when the value has not changed. If the SDK is not initialized
+            // the call is a logged no-op, and the next launch registers the token instead.
+            com.intempt.core.Intempt.registerPushToken()
         } catch (e: Throwable) {
             // Never let a token report crash the messaging service.
             logger.error("[FCM] Could not report the rotated FCM token", e)
