@@ -26,7 +26,6 @@ import org.mockito.Mockito.times
 import org.mockito.Mockito.verify
 import org.mockito.Mockito.`when`
 import org.mockito.kotlin.any
-import org.mockito.kotlin.anyOrNull
 import org.mockito.kotlin.eq
 
 /**
@@ -189,17 +188,22 @@ class AutocaptureLifecycleTest {
         }
 
     /**
-     * Version changes and app-state changes are off by default, and the tracker is not even
-     * started when both are off — so the SDK registers no process-lifecycle observer for a host
-     * app that asked for neither.
+     * Version changes and app-state changes are off by default — and the tracker is started
+     * anyway, because the same call registers the FCM device token and push may not depend on an
+     * event-volume switch. Both switches are passed through as false, which is what keeps the
+     * version-change event unsent and the process-lifecycle observer unregistered; what the call
+     * then does with the token is [com.intempt.core.PushTokenRegistrationTest]'s subject.
+     *
+     * This assertion used to be `never()`. That pinned the defect: with the tracker not started
+     * at all, the token had no carrier and a host app following the README never registered one.
      */
     @Test
-    fun `version and app-state events are off by default`() =
+    fun `version and app-state events are off by default, and the token path still runs`() =
         runTest(scheduler) {
             component.startAutomaticEvents()
             scheduler.advanceUntilIdle()
 
-            verify(installUpgrade, never()).start(anyOrNull(), anyOrNull())
+            verify(installUpgrade).start(versionChanges = eq(false), appStateChanges = eq(false))
         }
 
     @Test

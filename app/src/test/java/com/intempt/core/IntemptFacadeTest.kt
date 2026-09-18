@@ -147,6 +147,9 @@ class IntemptFacadeTest {
         Intempt.flush()
         Intempt.flush { }
         Intempt.doNotCaptureText(View(ApplicationProvider.getApplicationContext()))
+        // Reachable before initialize() in a way none of the others are: FCM can start
+        // FirebaseService and rotate a token before Application.onCreate has finished.
+        Intempt.registerPushToken()
     }
 
     /**

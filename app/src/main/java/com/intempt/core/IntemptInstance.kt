@@ -4,6 +4,7 @@ package com.intempt.core
 
 import android.view.View
 import com.intempt.core.intemptCore.IntemptCoreService
+import com.intempt.core.internal.InternalIntemptApi
 import com.intempt.core.types.AutocaptureOptions
 import com.intempt.core.types.AutomaticEventsOptions
 import com.intempt.core.types.ConsentAction
@@ -145,6 +146,10 @@ class IntemptInstance internal constructor(
      * transport failure — so post to the main thread yourself if it touches UI. Pass null to clear.
      */
     fun setErrorListener(listener: ((IntemptError) -> Unit)?) = core.errors.setListener(listener)
+
+    /** @see Intempt.registerPushToken */
+    @InternalIntemptApi
+    fun registerPushToken() = core.autoCapture.registerPushToken()
 
     /**
      * Lifecycle facts the SDK emits without instrumentation. Settable, and read at the next event.

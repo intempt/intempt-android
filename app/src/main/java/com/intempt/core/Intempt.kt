@@ -7,6 +7,7 @@ import android.util.Log
 import android.view.View
 import com.intempt.core.intemptCore.DaggerIntemptCoreComponent
 import com.intempt.core.intemptCore.IntemptCoreModule
+import com.intempt.core.internal.InternalIntemptApi
 import com.intempt.core.internal.PushBridge
 import com.intempt.core.internal.traced
 import com.intempt.core.types.AutocaptureOptions
@@ -538,6 +539,20 @@ object Intempt {
     @JvmStatic
     fun setErrorListener(listener: ((IntemptError) -> Unit)?) {
         main("setErrorListener")?.setErrorListener(listener)
+    }
+
+    /**
+     * Re-reads the FCM device token and registers it with the platform when it has changed.
+     *
+     * Cross-module SPI, not public API: `:push` calls this from `FirebaseService.onNewToken`,
+     * because FCM rotates tokens of its own accord and a rotation nobody announces leaves the
+     * device permanently unreachable. A host app never calls it — `initialize()` already
+     * registers the token whenever `intempt-push` is on the classpath.
+     */
+    @InternalIntemptApi
+    @JvmStatic
+    fun registerPushToken() {
+        main("registerPushToken")?.registerPushToken()
     }
 
     /**
