@@ -167,6 +167,14 @@ jobs:
       - name: Assemble sample app (release, R8)
         run: ./gradlew :sample:assembleRelease --stacktrace
 
+      # 4.0.1 shipped an AAR in which every received push was dropped: R8 stripped the
+      # Signature attribute that the anonymous TypeReference subclass behind a reified
+      # readValue<T>() needs, so its constructor threw and onMessageReceived bailed out
+      # blaming the payload. No JVM test could see it — the defect does not exist before
+      # R8 — so the assertion is made against the built artifact instead.
+      - name: Push AAR carries no reified Jackson call (INT push-drop regression)
+        run: ./gradlew :push:verifyNoReifiedJacksonInReleaseAar --stacktrace
+
   unit-tests:
     name: Unit tests
     runs-on: ubuntu-latest
