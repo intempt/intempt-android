@@ -18,6 +18,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.bumptech.glide.Glide
 import com.bumptech.glide.request.target.Target
+import com.fasterxml.jackson.core.JsonProcessingException
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.google.firebase.messaging.FirebaseMessaging
 import com.google.firebase.messaging.FirebaseMessagingService
@@ -72,8 +73,20 @@ internal class FirebaseService : FirebaseMessagingService() {
         val content =
             try {
                 mapper.readValue(contentJson, PushNotificationContent::class.java)
+            } catch (e: JsonProcessingException) {
+                // The payload really is malformed. The sender is at fault and the JSON is worth printing.
+                logger.error("[FCM] Ignoring Intempt push: malformed content payload content=$contentJson", e)
+                return
             } catch (e: Exception) {
-                logger.error("[FCM] Ignoring Intempt push: could not parse content=$contentJson", e)
+                // The deserializer itself failed to run, so the payload above is very likely fine.
+                // Saying "could not parse" here sent people to audit correct JSON for a whole
+                // release while the real fault was R8 stripping an attribute the SDK depended on.
+                logger.error(
+                    "[FCM] Ignoring Intempt push: the deserializer failed to run. This is an SDK " +
+                        "fault, not a bad payload — report it with this stack trace. " +
+                        "content=$contentJson",
+                    e,
+                )
                 return
             }
 
@@ -83,8 +96,15 @@ internal class FirebaseService : FirebaseMessagingService() {
             remoteMessage.data["metadata"]?.let { metaJson ->
                 try {
                     mapper.readValue(metaJson, PushNotificationMetadata::class.java)
+                } catch (e: JsonProcessingException) {
+                    logger.error("[FCM] Malformed metadata=$metaJson; rendering without tracking", e)
+                    null
                 } catch (e: Exception) {
-                    logger.error("[FCM] Could not parse metadata=$metaJson; rendering without tracking", e)
+                    logger.error(
+                        "[FCM] The metadata deserializer failed to run; rendering without tracking. " +
+                            "This is an SDK fault, not a bad payload. metadata=$metaJson",
+                        e,
+                    )
                     null
                 }
             }
