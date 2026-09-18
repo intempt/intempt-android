@@ -19,7 +19,6 @@ import androidx.core.app.NotificationManagerCompat
 import com.bumptech.glide.Glide
 import com.bumptech.glide.request.target.Target
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
-import com.fasterxml.jackson.module.kotlin.readValue
 import com.google.firebase.messaging.FirebaseMessaging
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
@@ -72,7 +71,7 @@ internal class FirebaseService : FirebaseMessagingService() {
 
         val content =
             try {
-                mapper.readValue<PushNotificationContent>(contentJson)
+                mapper.readValue(contentJson, PushNotificationContent::class.java)
             } catch (e: Exception) {
                 logger.error("[FCM] Ignoring Intempt push: could not parse content=$contentJson", e)
                 return
@@ -83,7 +82,7 @@ internal class FirebaseService : FirebaseMessagingService() {
         val metadata =
             remoteMessage.data["metadata"]?.let { metaJson ->
                 try {
-                    mapper.readValue<PushNotificationMetadata>(metaJson)
+                    mapper.readValue(metaJson, PushNotificationMetadata::class.java)
                 } catch (e: Exception) {
                     logger.error("[FCM] Could not parse metadata=$metaJson; rendering without tracking", e)
                     null
