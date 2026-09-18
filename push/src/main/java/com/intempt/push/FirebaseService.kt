@@ -70,44 +70,11 @@ internal class FirebaseService : FirebaseMessagingService() {
             return
         }
 
-        val content =
-            try {
-                mapper.readValue(contentJson, PushNotificationContent::class.java)
-            } catch (e: JsonProcessingException) {
-                // The payload really is malformed. The sender is at fault and the JSON is worth printing.
-                logger.error("[FCM] Ignoring Intempt push: malformed content payload content=$contentJson", e)
-                return
-            } catch (e: Exception) {
-                // The deserializer itself failed to run, so the payload above is very likely fine.
-                // Saying "could not parse" here sent people to audit correct JSON for a whole
-                // release while the real fault was R8 stripping an attribute the SDK depended on.
-                logger.error(
-                    "[FCM] Ignoring Intempt push: the deserializer failed to run. This is an SDK " +
-                        "fault, not a bad payload — report it with this stack trace. " +
-                        "content=$contentJson",
-                    e,
-                )
-                return
-            }
+        val content = parseContent(contentJson) ?: return
 
         // Metadata is needed for delivery/open/bounce tracking but not for rendering.
         // If it is absent or malformed we still show the notification, just without tracking.
-        val metadata =
-            remoteMessage.data["metadata"]?.let { metaJson ->
-                try {
-                    mapper.readValue(metaJson, PushNotificationMetadata::class.java)
-                } catch (e: JsonProcessingException) {
-                    logger.error("[FCM] Malformed metadata=$metaJson; rendering without tracking", e)
-                    null
-                } catch (e: Exception) {
-                    logger.error(
-                        "[FCM] The metadata deserializer failed to run; rendering without tracking. " +
-                            "This is an SDK fault, not a bad payload. metadata=$metaJson",
-                        e,
-                    )
-                    null
-                }
-            }
+        val metadata = remoteMessage.data["metadata"]?.let(::parseMetadata)
 
         val config = ConfigManagerService(this)
         val logger = LoggerManagerService(config)
@@ -132,6 +99,49 @@ internal class FirebaseService : FirebaseMessagingService() {
 
         sendPushNotification(this, content, metadata, webhookService)
     }
+
+    /**
+     * Deserializes the FCM `content` payload, or returns null and logs why.
+     *
+     * The two catches are deliberately not one. A payload that will not parse is the sender's
+     * fault and the JSON is worth printing; a deserializer that cannot *run* is the SDK's fault
+     * and the JSON is a red herring. 4.0.1 reported the second as the first — it logged
+     * "could not parse content=..." next to perfectly valid JSON, because R8 had stripped the
+     * Signature attribute that the reified readValue<T>() overload needs, so the TypeReference
+     * subclass threw IllegalArgumentException before Jackson was ever reached. Anyone debugging
+     * it went and audited their payload. Both parsers now take the Class<T> overload, which
+     * cannot fail that way, and the messages no longer point at the wrong system.
+     */
+    private fun parseContent(contentJson: String): PushNotificationContent? =
+        try {
+            mapper.readValue(contentJson, PushNotificationContent::class.java)
+        } catch (e: JsonProcessingException) {
+            logger.error("[FCM] Ignoring Intempt push: malformed content payload content=$contentJson", e)
+            null
+        } catch (e: Exception) {
+            logger.error(
+                "[FCM] Ignoring Intempt push: the deserializer failed to run. This is an SDK fault, " +
+                    "not a bad payload — report it with this stack trace. content=$contentJson",
+                e,
+            )
+            null
+        }
+
+    /** As [parseContent], but a failure here costs tracking rather than the notification. */
+    private fun parseMetadata(metaJson: String): PushNotificationMetadata? =
+        try {
+            mapper.readValue(metaJson, PushNotificationMetadata::class.java)
+        } catch (e: JsonProcessingException) {
+            logger.error("[FCM] Malformed metadata=$metaJson; rendering without tracking", e)
+            null
+        } catch (e: Exception) {
+            logger.error(
+                "[FCM] The metadata deserializer failed to run; rendering without tracking. This is " +
+                    "an SDK fault, not a bad payload. metadata=$metaJson",
+                e,
+            )
+            null
+        }
 
     /**
      * FCM rotated the registration token.

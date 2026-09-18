@@ -202,8 +202,9 @@ val verifyNoReifiedJacksonInReleaseAar by tasks.registering {
             if (proguardEntry != null) {
                 proguardRules = outer.getInputStream(proguardEntry).readBytes().toString(Charsets.UTF_8)
             }
-            val classesEntry = outer.getEntry("classes.jar")
-                ?: error("the release AAR has no classes.jar — this check cannot verify anything")
+            val classesEntry =
+                outer.getEntry("classes.jar")
+                    ?: error("the release AAR has no classes.jar — this check cannot verify anything")
 
             ZipInputStream(outer.getInputStream(classesEntry)).use { zin ->
                 var entry = zin.nextEntry
@@ -242,8 +243,9 @@ val verifyNoReifiedJacksonInReleaseAar by tasks.registering {
             }
         }
 
-        val rules = proguardRules
-            ?: error("the release AAR ships no proguard.txt, so no consumer rule reaches host apps")
+        val rules =
+            proguardRules
+                ?: error("the release AAR ships no proguard.txt, so no consumer rule reaches host apps")
         require(rules.lineSequence().any { it.trim().startsWith("-keepattributes") && "Signature" in it }) {
             "push/consumer-rules.pro no longer keeps the Signature attribute. Even with the Class<T> " +
                 "overload in place this rule is the guard for any future reified Jackson call, and it " +

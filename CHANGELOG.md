@@ -9,6 +9,42 @@ Only `v2.0.1` is tagged in this repository's history, so entries below it do not
 invent them, the `2.0.1` section records what the tag contains and nothing more. Everything since is
 under Unreleased.
 
+## [4.0.2] - 2026-09-18
+
+### Fixed
+
+- **Every push the SDK received was dropped before it could be rendered.** `intempt-push` 4.0.1
+  parsed the FCM `content` payload with jackson-module-kotlin's reified `readValue<T>()`. That
+  expands to an anonymous `TypeReference<T>` subclass whose constructor recovers `T` at runtime
+  from the class file's `Signature` attribute — and R8 discards `Signature` unless a keep rule
+  says otherwise, which neither `push/consumer-rules.pro` nor the AGP default provided. In the
+  minified release AAR the constructor therefore threw
+  `IllegalArgumentException: Internal error: TypeReference constructed without actual type
+  information`, `onMessageReceived` caught it and returned, and no notification was ever posted.
+  The failure was silent: the host app did not crash and the user saw nothing. Both payload
+  parsers now use the `Class<T>` overload, which needs no `Signature` attribute and cannot break
+  this way; both target types are non-generic, so `TypeReference` was buying nothing.
+- **The error message blamed the payload for the SDK's own fault.** Both call sites caught
+  `Exception` and logged "could not parse content=…" while printing JSON that was perfectly
+  valid, sending anyone debugging this to audit their sender. A deserializer that fails to *run*
+  is now reported as an SDK fault, separately from a payload that genuinely will not parse.
+- The metadata parser at the second call site carried the identical defect. It was unreachable
+  only because the content parser returned first, and would have silently disabled delivery,
+  open and bounce tracking.
+
+### Added
+
+- `:push:verifyNoReifiedJacksonInReleaseAar`, wired into `check` and into CI beside the existing
+  release-variant R8 job. It fails the build if the published AAR references Jackson's
+  `TypeReference` at all, or if `push/consumer-rules.pro` stops keeping the `Signature`
+  attribute. Nothing in the repository could have caught the defect above: it does not exist
+  before R8, so no JVM test sees it, and no minified build exercised the push parse path. The
+  check asserts against the built artifact, and fails rather than passes when it finds no
+  classes to inspect.
+- `-keepattributes Signature,InnerClasses,EnclosingMethod` in `push/consumer-rules.pro`. The
+  `Class<T>` overload above means nothing currently depends on it; it ships to every consuming
+  app's R8 run as a guard for any future reified Jackson call.
+
 ## [4.0.1] - 2026-09-18
 
 ### Fixed
