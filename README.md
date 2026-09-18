@@ -8,7 +8,7 @@ Add the dependency to your module-level `build.gradle.kts`:
 
 ```kotlin
 dependencies {
-    implementation("com.intempt.sdk:intempt-android:3.0.1")
+    implementation("com.intempt.sdk:intempt-android:4.0.1")
 }
 ```
 
@@ -27,8 +27,8 @@ optional artifact so that apps that don't use push don't pay for Firebase, Jacks
 
 ```kotlin
 dependencies {
-    implementation("com.intempt.sdk:intempt-android:3.0.1")
-    implementation("com.intempt.sdk:intempt-push:3.0.1")
+    implementation("com.intempt.sdk:intempt-android:4.0.1")
+    implementation("com.intempt.sdk:intempt-push:4.0.1")
 }
 ```
 

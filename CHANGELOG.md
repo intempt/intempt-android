@@ -9,7 +9,7 @@ Only `v2.0.1` is tagged in this repository's history, so entries below it do not
 invent them, the `2.0.1` section records what the tag contains and nothing more. Everything since is
 under Unreleased.
 
-## [Unreleased]
+## [4.0.1] - 2026-09-18
 
 ### Fixed
 
