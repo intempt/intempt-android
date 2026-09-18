@@ -61,6 +61,27 @@ internal class InstallUpgradeTrackerService
             }
         }
 
+        /** The FCM token this install last announced, or null when it never has. */
+        fun getStoredPushToken(): String? =
+            storage.getStorageItem(
+                prefs = StorageKeys.AppPrefs.key,
+                key = StorageKeys.LastRegisteredPushToken.key,
+            ) { key, fallBack ->
+                getString(key, fallBack)
+            }
+
+        fun storePushToken(token: String) {
+            logger.log("InstallUpgradeTrackerService | Store push token")
+
+            storage.setStorageItem(
+                prefs = StorageKeys.AppPrefs.key,
+                key = StorageKeys.LastRegisteredPushToken.key,
+                value = token,
+            ) { key, value ->
+                putString(key, value)
+            }
+        }
+
         fun getConsumerAppVersionCode(): Long {
             return try {
                 val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)

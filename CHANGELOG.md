@@ -11,6 +11,31 @@ under Unreleased.
 
 ## [Unreleased]
 
+### Fixed
+
+- **The FCM device token is now registered whatever `AutomaticEventsOptions.versionChanges` says.**
+  The token reaches the platform through exactly one carrier — the install/upgrade event's
+  `userAttributes.fcm_token_<sourceId>` — and that event was gated on `versionChanges`, which
+  defaults to `false`. A host app that followed the README obtained a real token from Firebase and
+  never registered it: no error, no warning, no log line, and every push silently went nowhere. The
+  failure surfaced much later and in a different system, as a profile with no device token. The
+  version-change *event* stays gated exactly as before, and with the flag off the stored version
+  code is still left untouched, so turning it on later still reports the install.
+- **A rotated token is registered in the shape the platform actually reads.**
+  `FirebaseService.onNewToken` emitted `track("App install/upgrade", {deviceToken})`. Events route
+  by type rather than by name, so that produced a `track` event carrying `data.deviceToken`, while
+  a push destination resolves its token from the profile attribute `fcm_token_<sourceId>` — which
+  only the install/upgrade event writes. The rotation fix did not fix rotation; FCM rotating a
+  token of its own accord left the device unreachable until the app's version changed. It now goes
+  through `Intempt.registerPushToken()` and the one carrier.
+- Registration is deduplicated against the last announced token, so it costs one event per token
+  rather than one per launch, and an install that also changes version emits one event, not two.
+
+### Added
+
+- `Intempt.registerPushToken()` — cross-module SPI for `:push`, marked `@InternalIntemptApi` and
+  therefore absent from `app/api/app.api`. A host app never calls it.
+
 ## [4.0.0] - 2026-09-03
 
 ### Removed

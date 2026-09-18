@@ -48,6 +48,15 @@ internal sealed class StorageKeys(val key: String) {
 
     // App visibility state key
     data object AppVisibilityState : StorageKeys("app_visibility_state")
+
+    /**
+     * The FCM device token this install has already announced to the platform.
+     *
+     * Persisted so the registration event fires once per token rather than once per launch. A
+     * token is only worth sending when it is new: the platform stores it as the profile attribute
+     * `fcm_token_<sourceId>`, and re-sending the same value changes nothing.
+     */
+    data object LastRegisteredPushToken : StorageKeys("last_registered_push_token")
 }
 
 internal sealed class IdTypeKeys(val key: String) {
