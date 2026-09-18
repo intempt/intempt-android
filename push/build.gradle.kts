@@ -1,3 +1,6 @@
+import java.util.zip.ZipFile
+import java.util.zip.ZipInputStream
+
 plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.android)
@@ -156,3 +159,114 @@ tasks.withType<io.gitlab.arturbosch.detekt.Detekt>().configureEach {
         txt.required.set(false)
     }
 }
+
+/**
+ * The gate that 4.0.1 did not have.
+ *
+ * `readValue<T>()` from jackson-module-kotlin is inline + reified: the compiler expands it to an
+ * anonymous `TypeReference<T>` subclass, whose constructor recovers T at runtime from the class
+ * file's `Signature` attribute. R8 discards `Signature` unless asked to keep it, so in the
+ * minified 4.0.1 AAR that constructor threw `IllegalArgumentException` and **every received push
+ * was dropped** — silently, with a log line that blamed the payload.
+ *
+ * Nothing in this repository could catch that. The defect does not exist before R8, so no JVM
+ * test sees it; `sample/proguard-rules.pro` is deliberately empty so a missing consumer rule is
+ * not masked, but nothing exercises the push parse path in a minified build.
+ *
+ * So this asserts on the shipped artifact instead, and deliberately bans the whole construct
+ * rather than checking that the keep rule is present: a keep rule is a thing that can be dropped
+ * again, while the `Class<T>` overload cannot break this way at all. If you genuinely need a
+ * generic target type here, you need `TypeReference` AND `-keepattributes Signature`, and you
+ * should be made to say so out loud — which is what failing this task does.
+ */
+val verifyNoReifiedJacksonInReleaseAar by tasks.registering {
+    description = "Fails if the release AAR references Jackson's TypeReference, or lost its Signature keep rule."
+    group = "verification"
+    dependsOn("assembleRelease")
+
+    val aar = layout.buildDirectory.file("outputs/aar/push-release.aar")
+    inputs.file(aar)
+    outputs.upToDateWhen { false }
+
+    doLast {
+        val aarFile = aar.get().asFile
+        require(aarFile.exists()) { "expected the release AAR at $aarFile, but it is not there" }
+
+        val typeRef = "com/fasterxml/jackson/core/type/TypeReference".toByteArray(Charsets.UTF_8)
+        val offenders = mutableListOf<String>()
+        var proguardRules: String? = null
+        var classesSeen = 0
+
+        ZipFile(aarFile).use { outer ->
+            val proguardEntry = outer.getEntry("proguard.txt")
+            if (proguardEntry != null) {
+                proguardRules = outer.getInputStream(proguardEntry).readBytes().toString(Charsets.UTF_8)
+            }
+            val classesEntry =
+                outer.getEntry("classes.jar")
+                    ?: error("the release AAR has no classes.jar — this check cannot verify anything")
+
+            ZipInputStream(outer.getInputStream(classesEntry)).use { zin ->
+                var entry = zin.nextEntry
+                while (entry != null) {
+                    if (entry.name.endsWith(".class")) {
+                        classesSeen++
+                        val bytes = zin.readBytes()
+                        if (bytes.indexOfSlice(typeRef) >= 0) offenders += entry.name
+                    }
+                    entry = zin.nextEntry
+                }
+            }
+        }
+
+        // A check that verifies nothing must fail, not pass. An empty or unreadable jar is
+        // exactly how this kind of gate goes quietly green forever.
+        require(classesSeen > 0) {
+            "read 0 class files out of ${aarFile.name}; this check proved nothing and is therefore failing"
+        }
+
+        require(offenders.isEmpty()) {
+            buildString {
+                appendLine("The release AAR references Jackson's TypeReference in ${offenders.size} class(es):")
+                offenders.sorted().forEach { appendLine("  $it") }
+                appendLine()
+                appendLine("This is how 4.0.1 shipped a build that dropped every push. A reified")
+                appendLine("mapper.readValue<T>(json) expands to an anonymous TypeReference subclass whose")
+                appendLine("constructor needs the Signature attribute that R8 removes.")
+                appendLine()
+                appendLine("Use the Class<T> overload instead:")
+                appendLine("    mapper.readValue(json, Foo::class.java)")
+                appendLine()
+                appendLine("If the target type is genuinely generic and TypeReference is unavoidable, keep")
+                appendLine("-keepattributes Signature in push/consumer-rules.pro and relax this check")
+                appendLine("deliberately, in its own commit, with the reason written down.")
+            }
+        }
+
+        val rules =
+            proguardRules
+                ?: error("the release AAR ships no proguard.txt, so no consumer rule reaches host apps")
+        require(rules.lineSequence().any { it.trim().startsWith("-keepattributes") && "Signature" in it }) {
+            "push/consumer-rules.pro no longer keeps the Signature attribute. Even with the Class<T> " +
+                "overload in place this rule is the guard for any future reified Jackson call, and it " +
+                "ships to every consuming app's R8 run. Restore -keepattributes Signature."
+        }
+
+        logger.lifecycle(
+            "verifyNoReifiedJacksonInReleaseAar: $classesSeen classes checked, " +
+                "no TypeReference reference, Signature keep rule present.",
+        )
+    }
+}
+
+/** Helper: ByteArray has no indexOf(ByteArray) in the stdlib. */
+fun ByteArray.indexOfSlice(needle: ByteArray): Int {
+    if (needle.isEmpty() || needle.size > size) return -1
+    outer@ for (i in 0..size - needle.size) {
+        for (j in needle.indices) if (this[i + j] != needle[j]) continue@outer
+        return i
+    }
+    return -1
+}
+
+tasks.named("check") { dependsOn(verifyNoReifiedJacksonInReleaseAar) }
