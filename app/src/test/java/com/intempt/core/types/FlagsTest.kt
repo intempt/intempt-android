@@ -26,7 +26,7 @@ class FlagsTest {
 
     @Test
     fun `body carries sourceId, device and the named keys`() {
-        val body = buildChooseBody("src-1", "prof-1", null, listOf("a", "b"))
+        val body = buildChooseBody("src-1", "prof-1", null, listOf("a", "b"), "sess-1")
 
         assertEquals("mobile", body["device"])
         assertEquals(listOf("a", "b"), body["names"])
@@ -43,17 +43,17 @@ class FlagsTest {
      */
     @Test
     fun `null names omits the key entirely rather than sending an empty list`() {
-        val all = buildChooseBody("src-1", "prof-1", null, null)
+        val all = buildChooseBody("src-1", "prof-1", null, null, "sess-1")
         assertTrue("names must be absent, not empty", !all.containsKey("names"))
 
-        val none = buildChooseBody("src-1", "prof-1", null, emptyList())
+        val none = buildChooseBody("src-1", "prof-1", null, emptyList(), "sess-1")
         assertEquals(emptyList<String>(), none["names"])
     }
 
     @Test
     fun `blank and null identifiers are omitted, not sent as empty strings`() {
         @Suppress("UNCHECKED_CAST")
-        val id = buildChooseBody("src-1", "   ", "", null)["identification"] as Map<String, Any>
+        val id = buildChooseBody("src-1", "   ", "", null, "sess-1")["identification"] as Map<String, Any>
 
         assertEquals(setOf("sourceId"), id.keys)
     }
@@ -66,10 +66,37 @@ class FlagsTest {
     @Test
     fun `userId is sent when supplied, and it changes the derived identity`() {
         @Suppress("UNCHECKED_CAST")
-        val id = buildChooseBody("src-1", "prof-1", "user-9", null)["identification"] as Map<String, Any>
+        val id = buildChooseBody("src-1", "prof-1", "user-9", null, "sess-1")["identification"] as Map<String, Any>
 
         assertEquals("user-9", id["userId"])
         assertEquals("prof-1", id["profileId"])
+    }
+
+    /**
+     * 4.1.0 (brain A1 (c)-ii). `audience-service`'s `ChooserHelper.allowOncePerSession` keys on this
+     * field; without it a "Once per session" experience is served once EVER per profile. It is a
+     * TOP-LEVEL key, a sibling of `identification`, matching `ExperienceApiChooseRequest.sessionId`
+     * and what Swift sends — asserted on the key's position, not only its presence.
+     */
+    @Test
+    fun `sessionId is sent top-level with the SDK's session value`() {
+        val body = buildChooseBody("src-1", "prof-1", null, null, "sess-42")
+
+        assertEquals("sess-42", body["sessionId"])
+
+        @Suppress("UNCHECKED_CAST")
+        val id = body["identification"] as Map<String, Any>
+        assertTrue("sessionId belongs beside identification, not inside it", !id.containsKey("sessionId"))
+    }
+
+    /**
+     * `StorageManagerService.getSessionId()` returns `""` before the first session starts. An empty
+     * string on the wire would be STORED as the once-per-session key, so it is omitted instead.
+     */
+    @Test
+    fun `blank or null sessionId is omitted rather than sent`() {
+        assertTrue(!buildChooseBody("src-1", "prof-1", null, null, null).containsKey("sessionId"))
+        assertTrue(!buildChooseBody("src-1", "prof-1", null, null, "  ").containsKey("sessionId"))
     }
 
     // ---- unwrapFlagValue ------------------------------------------------------------------

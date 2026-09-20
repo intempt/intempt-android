@@ -22,7 +22,8 @@ class ChooseBodyJsonTest {
         profileId: String?,
         userId: String?,
         names: List<String>?,
-    ): JSONObject = JSONObject(buildChooseBody(sourceId, profileId, userId, names))
+        sessionId: String? = null,
+    ): JSONObject = JSONObject(buildChooseBody(sourceId, profileId, userId, names, sessionId))
 
     @Test
     fun `the nested identification survives serialization as an object, not a toString`() {
@@ -56,5 +57,19 @@ class ChooseBodyJsonTest {
             "user-9",
             emit("src-1", "prof-1", "user-9", null).getJSONObject("identification").getString("userId"),
         )
+    }
+
+    @Test
+    fun `sessionId is emitted as a top-level string and never inside identification`() {
+        val json = emit("src-1", "prof-1", null, null, "sess-7")
+
+        assertEquals("sess-7", json.getString("sessionId"))
+        assertFalse(json.getJSONObject("identification").has("sessionId"))
+    }
+
+    @Test
+    fun `no sessionId key is emitted when the SDK has no session yet`() {
+        assertFalse(emit("src-1", "prof-1", null, null, "").has("sessionId"))
+        assertFalse(emit("src-1", "prof-1", null, null, null).has("sessionId"))
     }
 }

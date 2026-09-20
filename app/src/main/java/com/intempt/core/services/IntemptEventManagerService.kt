@@ -156,7 +156,17 @@ internal open class IntemptEventManagerService
             )
         }
 
-        open fun generateUiElementEventPayload(view: View?): Array<IntemptEventProvider>? {
+        /**
+         * @param targetIdOverride a `targetId` resolved somewhere the View tree cannot see — today
+         * the Compose `testTag` under the touch point, resolved by `TouchTrackerService` because
+         * `AndroidComposeView` is one opaque View with `NO_ID` and this method would otherwise
+         * report `"unknown"` for every tap in a Compose screen. Only `targetId` changes; every
+         * other field, `fullTargetId` included, is still derived from the View. Blank is ignored.
+         */
+        open fun generateUiElementEventPayload(
+            view: View?,
+            targetIdOverride: String? = null,
+        ): Array<IntemptEventProvider>? {
             return utils.withTryCatch("Error during generating UI payload") {
                 val eventProps = getBaseEventProps()
                 val targetElement = view?.javaClass?.simpleName ?: ""
@@ -164,8 +174,11 @@ internal open class IntemptEventManagerService
                 val targetText = getViewTextValue(view)
                 val targetValue = getViewValue(view)
                 val targetClass = view?.javaClass?.name ?: ""
+                val override = targetIdOverride?.takeIf { it.isNotBlank() }
                 val targetId =
-                    if (view?.id != View.NO_ID) {
+                    if (override != null) {
+                        override
+                    } else if (view?.id != View.NO_ID) {
                         try {
                             view?.resources?.getResourceEntryName(view.id)
                                 ?: ""
@@ -283,6 +296,9 @@ internal open class IntemptEventManagerService
          * On [FlagContext.userId], see the warning on that property: supplying it changes the
          * identifier the service derives assignment on. It is passed through because the shared
          * request body carries it, not because it is safe to toggle.
+         *
+         * The session id is the one every tracked event already carries (`getBaseEventProps`),
+         * so a choose call and the events around it agree on which session they belong to.
          */
         fun generateChooseBody(
             context: FlagContext,
@@ -293,6 +309,7 @@ internal open class IntemptEventManagerService
                 profileId = context.profileId ?: storage.getProfileId(),
                 userId = context.userId,
                 names = names,
+                sessionId = storage.getSessionId(),
             )
 
         fun generateRecommendationBody(

@@ -59,9 +59,19 @@ baselineProfile="1.4.1"
 benchmarkMacroJunit4="1.4.1"
 uiautomator="2.3.0"
 profileinstaller="1.4.0"
+# Jetpack Compose, for the autocapture hit-test (4.1.0). `:app` sees compose-ui as compileOnly ONLY —
+# the SDK must never pull Compose into a View-based host. 1.6.x is the last line built against Kotlin
+# 1.9.x, which is this repo's Kotlin; the matching Compose compiler for Kotlin 1.9.22 is 1.5.8.
+# `:sample` uses the same catalog entries to render the Compose screen the on-device proof taps.
+composeUi = "1.6.8"
+composeCompiler = "1.5.8"
+activityCompose = "1.8.2"
 
 [libraries]
 androidx-core-test = { module = "androidx.test:core", version.ref = "core" }
+compose-ui = { group = "androidx.compose.ui", name = "ui", version.ref = "composeUi" }
+compose-foundation = { group = "androidx.compose.foundation", name = "foundation", version.ref = "composeUi" }
+androidx-activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }
 androidx-rules-test = { module = "androidx.test:rules", version.ref = "core" }
 androidx-runner-test = { module = "androidx.test:runner", version.ref = "runner" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }

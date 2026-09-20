@@ -17,6 +17,10 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <!-- Compose screen for the autocapture hit-test proof. Not a launcher entry. -->
+        <activity
+            android:name=".ComposeDemoActivity"
+            android:exported="false" />
     </application>
 
 </manifest>

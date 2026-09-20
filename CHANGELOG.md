@@ -9,6 +9,44 @@ Only `v2.0.1` is tagged in this repository's history, so entries below it do not
 invent them, the `2.0.1` section records what the tag contains and nothing more. Everything since is
 under Unreleased.
 
+## [4.1.0] - 2026-09-20
+
+### Added
+
+- **Autocapture resolves the Compose `testTag` under a touch and reports it as `targetId`.**
+  Jetpack Compose renders a whole screen into one View, `AndroidComposeView`, which has
+  `View.NO_ID` and no View children. Before this release a tap inside a Compose screen produced
+  **no touch event at all** — `TouchTrackerService.findTouchedView` walked the root's zero
+  children and returned null — and a tap on a View embedded in Compose reported
+  `targetId: "unknown"`. Now, when the touched View is a Compose root, the SDK walks its
+  unmerged semantics tree (`ViewRootForTest.semanticsOwner`) and writes the deepest
+  `Modifier.testTag(...)` whose bounds contain the touch point to the existing event's `targetId`;
+  overlapping siblings resolve to the one drawn on top, a tag on a wrapping `Button` covers an
+  untagged `Text` inside it, and a blank tag counts as none. No new event type, and no other field
+  of the UI element event changes — `fullTargetId`, `targetClass`, `hierarchy` are still derived
+  from the View. compose-ui is a **`compileOnly`** dependency: a View-based host receives no
+  Compose transitively, the first `NoClassDefFoundError` disables the resolver for the life of the
+  process, and `consumer-rules.pro` carries the `-dontwarn androidx.compose.ui.**` a minifying
+  host needs. A tap on an untagged Compose node still produces the event, with
+  `targetId: "unknown"` as before. Ruled in brain (`plans/android-demo-musicly`, A1 (c), Beso
+  2026-09-20). Verified on an API 34 emulator: `:sample`'s new `ComposeDemoActivity` tapped
+  through `Window.Callback.dispatchTouchEvent`, queued `Touch event` row carries
+  `targetId: "compose_cta"`.
+- **`sessionId` in the Experiences choose request.** `variation()`/`allFlags()` now send the
+  SDK's current session id as a top-level `sessionId` beside `identification` and `device`
+  (`ExperienceApiChooseRequest.sessionId`, optional). Without it `audience-service`'s
+  `ChooserHelper.allowOncePerSession` had no session to key on, so a **"Once per session"**
+  experience was served once *ever* per profile, and every `ExperienceChoose` record was
+  unattributable to a session. Swift has sent it since 0.4.0. A blank id (before the first session
+  starts) is omitted rather than sent, because an empty string would be stored as a real session
+  key. Ruled in brain (A1 (c)-ii, Beso 2026-09-20).
+
+### Changed
+
+- `:sample` gains one Compose screen (`ComposeDemoActivity`, not a launcher entry) and enables the
+  Compose compiler for it. The SDK artifact itself is unchanged in what it ships: `:app` sees
+  Compose as `compileOnly` only.
+
 ## [4.0.2] - 2026-09-18
 
 ### Fixed
