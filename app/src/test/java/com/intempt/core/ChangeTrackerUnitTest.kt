@@ -212,7 +212,7 @@ class ChangeTrackerUnitTest {
         storage = spy(StorageManagerService(context, utils))
         intemptEvent = spy(IntemptEventManagerService(context, storage, utils, config))
 
-        doReturn(mockedPayload).`when`(intemptEvent).generateUiElementEventPayload(any())
+        doReturn(mockedPayload).`when`(intemptEvent).generateUiElementEventPayload(any(), anyOrNull())
 
         testDispatcher = UnconfinedTestDispatcher(testScheduler)
 

@@ -9,6 +9,7 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.Window
+import com.intempt.core.autocapture.composeHitTest.ComposeTargetResolver
 import com.intempt.core.internal.traced
 import com.intempt.core.services.ConfigManagerService
 import com.intempt.core.services.UtilsService
@@ -48,9 +49,21 @@ internal class TouchTrackerService
                             // tell a deep-hierarchy regression from anything else.
                             traced("Intempt.touchDispatch") {
                                 val rootView = activity.window.decorView
+                                val x = event.rawX.toInt()
+                                val y = event.rawY.toInt()
                                 val touchedView =
                                     traced("Intempt.findTouchedView") {
-                                        findTouchedView(rootView, event.rawX.toInt(), event.rawY.toInt())
+                                        findTouchedView(rootView, x, y)
+                                    }
+                                // Resolved here, on the touch, not in the debounced runnable: the
+                                // semantics tree describes the screen as it is NOW, and a
+                                // recomposition inside the debounce window would describe a
+                                // different one. Null for every non-Compose view.
+                                val composeTag =
+                                    touchedView?.let {
+                                        traced("Intempt.composeHitTest") {
+                                            ComposeTargetResolver.testTagAt(it, x, y)
+                                        }
                                     }
                                 runnableWrapper[0] =
                                     debounceAndLog(
@@ -58,6 +71,7 @@ internal class TouchTrackerService
                                         runnableWrapper[0],
                                         touchedView,
                                         activity,
+                                        composeTag,
                                     )
                             }
                         }
@@ -73,25 +87,31 @@ internal class TouchTrackerService
             y: Int,
         ): View? {
             if (view !is ViewGroup) {
-                val location = IntArray(2)
-                view.getLocationOnScreen(location)
-                val viewX = location[0]
-                val viewY = location[1]
-                return if (x >= viewX && x <= viewX + view.width && y >= viewY && y <= viewY + view.height) {
-                    view
-                } else {
-                    null
-                }
-            } else {
-                for (i in 0 until view.childCount) {
-                    val child = view.getChildAt(i)
-                    val touchedView = findTouchedView(child, x, y)
-                    if (touchedView != null) {
-                        return touchedView
-                    }
+                return view.takeIf { containsPoint(it, x, y) }
+            }
+            for (i in 0 until view.childCount) {
+                val child = view.getChildAt(i)
+                val touchedView = findTouchedView(child, x, y)
+                if (touchedView != null) {
+                    return touchedView
                 }
             }
-            return null
+            // A Compose root is a ViewGroup with no View children, so the loop above found
+            // nothing — and before 4.1.0 that meant NO touch event for a Compose screen. The root
+            // itself is the target; its testTag is resolved separately and becomes targetId.
+            return view.takeIf { ComposeTargetResolver.isComposeRoot(it) && containsPoint(it, x, y) }
+        }
+
+        private fun containsPoint(
+            view: View,
+            x: Int,
+            y: Int,
+        ): Boolean {
+            val location = IntArray(2)
+            view.getLocationOnScreen(location)
+            val viewX = location[0]
+            val viewY = location[1]
+            return x >= viewX && x <= viewX + view.width && y >= viewY && y <= viewY + view.height
         }
 
         private fun debounceAndLog(
@@ -99,6 +119,7 @@ internal class TouchTrackerService
             currentRunnable: Runnable?,
             view: View?,
             activity: Activity,
+            targetIdOverride: String? = null,
         ): Runnable {
             return utils.debounce(handler, debounceDelay, currentRunnable) {
                 if (view !== null) {
@@ -110,6 +131,7 @@ internal class TouchTrackerService
                             event = null,
                             context = activity,
                             view = view,
+                            targetIdOverride = targetIdOverride,
                         ),
                         "TouchTrackerService",
                     )

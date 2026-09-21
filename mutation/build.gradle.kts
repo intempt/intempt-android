@@ -81,6 +81,11 @@ sourceSets {
             // see them — buildChooseBody's null handling, unwrapFlagValue's type preservation,
             // flagNameOf/flagReasonOf's safe reads and FlagReason.fromWire's fallback.
             include("com/intempt/core/types/Flags.kt")
+            // 4.1.0: the Compose hit-test's one decision — which semantics node under the touch
+            // point supplies `targetId` — is a pure tree walk over a tiny interface, kept free of
+            // both android.* and androidx.compose.* so this gate can reach it. The Compose-typed
+            // adapter beside it (ComposeSemantics.kt) is deliberately NOT here: it is glue.
+            include("com/intempt/core/autocapture/composeHitTest/HitNode.kt")
         }
     }
     test {
@@ -107,6 +112,7 @@ sourceSets {
             include("com/intempt/core/types/ContractTypesTest.kt")
             include("com/intempt/core/types/FlagsTest.kt")
             include("com/intempt/core/types/ChooseBodyJsonTest.kt")
+            include("com/intempt/core/autocapture/composeHitTest/SemanticsHitTest.kt")
         }
     }
 }
@@ -141,6 +147,7 @@ pitest {
             "com.intempt.core.types.FlagDetail*",
             // Top-level functions in Flags.kt compile into this facade class.
             "com.intempt.core.types.FlagsKt*",
+            "com.intempt.core.autocapture.composeHitTest.HitNodeKt*",
             "com.intempt.core.queue.HttpStatusPolicy*",
             "com.intempt.core.queue.TrackPayloadBuilder*",
             "com.intempt.core.queue.QueueConfig*",
@@ -157,6 +164,7 @@ pitest {
             "com.intempt.core.types.ContractTypesTest",
             "com.intempt.core.types.FlagsTest",
             "com.intempt.core.types.ChooseBodyJsonTest",
+            "com.intempt.core.autocapture.composeHitTest.SemanticsHitTest",
             "com.intempt.core.queue.HttpStatusPolicyTest",
             "com.intempt.core.queue.PureJvmQueueTest",
             "com.intempt.core.queue.TrackPayloadBuilderPureTest",

@@ -194,6 +194,15 @@ android {
 
     buildFeatures {
         buildConfig = true
+        // ONE Compose screen (ComposeDemoActivity), so the on-device suite can prove the 4.1.0
+        // autocapture hit-test: a tap on a `Modifier.testTag` node must surface that tag as the
+        // touch event's `targetId`. The SDK itself sees Compose as compileOnly — this module is
+        // the host that actually has it, which is the case the SDK's guard must not break.
+        compose = true
+    }
+
+    composeOptions {
+        kotlinCompilerExtensionVersion = libs.versions.composeCompiler.get()
     }
 
     lint {
@@ -225,6 +234,11 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
     implementation(libs.material)
+
+    // The Compose half of the sample: see buildFeatures.compose above.
+    implementation(libs.compose.ui)
+    implementation(libs.compose.foundation)
+    implementation(libs.androidx.activity.compose)
 
     testImplementation(libs.junit)
     testImplementation(libs.robolectric)

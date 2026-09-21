@@ -122,12 +122,22 @@ internal data class FlagDetail(
  *
  * [names] is omitted entirely when null, which is how the service is asked for every key rather
  * than a named subset — sending an empty list would ask for none.
+ *
+ * [sessionId] is the SDK's current session id (`StorageManagerService.getSessionId()`), sent as a
+ * top-level `sessionId` beside `identification` — the optional `ExperienceApiChooseRequest.sessionId`
+ * on the serving side. Without it `ChooserHelper.allowOncePerSession` in `audience-service` has no
+ * session to key on, so a "Once per session" experience is served once EVER per profile rather than
+ * once per session, and every `ExperienceChoose` record is unattributable to a session. Swift has
+ * sent it since 0.4.0 (`Flags.swift`); this closes the same gap here (brain tracker A1 (c)-ii, Beso
+ * 2026-09-20). Blank is omitted rather than sent — the SDK's accessor returns `""` before the first
+ * session starts, and an empty string would be stored as a real session key.
  */
 internal fun buildChooseBody(
     sourceId: String,
     profileId: String?,
     userId: String?,
     names: List<String>?,
+    sessionId: String?,
 ): Map<String, Any> {
     val identification = mutableMapOf<String, Any>()
     identification["sourceId"] = sourceId
@@ -139,6 +149,7 @@ internal fun buildChooseBody(
     // `ExperienceDevice` on the serving side is ALL("all")/DESKTOP("desktop")/MOBILE("mobile")
     // with @JsonValue, so this lowercase token is the one it deserializes.
     map["device"] = "mobile"
+    sessionId?.takeIf { it.isNotBlank() }?.let { map["sessionId"] = it }
     names?.let { map["names"] = it }
 
     return map
