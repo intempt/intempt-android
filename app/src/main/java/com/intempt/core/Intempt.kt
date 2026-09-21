@@ -16,12 +16,12 @@ import com.intempt.core.types.ConsentAction
 import com.intempt.core.types.FeedFields
 import com.intempt.core.types.FlagContext
 import com.intempt.core.types.InstanceId
-import com.intempt.core.types.unwrapJsonObject
 import com.intempt.core.types.IntemptCredentials
 import com.intempt.core.types.IntemptError
 import com.intempt.core.types.IntemptRuntimeOptions
 import com.intempt.core.types.IntemptValue
 import com.intempt.core.types.Product
+import com.intempt.core.types.unwrapJsonObject
 import kotlinx.serialization.json.JsonObject
 import java.util.concurrent.ConcurrentHashMap
 
