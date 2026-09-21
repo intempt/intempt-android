@@ -9,6 +9,12 @@ Only `v2.0.1` is tagged in this repository's history, so entries below it do not
 invent them, the `2.0.1` section records what the tag contains and nothing more. Everything since is
 under Unreleased.
 
+## [Unreleased]
+
+### Added
+
+- `jsonVariation(key, context, defaultValue)`: a typed read for a JSON object flag, completing the four value types alongside `boolVariation`, `stringVariation` and `numberVariation`. Returns the served object with every nested value unwrapped to a Kotlin type, or the caller's default when the served value is not an object.
+
 ## [4.1.0] - 2026-09-20
 
 ### Added

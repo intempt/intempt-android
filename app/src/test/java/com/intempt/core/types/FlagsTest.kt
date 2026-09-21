@@ -215,6 +215,11 @@ class FlagsTest {
     fun `a json object unwraps to a plain map and a scalar does not`() {
         val obj = Json.parseToJsonElement("""{"a":1,"b":"x","c":true}""") as JsonObject
         assertEquals(mapOf("a" to 1L, "b" to "x", "c" to true), unwrapJsonObject(obj))
+        val nested = Json.parseToJsonElement("""{"a":{"b":1},"c":[1,"x",{"d":true}]}""") as JsonObject
+        assertEquals(
+            mapOf("a" to mapOf("b" to 1L), "c" to listOf(1L, "x", mapOf("d" to true))),
+            unwrapJsonObject(nested),
+        )
         assertNull(unwrapJsonObject(Json.parseToJsonElement("true")))
         assertNull(unwrapJsonObject(Json.parseToJsonElement(""""cortex"""")))
         assertNull(unwrapJsonObject(null))
