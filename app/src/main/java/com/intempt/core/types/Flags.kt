@@ -197,3 +197,7 @@ internal fun unwrapFlagValue(element: JsonElement): Any? =
             }
         else -> element
     }
+
+/** A served JSON object as a plain map, or null when the value is not an object. */
+internal fun unwrapJsonObject(value: Any?): Map<String, Any?>? =
+    (value as? JsonObject)?.mapValues { (_, element) -> unwrapFlagValue(element) }

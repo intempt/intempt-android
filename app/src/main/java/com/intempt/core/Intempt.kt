@@ -16,6 +16,7 @@ import com.intempt.core.types.ConsentAction
 import com.intempt.core.types.FeedFields
 import com.intempt.core.types.FlagContext
 import com.intempt.core.types.InstanceId
+import com.intempt.core.types.unwrapJsonObject
 import com.intempt.core.types.IntemptCredentials
 import com.intempt.core.types.IntemptError
 import com.intempt.core.types.IntemptRuntimeOptions
@@ -704,6 +705,14 @@ object Intempt {
         context: FlagContext = FlagContext(),
         defaultValue: Double,
     ): Double = (variation(key, context, defaultValue) as? Number)?.toDouble() ?: defaultValue
+
+    @JvmStatic
+    @JvmOverloads
+    suspend fun jsonVariation(
+        key: String,
+        context: FlagContext = FlagContext(),
+        defaultValue: Map<String, Any?>,
+    ): Map<String, Any?> = unwrapJsonObject(variation(key, context, defaultValue)) ?: defaultValue
 
     /**
      * Returns immediately.
