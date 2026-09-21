@@ -332,6 +332,14 @@ dependencies {
     // the gate silently verifies against the wrong API level.
     add("signature", "net.sf.androidscents.signature:android-api-level-23:6.0_r3@signature")
 
+    // compileOnly, never implementation. Autocapture resolves a Compose `testTag` for the touched
+    // node when the host renders Compose (4.1.0, brain ruling A1 (c)), and a host that does not
+    // must not receive Compose transitively for it. Every reference to these types lives in
+    // `autocapture/composeHitTest/ComposeSemantics.kt`, which is only reached behind a
+    // LinkageError guard in `ComposeTargetResolver` — a missing class is a silent fallback to the
+    // pre-4.1.0 behaviour. `consumer-rules.pro` carries the matching `-dontwarn`.
+    compileOnly(libs.compose.ui)
+
     implementation(libs.dagger)
     implementation(libs.androidx.lifecycle.process)
     implementation(libs.core.ktx)

@@ -38,6 +38,7 @@ internal class EventHandlers(
         val newEvent =
             intemptEvent.generateUiElementEventPayload(
                 view,
+                props.targetIdOverride,
             )
 
         logger.log("EventPool | Touch Event: $newEvent")

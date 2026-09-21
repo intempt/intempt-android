@@ -124,6 +124,7 @@ internal open class EventPoolManagerService
                             entityName = entityName,
                             context = context,
                             view = view,
+                            targetIdOverride = props.targetIdOverride,
                         ),
                     )
                 if (payload.isNotEmpty()) {

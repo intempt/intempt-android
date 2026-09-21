@@ -49,3 +49,15 @@
 # The rule belongs here rather than in the consumer's own file because this SDK
 # is what drags the dependency in.
 -dontwarn org.slf4j.impl.**
+
+# Jetpack Compose is a compileOnly dependency of this SDK: the touch autocapture resolves a
+# Compose `testTag` when the host renders Compose, and falls back silently when it does not
+# (see autocapture/composeHitTest/ComposeTargetResolver.kt). A host WITHOUT Compose would
+# otherwise fail its own R8 run on the SDK's dangling references:
+#
+#   ERROR: Missing class androidx.compose.ui.platform.ViewRootForTest
+#          (referenced from: com.intempt.core.autocapture.composeHitTest.ComposeSemantics)
+#
+# The references are unreachable at runtime in such a host, so this is safe. A host WITH
+# Compose resolves them normally and this rule changes nothing for it.
+-dontwarn androidx.compose.ui.**

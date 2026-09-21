@@ -11,6 +11,8 @@ internal data class DispatchEventProps(
     val type: String,
     val context: Context,
     val view: View? = null,
+    /** A `targetId` the View tree cannot supply — the Compose `testTag` under a touch. */
+    val targetIdOverride: String? = null,
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
@@ -24,6 +26,7 @@ internal data class DispatchEventProps(
         if (type != other.type) return false
         if (context != other.context) return false
         if (view != other.view) return false
+        if (targetIdOverride != other.targetIdOverride) return false
 
         return true
     }
@@ -35,11 +38,18 @@ internal data class DispatchEventProps(
         result = 31 * result + type.hashCode()
         result = 31 * result + context.hashCode()
         result = 31 * result + (view?.hashCode() ?: 0)
+        result = 31 * result + (targetIdOverride?.hashCode() ?: 0)
         return result
     }
 }
 
-internal data class HandleEventTypeProps(val type: String, val entityName: String, val context: Context, val view: View? = null)
+internal data class HandleEventTypeProps(
+    val type: String,
+    val entityName: String,
+    val context: Context,
+    val view: View? = null,
+    val targetIdOverride: String? = null,
+)
 
 internal data class ScreenViewProps(val activity: Activity, val entityName: String)
 
