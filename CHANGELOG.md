@@ -9,6 +9,22 @@ Only `v2.0.1` is tagged in this repository's history, so entries below it do not
 invent them, the `2.0.1` section records what the tag contains and nothing more. Everything since is
 under Unreleased.
 
+## [Unreleased]
+
+### Changed
+
+- **BREAKING: autocapture no longer starts at `initialize()` unless the app asks.**
+  `isAutoCaptureEnabled` now defaults to `false`. Before this, leaving the key out of
+  `intempt-config.json`, or passing credentials at runtime with no config file, both read as
+  `true`, so every app was instrumented whether it asked or not. That matched neither
+  `intempt-swift`, which installs nothing until `start()`, nor this SDK's own KDoc, which already
+  said nothing is installed until `start()`. **To keep the old behaviour, set
+  `"isAutoCaptureEnabled": true` in `intempt-config.json`, or call `Intempt.autocapture.start()`
+  after `initialize()`.** Apps that already set the key to `true` see no change. Starting
+  autocapture from code still captures screen views and control interactions with the same
+  defaults as before; only the automatic start moved. Ruled in brain (`SDK-PRIV-014`, Sid
+  2026-09-23). Ship as a major version.
+
 ## [4.1.0] - 2026-09-20
 
 ### Added

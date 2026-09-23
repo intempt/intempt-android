@@ -79,7 +79,7 @@ Install | `App install/upgrade` | first-install vs version-bump; carries FCM tok
 
 **Change-tracked widgets:** `CompoundButton`, `EditText`, `Spinner`, `SeekBar`, `RatingBar`, `DatePicker`, `TimePicker`, `ListView`, `RadioButton` — with `RecyclerView` / `ViewGroup` traversal.
 
-Toggles: `isAutoCaptureEnabled`, `isTouchEnabled`, `isTextCaptureEnabled`.
+Toggles: `isAutoCaptureEnabled` (off unless set), `isTouchEnabled`, `isTextCaptureEnabled`.
 
 **Broader than Mixpanel**, whose automatic events are session / first-open / app-updated / crash only — no UI-element capture.
 
