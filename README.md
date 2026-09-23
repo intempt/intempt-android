@@ -122,8 +122,8 @@ Every `options` key is optional; the values above are the defaults.
 |---|---|---|---|
 | `isLoggingEnabled` | boolean | `false` | Debug logging to logcat, tag `Intempt` |
 | `isTouchEnabled` | boolean | `true` | Touch event auto-capture |
-| `isTextCaptureEnabled` | boolean | `true` | Capture text/values on interaction |
-| `isAutoCaptureEnabled` | boolean | `true` | Screen and interaction auto-capture |
+| `isTextCaptureEnabled` | boolean | `true` | Capture labels and control state on interaction. What a user types into an `EditText` is never captured, whatever this is set to |
+| `isAutoCaptureEnabled` | boolean | `false` | Start screen and interaction auto-capture at `initialize()`. Omitted means off; call `Intempt.autocapture.start()` to turn it on later |
 | `isQueueEnabled` | boolean | `true` | Batch events rather than sending one at a time |
 | `useIpAddressForGeolocation` | boolean | `true` | Whether Intempt may derive geo from the request IP — see [Geolocation](#geolocation) |
 | `itemsInQueue` | int | `5` | Queued events that trigger a flush |

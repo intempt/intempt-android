@@ -185,7 +185,7 @@ class ConfigManagerService
 
             autocaptureOptions =
                 AutocaptureOptions(
-                    screenViews = options?.isAutoCaptureEnabled ?: DefaultConfigs.IsAutoCaptureEnabled.value,
+                    screenViews = options?.isAutoCaptureEnabled ?: AutocaptureOptions().screenViews,
                     controlInteractions = options?.isTouchEnabled ?: DefaultConfigs.IsTouchEnabled.value,
                     captureText = options?.isTextCaptureEnabled ?: DefaultConfigs.IsTextCaptureEnabled.value,
                 )
@@ -285,7 +285,12 @@ class ConfigManagerService
                         isTouchEnabled = optionsObject.optBoolean(ConfigKeys.IsTouchEnabledOpt.key, true),
                         isTextCaptureEnabled = optionsObject.optBoolean(ConfigKeys.IsTextCaptureEnabled.key, true),
                         isQueueEnabled = optionsObject.optBoolean(ConfigKeys.IsQueueEnabled.key, true),
-                        isAutoCaptureEnabled = optionsObject.optBoolean(ConfigKeys.IsAutoCaptureEnabled.key, true),
+                        isAutoCaptureEnabled =
+                            if (optionsObject.has(ConfigKeys.IsAutoCaptureEnabled.key)) {
+                                optionsObject.optBoolean(ConfigKeys.IsAutoCaptureEnabled.key)
+                            } else {
+                                null
+                            },
                         useIpAddressForGeolocation =
                             optionsObject.optBoolean(
                                 ConfigKeys.UseIpAddressForGeolocation.key,
