@@ -24,6 +24,15 @@ under Unreleased.
   autocapture from code still captures screen views and control interactions with the same
   defaults as before; only the automatic start moved. Ruled in brain (`SDK-PRIV-014`, Sid
   2026-09-23). Ship as a major version.
+- **BREAKING: what a user types into an `EditText` is never captured.** Change and touch events
+  on an `EditText`, or any subclass, now carry `*****` in `targetText` and `targetValue`, whatever
+  `captureText` or `isTextCaptureEnabled` is set to. Before this only password input types and
+  views tagged with `doNotCaptureText()` were masked, so a plain email or name field reached the
+  queue verbatim. The event still fires, so "the field changed" is still recorded. Labels, checkbox
+  and switch state, spinner selection, seek bar and rating values are not typed and are unchanged.
+  This matches Mixpanel, which captures no user-entered content on any platform, and
+  `intempt-swift`, which never read `UITextField` contents. To send a typed value on purpose, pass
+  it in a `track()` or `record()` call. Ruled in brain (`SDK-PRIV-015`, Sid 2026-09-23).
 
 ## [4.1.0] - 2026-09-20
 
