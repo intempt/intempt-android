@@ -364,7 +364,7 @@ class SdkOnDeviceTest {
      * the credential beside it.
      */
     @Test
-    fun aPasswordNeverReachesTheQueue() {
+    fun typedTextNeverReachesTheQueueWhetherOrNotTheFieldIsAPassword() {
         val secret = "hunter2SECRET-${System.nanoTime()}"
         val email = "androidtest-${System.nanoTime()}@intempt.com"
 
@@ -382,8 +382,9 @@ class SdkOnDeviceTest {
                 // throws "This method can not be called from the main application thread".
                 fields[0].setText(email)
             }
-            awaitEvent("a change event from the non-sensitive field") { row ->
-                payloadData(row)?.optString("targetValue") == email
+            awaitEvent("a change event from the non-sensitive field, masked") { row ->
+                val value = payloadData(row)?.optString("targetValue")
+                value == "[masked]" || value == "*****"
             }
 
             scenario.onActivity { activity ->
@@ -400,8 +401,8 @@ class SdkOnDeviceTest {
             "the password reached the durable queue in clear text. Queue: $serialized",
             serialized.contains(secret),
         )
-        assertTrue(
-            "the non-sensitive field should still be captured; masking must not over-reach",
+        assertFalse(
+            "typed text from a non-sensitive field reached the durable queue. Queue: $serialized",
             serialized.contains(email),
         )
     }

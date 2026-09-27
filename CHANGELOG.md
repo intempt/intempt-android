@@ -15,6 +15,31 @@ under Unreleased.
 
 - `jsonVariation(key, context, defaultValue)`: a typed read for a JSON object flag, completing the four value types alongside `boolVariation`, `stringVariation` and `numberVariation`. Returns the served object with every nested value unwrapped to a Kotlin type, or the caller's default when the served value is not an object.
 
+## [5.0.0] - 2026-09-24
+
+### Changed
+
+- **BREAKING: autocapture no longer starts at `initialize()` unless the app asks.**
+  `isAutoCaptureEnabled` now defaults to `false`. Before this, leaving the key out of
+  `intempt-config.json`, or passing credentials at runtime with no config file, both read as
+  `true`, so every app was instrumented whether it asked or not. That matched neither
+  `intempt-swift`, which installs nothing until `start()`, nor this SDK's own KDoc, which already
+  said nothing is installed until `start()`. **To keep the old behaviour, set
+  `"isAutoCaptureEnabled": true` in `intempt-config.json`, or call `Intempt.autocapture.start()`
+  after `initialize()`.** Apps that already set the key to `true` see no change. Starting
+  autocapture from code still captures screen views and control interactions with the same
+  defaults as before; only the automatic start moved. Ruled in brain (`SDK-PRIV-014`, Sid
+  2026-09-23). Ship as a major version.
+- **BREAKING: what a user types into an `EditText` is never captured.** Change and touch events
+  on an `EditText`, or any subclass, now carry `*****` in `targetText` and `targetValue`, whatever
+  `captureText` or `isTextCaptureEnabled` is set to. Before this only password input types and
+  views tagged with `doNotCaptureText()` were masked, so a plain email or name field reached the
+  queue verbatim. The event still fires, so "the field changed" is still recorded. Labels, checkbox
+  and switch state, spinner selection, seek bar and rating values are not typed and are unchanged.
+  This matches Mixpanel, which captures no user-entered content on any platform, and
+  `intempt-swift`, which never read `UITextField` contents. To send a typed value on purpose, pass
+  it in a `track()` or `record()` call. Ruled in brain (`SDK-PRIV-015`, Sid 2026-09-23).
+
 ## [4.1.0] - 2026-09-20
 
 ### Added

@@ -83,7 +83,7 @@ internal data class IntemptOptions(
     val isTextCaptureEnabled: Boolean,
     val isQueueEnabled: Boolean,
     val useIpAddressForGeolocation: Boolean,
-    val isAutoCaptureEnabled: Boolean,
+    val isAutoCaptureEnabled: Boolean?,
     val itemsInQueue: Int,
     val timeBuffer: Long,
     // Null means "use the production endpoint". Present so the SDK can be pointed at

@@ -114,7 +114,7 @@ internal sealed class DefaultConfigs<T>(val value: T) {
 
     data object IsTextCaptureEnabled : DefaultConfigs<Boolean>(true)
 
-    data object IsAutoCaptureEnabled : DefaultConfigs<Boolean>(true)
+    data object IsAutoCaptureEnabled : DefaultConfigs<Boolean>(false)
 
     data object ItemsInQueue : DefaultConfigs<Int>(5)
 

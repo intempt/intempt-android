@@ -464,7 +464,8 @@ internal open class IntemptEventManagerService
                 // remembered to tag it, and not merely when text capture is switched off.
                 // This is the site that builds the event payload, so without the check here a
                 // credential still reaches the wire even with ChangeTracker masking in place.
-                if (isTextCaptureDisabled || !config.isTextCaptureEnabled || isSensitiveInput(view)) {
+                val masked = isTextCaptureDisabled || !config.isTextCaptureEnabled || isSensitiveInput(view)
+                if (masked || view is EditText) {
                     disabledText
                 } else {
                     text ?: ""
@@ -486,7 +487,8 @@ internal open class IntemptEventManagerService
             // Caught on an API 24 emulator by typing into the sample app's password field
             // and reading the row back out of the on-device queue. No unit test saw it,
             // because none of them render a real EditText.
-            return if (isTextCaptureDisabled || !config.isTextCaptureEnabled || isSensitiveInput(view)) {
+            val masked = isTextCaptureDisabled || !config.isTextCaptureEnabled || isSensitiveInput(view)
+            return if (masked || view is EditText) {
                 disabledText
             } else {
                 utils.withTryCatch("Error getting value from view") {
