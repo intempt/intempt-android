@@ -45,6 +45,9 @@ public final class com/intempt/core/Intempt {
 	public static final fun instance (Ljava/lang/String;)Lcom/intempt/core/IntemptInstance;
 	public static final fun isInitialized ()Z
 	public static final fun isOptedIn ()Z
+	public static final fun jsonVariation (Ljava/lang/String;Lcom/intempt/core/types/FlagContext;Ljava/util/Map;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static final fun jsonVariation (Ljava/lang/String;Ljava/util/Map;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun jsonVariation$default (Ljava/lang/String;Lcom/intempt/core/types/FlagContext;Ljava/util/Map;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public static final fun logOut ()V
 	public static final fun mainInstance ()Lcom/intempt/core/IntemptInstance;
 	public static final fun numberVariation (Ljava/lang/String;DLkotlin/coroutines/Continuation;)Ljava/lang/Object;

@@ -210,4 +210,27 @@ class FlagsTest {
         assertEquals(FlagReason.OFF, flagReasonOf(obj("""{"name":"a","reason":{}}""")))
         assertEquals(FlagReason.TARGETED, flagReasonOf(obj("""{"name":"a","reason":"targeted"}""")))
     }
+
+    @Test
+    fun `a json object unwraps to a plain map and a scalar does not`() {
+        val obj = Json.parseToJsonElement("""{"a":1,"b":"x","c":true}""") as JsonObject
+        assertEquals(mapOf("a" to 1L, "b" to "x", "c" to true), unwrapJsonObject(obj))
+        val nested = Json.parseToJsonElement("""{"a":{"b":1},"c":[1,"x",{"d":true}]}""") as JsonObject
+        assertEquals(
+            mapOf("a" to mapOf("b" to 1L), "c" to listOf(1L, "x", mapOf("d" to true))),
+            unwrapJsonObject(nested),
+        )
+        assertNull(unwrapJsonObject(Json.parseToJsonElement("true")))
+        assertNull(unwrapJsonObject(Json.parseToJsonElement(""""cortex"""")))
+        assertNull(unwrapJsonObject(null))
+    }
+
+    @Test
+    fun `every scalar type unwraps to its own kotlin type`() {
+        assertEquals(true, unwrapFlagValue(Json.parseToJsonElement("true")))
+        assertEquals("cortex", unwrapFlagValue(Json.parseToJsonElement(""""cortex"""")))
+        assertEquals(42L, unwrapFlagValue(Json.parseToJsonElement("42")))
+        assertEquals(42.5, unwrapFlagValue(Json.parseToJsonElement("42.5")))
+        assertNull(unwrapFlagValue(Json.parseToJsonElement("null")))
+    }
 }

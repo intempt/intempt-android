@@ -21,6 +21,7 @@ import com.intempt.core.types.IntemptError
 import com.intempt.core.types.IntemptRuntimeOptions
 import com.intempt.core.types.IntemptValue
 import com.intempt.core.types.Product
+import com.intempt.core.types.unwrapJsonObject
 import kotlinx.serialization.json.JsonObject
 import java.util.concurrent.ConcurrentHashMap
 
@@ -704,6 +705,14 @@ object Intempt {
         context: FlagContext = FlagContext(),
         defaultValue: Double,
     ): Double = (variation(key, context, defaultValue) as? Number)?.toDouble() ?: defaultValue
+
+    @JvmStatic
+    @JvmOverloads
+    suspend fun jsonVariation(
+        key: String,
+        context: FlagContext = FlagContext(),
+        defaultValue: Map<String, Any?>,
+    ): Map<String, Any?> = unwrapJsonObject(variation(key, context, defaultValue)) ?: defaultValue
 
     /**
      * Returns immediately.

@@ -1,5 +1,6 @@
 package com.intempt.core.types
 
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
@@ -196,4 +197,15 @@ internal fun unwrapFlagValue(element: JsonElement): Any? =
                 else -> element.content
             }
         else -> element
+    }
+
+/** A served JSON object as a plain map, or null when the value is not an object. */
+internal fun unwrapJsonObject(value: Any?): Map<String, Any?>? =
+    (value as? JsonObject)?.mapValues { (_, element) -> unwrapJsonElement(element) }
+
+private fun unwrapJsonElement(element: JsonElement): Any? =
+    when (element) {
+        is JsonObject -> element.mapValues { (_, child) -> unwrapJsonElement(child) }
+        is JsonArray -> element.map { child -> unwrapJsonElement(child) }
+        else -> unwrapFlagValue(element)
     }
