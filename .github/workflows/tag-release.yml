@@ -12,7 +12,7 @@ on:
 
 jobs:
   tag:
-    runs-on: intempt-ubuntu-github-runner
+    runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
