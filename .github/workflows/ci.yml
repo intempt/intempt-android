@@ -31,6 +31,11 @@ env:
   INTEMPT_E2E_FEED_ID: ${{ secrets.INTEMPT_E2E_FEED_ID }}
   INTEMPT_E2E_FEED_FIELDS: ${{ secrets.INTEMPT_E2E_FEED_FIELDS }}
 
+# Runners. Small jobs run on intempt-ubuntu-github-runner (1 OCPU / 8GB pods). Compile, lint and
+# the emulator jobs run on intempt-android-github-runner: one 4-OCPU/16GB node per job with
+# /dev/kvm, the ubuntu-latest size this workflow was written for. On the small pods Gradle,
+# the Kotlin daemon and R8 together got the runner OOM-killed mid-step, and no emulator can run.
+# Both are defined in intempt/infra oci/apps/github-runner.
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
@@ -47,7 +52,7 @@ jobs:
   # about locale formatting. The rule was always right; the citation was invented.
   bucketing:
     name: Server-only bucketing
-    runs-on: ubuntu-latest
+    runs-on: intempt-ubuntu-github-runner
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -71,7 +76,7 @@ jobs:
   # key is live, and block the push before it ever lands.
   secret-scan:
     name: Secret scan
-    runs-on: ubuntu-latest
+    runs-on: intempt-ubuntu-github-runner
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
         with:
@@ -91,9 +96,12 @@ jobs:
         run: |
           set -euo pipefail
           VERSION=8.30.1
+          # Into the job's temp dir: /usr/local/bin is root-owned on the self-hosted runner image.
+          mkdir -p "$RUNNER_TEMP/bin"
           curl -sSL "https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/gitleaks_${VERSION}_linux_x64.tar.gz" \
-            | tar -xz -C /usr/local/bin gitleaks
-          gitleaks version
+            | tar -xz -C "$RUNNER_TEMP/bin" gitleaks
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/bin/gitleaks" version
 
       - name: Scan for credentials
         run: gitleaks detect --source . --redact --verbose --exit-code 1
@@ -122,7 +130,7 @@ jobs:
 
   compile:
     name: Compile
-    runs-on: ubuntu-latest
+    runs-on: intempt-android-github-runner
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
 
@@ -177,7 +185,7 @@ jobs:
 
   unit-tests:
     name: Unit tests
-    runs-on: ubuntu-latest
+    runs-on: intempt-ubuntu-github-runner
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
       - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3  # v4
@@ -250,7 +258,7 @@ jobs:
 
   method-count:
     name: SDK method count regression
-    runs-on: ubuntu-latest
+    runs-on: intempt-ubuntu-github-runner
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
       - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3  # v4
@@ -329,7 +337,7 @@ jobs:
 
   lint:
     name: Android lint
-    runs-on: ubuntu-latest
+    runs-on: intempt-android-github-runner
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
       - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3  # v4
@@ -464,7 +472,7 @@ jobs:
 
   instrumented-tests:
     name: Instrumented tests (API ${{ matrix.api-level }})
-    runs-on: ubuntu-latest
+    runs-on: intempt-android-github-runner
     strategy:
       fail-fast: false
       matrix:
@@ -488,12 +496,23 @@ jobs:
           packages: platform-tools
       - uses: gradle/actions/setup-gradle@48b5f213c81028ace310571dc5ec0fbbca0b2947  # v4
 
-      - name: Enable KVM
+      # The android runner pod is privileged on a nested-virt node, so /dev/kvm is the node's own
+      # device; there is no udev in the container to configure. Fail here, not after a 10-minute
+      # software-emulated boot timeout, if a pod ever lands without it.
+      - name: Check KVM
         run: |
-          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
-            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
-          sudo udevadm control --reload-rules
-          sudo udevadm trigger --name-match=kvm
+          set -euo pipefail
+          sudo chmod 666 /dev/kvm
+          [ -r /dev/kvm ] && [ -w /dev/kvm ] || { echo "::error::/dev/kvm is not usable on this runner"; exit 1; }
+
+      # Shared libraries the emulator links even with -no-window. ubuntu-latest ships them; the
+      # self-hosted runner image does not.
+      - name: Emulator runtime libraries
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends \
+            libpulse0 libnss3 libxcomposite1 libxcursor1 libxdamage1 libxi6 libxtst6 libxrandr2 \
+            libxkbfile1 libxkbcommon-x11-0 libgl1 libegl1 libasound2t64 libdbus-1-3 >/dev/null
 
       - name: Run instrumented tests
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d  # v2
@@ -529,7 +548,7 @@ jobs:
   # baselineprofile/cold-start-baseline.json for the first recorded number.
   macrobenchmark-startup:
     name: Cold-start macrobenchmark (non-gating)
-    runs-on: ubuntu-latest
+    runs-on: intempt-android-github-runner
     continue-on-error: true
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
@@ -546,12 +565,23 @@ jobs:
           packages: platform-tools
       - uses: gradle/actions/setup-gradle@48b5f213c81028ace310571dc5ec0fbbca0b2947  # v4
 
-      - name: Enable KVM
+      # The android runner pod is privileged on a nested-virt node, so /dev/kvm is the node's own
+      # device; there is no udev in the container to configure. Fail here, not after a 10-minute
+      # software-emulated boot timeout, if a pod ever lands without it.
+      - name: Check KVM
         run: |
-          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
-            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
-          sudo udevadm control --reload-rules
-          sudo udevadm trigger --name-match=kvm
+          set -euo pipefail
+          sudo chmod 666 /dev/kvm
+          [ -r /dev/kvm ] && [ -w /dev/kvm ] || { echo "::error::/dev/kvm is not usable on this runner"; exit 1; }
+
+      # Shared libraries the emulator links even with -no-window. ubuntu-latest ships them; the
+      # self-hosted runner image does not.
+      - name: Emulator runtime libraries
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends \
+            libpulse0 libnss3 libxcomposite1 libxcursor1 libxdamage1 libxi6 libxtst6 libxrandr2 \
+            libxkbfile1 libxkbcommon-x11-0 libgl1 libegl1 libasound2t64 libdbus-1-3 >/dev/null
 
       - name: Run cold-start macrobenchmark
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d  # v2
@@ -586,7 +616,7 @@ jobs:
   # The result is still reported; it just does not block a merge.
   prod-e2e:
     name: Prod delivery (non-gating)
-    runs-on: ubuntu-latest
+    runs-on: intempt-ubuntu-github-runner
     continue-on-error: true
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
