@@ -16,7 +16,7 @@ on:
 
 jobs:
   publish:
-    runs-on: intempt-ubuntu-github-runner
+    runs-on: ubuntu-latest
     # contents: write is needed for the GitHub Release created below (softprops/action-gh-release);
     # everything else in this job only reads the repo.
     permissions:
