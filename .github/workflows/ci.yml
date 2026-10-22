@@ -527,7 +527,9 @@ jobs:
           # one that catches what nothing else can — the API 24 startup crash, a password
           # reaching the queue, identify()/group() dropping the obvious call were all found
           # by hand with adb before this existed, and manual evidence gates nothing.
-          script: ./gradlew :app:connectedDebugAndroidTest :sample:connectedDebugAndroidTest --stacktrace
+          # On failure the device log is kept with the report: the test report alone says what
+          # failed on-device, never why (e.g. a delivery that never left the queue).
+          script: ./gradlew :app:connectedDebugAndroidTest :sample:connectedDebugAndroidTest --stacktrace || { mkdir -p sample/build/reports/androidTests && adb logcat -d -v threadtime > sample/build/reports/androidTests/logcat.txt; exit 1; }
 
       - name: Upload report
         if: always()
