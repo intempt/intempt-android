@@ -5,6 +5,7 @@ package com.intempt.core.services
 import com.intempt.core.internal.InternalIntemptApi
 import com.intempt.core.internal.traced
 import io.ktor.client.HttpClient
+import io.ktor.client.engine.android.Android
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.get
 import io.ktor.client.request.header
@@ -50,7 +51,12 @@ class HttpManagerService
             // Intempt.provideHttp on its own would look identical to R8 having stripped the client
             // entirely, which would be a bug reported as a win.
             traced("Intempt.httpClientInit") {
-                HttpClient {
+                HttpClient(Android) {
+                    engine {
+                        IsrgRootTrust.sslSocketFactory()?.let { factory ->
+                            sslManager = { connection -> connection.sslSocketFactory = factory }
+                        }
+                    }
                     install(ContentNegotiation) {
                         json(
                             Json {

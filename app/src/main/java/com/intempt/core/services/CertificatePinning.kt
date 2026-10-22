@@ -30,7 +30,7 @@ import javax.net.ssl.X509TrustManager
  */
 internal class CertificatePinningTrustManager(
     private val pins: Set<String>,
-    private val delegate: X509TrustManager = defaultTrustManager(),
+    private val delegate: X509TrustManager = IsrgRootTrust.trustManager(),
 ) : X509TrustManager {
     override fun checkClientTrusted(
         chain: Array<out X509Certificate>,
@@ -78,12 +78,13 @@ internal class CertificatePinningTrustManager(
 /** Builds the (optional) pinned [SSLSocketFactory] wired into `QueueConfig` for delivery requests. */
 internal object CertificatePinning {
     /**
-     * Returns `null` -- meaning "no pinning, platform-default TLS" -- when [pins] is empty.
+     * With no [pins], returns [IsrgRootTrust.sslSocketFactory]: `null` (platform-default TLS) on
+     * API 25+, and on older devices a factory that also trusts ISRG Root X1.
      * Otherwise returns an [SSLSocketFactory] that additionally requires the presented chain to
      * match one of [pins].
      */
     fun sslSocketFactoryFor(pins: List<String>): SSLSocketFactory? {
-        if (pins.isEmpty()) return null
+        if (pins.isEmpty()) return IsrgRootTrust.sslSocketFactory()
         val trustManager = CertificatePinningTrustManager(pins.toSet())
         val sslContext = SSLContext.getInstance("TLS")
         sslContext.init(null, arrayOf<TrustManager>(trustManager), null)
