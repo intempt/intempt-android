@@ -7,7 +7,8 @@
  * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Modifications (c) 2026 Intempt Technologies, licensed under the Apache License 2.0:
- *   - package moved to com.intempt.core.queue; otherwise unmodified
+ *   - package moved to com.intempt.core.queue
+ *   - ClientErrorException carries the status and the server's Retry-After
  */
 package com.intempt.core.queue;
 
@@ -106,14 +107,36 @@ public interface RemoteService {
      */
     class ClientErrorException extends IOException {
         private final int responseCode;
+        private final int retryAfter;
         
         public ClientErrorException(int responseCode, String message) {
+            this(responseCode, message, null);
+        }
+
+        /**
+         * @param strRetryAfter the raw Retry-After header, or null. Only the delay-seconds form is
+         *     understood; an HTTP-date or garbage is treated as absent, as
+         *     {@link ServiceUnavailableException} does.
+         */
+        public ClientErrorException(int responseCode, String message, String strRetryAfter) {
             super("Client error " + responseCode + ": " + message);
             this.responseCode = responseCode;
+            int retry;
+            try {
+                retry = strRetryAfter == null ? 0 : Math.max(0, Integer.parseInt(strRetryAfter.trim()));
+            } catch (NumberFormatException e) {
+                retry = 0;
+            }
+            this.retryAfter = retry;
         }
         
         public int getResponseCode() {
             return responseCode;
+        }
+
+        /** The server's Retry-After in seconds (eg on a 429), or 0 when it sent none. */
+        public int getRetryAfter() {
+            return retryAfter;
         }
     }
     

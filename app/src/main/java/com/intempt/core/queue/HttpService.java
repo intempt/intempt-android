@@ -11,6 +11,7 @@
  *   - replaced form-urlencoded body encoding with Intempt's raw JSON contract
  *   - added Basic authorization header support
  *   - replaced the 4xx-discard error taxonomy so 429 is retried
+ *   - 4xx errors carry the server's Retry-After
  */
 package com.intempt.core.queue;
 
@@ -597,7 +598,8 @@ public class HttpService implements RemoteService {
                                             + responseMessage
                                             + (errorBody != null ? " - Body: " + errorBody : "")));
                     // For client errors (4xx), throw exception immediately - backup host won't help
-                    throw new ClientErrorException(responseCode, responseMessage);
+                    throw new ClientErrorException(
+                            responseCode, responseMessage, connection.getHeaderField("Retry-After"));
                 }
 
             } catch (final EOFException e) {

@@ -18,6 +18,7 @@ import org.junit.runner.RunWith;
 import org.robolectric.RobolectricTestRunner;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -91,12 +92,18 @@ public class DeliveryBehaviourTest {
         final List<byte[]> sentBodies = new CopyOnWriteArrayList<>();
         final AtomicInteger calls = new AtomicInteger();
 
-        private final int status;
+        private final int[] statuses;
         private final boolean throwIo;
 
         FakePoster(int status, boolean throwIo) {
-            this.status = status;
+            this.statuses = new int[] {status};
             this.throwIo = throwIo;
+        }
+
+        /** Answers the n-th request with {@code statuses[n]}; the last one repeats. */
+        FakePoster(int... statuses) {
+            this.statuses = statuses;
+            this.throwIo = false;
         }
 
         @Override
@@ -121,9 +128,10 @@ public class DeliveryBehaviourTest {
                 byte[] requestBodyBytes,
                 SSLSocketFactory socketFactory)
                 throws ServiceUnavailableException, IOException {
-            calls.incrementAndGet();
+            final int call = calls.getAndIncrement();
             sentHeaders.add(headers);
             sentBodies.add(requestBodyBytes);
+            final int status = statuses[Math.min(call, statuses.length - 1)];
 
             if (throwIo) {
                 throw new IOException("simulated network failure");
@@ -378,35 +386,91 @@ public class DeliveryBehaviourTest {
     }
 
     /**
-     * A rejected key cannot start working. Dropping loses that batch; keeping it wedges the
-     * queue head and loses everything behind it, forever.
+     * INT-5897. A rejected key is fixed on the platform side (rotation, re-enable, propagation);
+     * the events are valid and must still be queued when it is. Dropping them after one attempt
+     * lost every event sent during the outage.
      */
     @Test
-    public void aRejectedKeyDropsTheBatchRatherThanWedgingTheQueue() throws Exception {
+    public void aRejectedKeyKeepsTheBatch() throws Exception {
         deliver(401, false, 2);
-        assertEquals("401 can never succeed on retry, so it must be dropped", 0, rowCount());
+        assertEquals("401 is recoverable server-side, so the batch must be kept", 2, rowCount());
     }
 
-    /** Over the analytics cap. The server's own comment says do not retry. */
+    /** A forbidden key is the same class of failure as a rejected one. */
     @Test
-    public void theAnalyticsCapDropsTheBatch() throws Exception {
+    public void aForbiddenKeyKeepsTheBatch() throws Exception {
+        deliver(403, false, 2);
+        assertEquals("403 is recoverable server-side, so the batch must be kept", 2, rowCount());
+    }
+
+    /** Over the analytics cap: lifted by an upgrade or a new period, so keep. */
+    @Test
+    public void theAnalyticsCapKeepsTheBatch() throws Exception {
         deliver(402, false, 2);
-        assertEquals("402 analytics_limit_reached must be dropped", 0, rowCount());
+        assertEquals("402 analytics_limit_reached must be retried, not dropped", 2, rowCount());
+    }
+
+    /** A gateway route missing during a deploy recovers server-side, so keep. */
+    @Test
+    public void aMissingRouteKeepsTheBatch() throws Exception {
+        deliver(404, false, 2);
+        assertEquals("404 must be retried, not dropped", 2, rowCount());
     }
 
     /**
-     * The status that made this fail-safe change necessary: a typo in org, project or sourceId
-     * produces 404, and it used to be retried forever, silently discarding every event a
-     * customer would ever send.
+     * INT-5897, end to end: the server answers 401 once, recovers, and the next flush delivers the
+     * very events the 401 was answered for. Before the fix the first attempt deleted them, so the
+     * recovered server received nothing.
+     *
+     * <p>The oracle is the second request's body, not the queue depth: an empty queue is also what
+     * a drop looks like.
      */
     @Test
-    public void aWrongUrlDropsTheBatchRatherThanWedgingTheQueue() throws Exception {
-        deliver(404, false, 2);
-        assertEquals(
-                "404 means the URL is wrong; retrying cannot fix a config typo and blocks "
-                        + "every event behind it",
-                0,
-                rowCount());
+    public void eventsRejectedWith401AreDeliveredOnceTheServerRecovers() throws Exception {
+        FakePoster poster = new FakePoster(401, 200);
+        TestableDelivery delivery = deliveryWith(poster);
+        delivery.enqueueEvent(event("recover 0"));
+        delivery.enqueueEvent(event("recover 1"));
+        delivery.flush();
+
+        long deadline = System.currentTimeMillis() + 10_000;
+        while (System.currentTimeMillis() < deadline && poster.calls.get() < 1) {
+            Thread.sleep(25);
+        }
+        Thread.sleep(400);
+        assertEquals("the 401 must not have been followed by a second POST yet", 1, poster.calls.get());
+        assertEquals("the 401'd batch must still be queued", 2, rowCount());
+
+        // The server is back. A flush must now send the same events.
+        delivery.flush();
+        deadline = System.currentTimeMillis() + 10_000;
+        while (System.currentTimeMillis() < deadline && poster.calls.get() < 2) {
+            Thread.sleep(25);
+        }
+        Thread.sleep(400);
+
+        assertEquals("the recovered server must receive a second POST", 2, poster.calls.get());
+        JSONArray resent =
+                new JSONObject(new String(poster.sentBodies.get(1), StandardCharsets.UTF_8))
+                        .getJSONArray(TrackPayloadBuilder.TRACK_KEY);
+        assertEquals("both events rejected by the 401 must be delivered", 2, resent.length());
+        assertEquals("recover 0", resent.getJSONObject(0).getString("name"));
+        assertEquals("recover 1", resent.getJSONObject(1).getString("name"));
+        assertEquals("delivered events must leave the queue", 0, rowCount());
+    }
+
+    /** 400 is a malformed request: the same body will be refused forever, so drop it. */
+    @Test
+    public void aMalformedRequestDropsTheBatch() throws Exception {
+        deliver(400, false, 2);
+        assertEquals("400 can never succeed as sent, so it must be dropped", 0, rowCount());
+    }
+
+    /** 422 is the same: the server understood the body and will reject it every time. */
+    @Test
+    public void anUnprocessableBatchIsDropped() throws Exception {
+        deliver(422, false, 2);
+        assertEquals("422 can never succeed as sent, so it must be dropped", 0, rowCount());
     }
 
     /** An unrecognised client error must fail safe — drop one batch, keep delivering. */

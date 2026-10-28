@@ -117,10 +117,10 @@ unaffected and remain part of the SDK.
 |---|---|---|
 Queue durability | in-memory only | ✨ disk-backed (SQLiteOpenHelper), survives process death |
 Delete timing | cleared **before** POST | 🔧 only after confirmed 2xx |
-Retry | none | ✨ 429 + 5xx + timeout + offline; exponential backoff capped at 10 min |
+Retry | none | ✨ 401 / 402 / 403 / 404 + 408 + 429 + 5xx + offline; exponential backoff capped at 10 min |
 `Retry-After` honored | no | ✨ yes |
 413 Payload Too Large | n/a | ✨ adaptive batch halving; drop single oversized event |
-Non-retryable statuses | all failures dropped | ✨ 401 / 403 / 400 / 422 not retried, logged |
+Non-retryable statuses | all failures dropped | ✨ 400 / 413 / 422, 3xx and unlisted 4xx dropped, logged |
 Duplicate protection | none | ✨ dedup by `eventId`, marked **before** send |
 Concurrent flush | race | ✨ in-progress guard |
 Crash-stranded items | lost | ✨ orphan recovery via `flushAfter` |

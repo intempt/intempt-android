@@ -11,9 +11,11 @@ import org.junit.Test;
  *
  * <p>Inherited: {@code ClientErrorException extends IOException}, and
  * {@code DeliveryMessages.sendData} catches {@code IOException} with
- * {@code deleteEvents = false}, so every 4xx is requeued with backoff forever. For 429
- * that is correct. For 401, 403, 400 and 422 it means one permanently-failing batch sits
- * at the head of the queue and blocks all delivery for the process lifetime.
+ * {@code deleteEvents = false}, so every 4xx is requeued with backoff forever. For a request the
+ * server will never accept (400, 413, 422) that wedges the queue head, so those are dropped. For a
+ * failure the platform fixes on its side (401, 402, 403, 404, 408, 429, 5xx) the batch is kept:
+ * INT-5897 was these being dropped after one attempt, so events sent during an auth or routing
+ * outage were gone by the time the server recovered.
  */
 public class HttpStatusPolicyTest {
 
@@ -40,12 +42,37 @@ public class HttpStatusPolicyTest {
     }
 
     @Test
-    public void rejectedCredentialsAreDropped() {
-        // A key the gateway refuses will still be refused in ten minutes.
-        assertTrue(HttpStatusPolicy.shouldDrop(401));
-        assertTrue(HttpStatusPolicy.shouldDrop(403));
-        assertFalse(HttpStatusPolicy.isRetryable(401));
-        assertFalse(HttpStatusPolicy.isRetryable(403));
+    public void rejectedCredentialsAreRetriedNotDropped() {
+        // INT-5897. A 401/403 is a key that is rotated, re-enabled or still propagating. The
+        // events are valid, so they must still be queued when the key works again. Dropping here
+        // deleted every batch sent during the outage after a single attempt.
+        assertTrue(HttpStatusPolicy.isRetryable(401));
+        assertTrue(HttpStatusPolicy.isRetryable(403));
+        assertFalse(HttpStatusPolicy.shouldDrop(401));
+        assertFalse(HttpStatusPolicy.shouldDrop(403));
+    }
+
+    @Test
+    public void analyticsCapRejectionIsRetriedNotDropped() {
+        // push-source-service answers 402 analytics_limit_reached while a project is over its
+        // cap. The cap is lifted by an upgrade or a new period, and the events are still valid
+        // then, so the batch is kept and retried with backoff rather than discarded.
+        assertTrue(HttpStatusPolicy.isRetryable(402));
+        assertFalse(HttpStatusPolicy.shouldDrop(402));
+    }
+
+    @Test
+    public void aMissingRouteIsRetriedNotDropped() {
+        // A 404 from the gateway during a deploy, or before a project/source is provisioned,
+        // recovers server-side. Dropping it lost every event sent while the route was missing.
+        assertTrue(HttpStatusPolicy.isRetryable(404));
+        assertFalse(HttpStatusPolicy.shouldDrop(404));
+    }
+
+    @Test
+    public void requestTimeoutIsRetried() {
+        assertTrue(HttpStatusPolicy.isRetryable(408));
+        assertFalse(HttpStatusPolicy.shouldDrop(408));
     }
 
     @Test
@@ -58,17 +85,20 @@ public class HttpStatusPolicyTest {
     }
 
     @Test
-    public void analyticsCapRejectionIsDroppedNotRetried() {
-        // push-source-service throws 402 analytics_limit_reached from DataItemService and
-        // HttpDataAdapter when a project is over its analytics cap. That service's own
-        // comment states it must not be treated as a transient failure and retried.
-        //
-        // This was the gap: 402 is the only 4xx the platform uses for a business condition
-        // rather than a client mistake, so it was absent from the drop list and fell into
-        // the retry branch. A capped customer had every batch retried every ten minutes and
-        // never deleted, which parks it at the queue head and stops all delivery behind it.
-        assertTrue(HttpStatusPolicy.shouldDrop(402));
-        assertFalse(HttpStatusPolicy.isRetryable(402));
+    public void payloadTooLargeIsDropped() {
+        // The queue does not split batches, so the same batch is the same size on every retry.
+        assertTrue(HttpStatusPolicy.shouldDrop(413));
+        assertFalse(HttpStatusPolicy.isRetryable(413));
+    }
+
+    @Test
+    public void unrecognisedClientErrorsAreDropped() {
+        // The fail-safe default stays: a 4xx nobody listed describes the request, and keeping it
+        // would park it at the queue head.
+        for (int status : new int[] {405, 409, 410, 415, 418, 451}) {
+            assertTrue("status " + status + " must be dropped", HttpStatusPolicy.shouldDrop(status));
+            assertFalse("status " + status + " must not be retried", HttpStatusPolicy.isRetryable(status));
+        }
     }
 
     @Test
@@ -94,7 +124,7 @@ public class HttpStatusPolicyTest {
      */
     @Test
     public void everyFailureIsRoutedToExactlyOneOfDropOrRetry() {
-        for (int status : new int[] {400, 401, 403, 404, 408, 409, 413, 422, 429, 500, 502, 503}) {
+        for (int status : new int[] {400, 401, 402, 403, 404, 408, 409, 413, 422, 429, 500, 502, 503}) {
             boolean drop = HttpStatusPolicy.shouldDrop(status);
             boolean retry = HttpStatusPolicy.isRetryable(status);
 
