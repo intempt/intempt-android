@@ -22,6 +22,12 @@ under Unreleased.
   unlisted 4xx are still dropped. A 429's `Retry-After` is now honoured as the backoff floor; only a
   5xx's was before.
 
+- **The FCM token is registered again after `logOut()` and `reset()` (INT-5964).** Both calls wipe
+  the stored "already registered" token along with the rest of the identity, but the token was only
+  announced again on the next cold start or FCM rotation. Until then the freshly minted profile,
+  and any user identified onto it, had no `fcm_token_<sourceId>` and could not receive push on that
+  device. The token is now re-registered right after the rotation, carrying the new `profileId`.
+
 ## [5.0.0] - 2026-09-24
 
 ### Changed

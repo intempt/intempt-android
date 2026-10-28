@@ -18,6 +18,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
+import org.mockito.Mockito.inOrder
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.verify
 import org.mockito.Mockito.`when`
@@ -125,6 +126,35 @@ class IntemptInstanceDelegationTest {
         verify(f.capture).logOut()
         verify(f.capture).reset()
         verify(f.capture).flush(null)
+    }
+
+    /**
+     * INT-5964. logOut() and reset() wipe the stored "already registered" FCM token along with the
+     * rest of AppPrefs, but nothing re-announced the token afterwards: it only went out again on
+     * the next cold start or the next FCM rotation. Until then the fresh profile (and the user
+     * identified onto it) had no `fcm_token_<sourceId>`, so push to that user went nowhere. The
+     * re-registration must follow the rotation, so the event is stamped with the NEW profileId.
+     */
+    @Test
+    fun `logOut re-registers the push token for the rotated profile`() {
+        val f = Fixture()
+
+        f.instance().logOut()
+
+        val order = inOrder(f.capture, f.autoCapture)
+        order.verify(f.capture).logOut()
+        order.verify(f.autoCapture).registerPushToken()
+    }
+
+    @Test
+    fun `reset re-registers the push token for the rotated profile`() {
+        val f = Fixture()
+
+        f.instance().reset()
+
+        val order = inOrder(f.capture, f.autoCapture)
+        order.verify(f.capture).reset()
+        order.verify(f.autoCapture).registerPushToken()
     }
 
     @Test
