@@ -9,6 +9,19 @@ Only `v2.0.1` is tagged in this repository's history, so entries below it do not
 invent them, the `2.0.1` section records what the tag contains and nothing more. Everything since is
 under Unreleased.
 
+## [Unreleased]
+
+### Fixed
+
+- **Events rejected with 401, 402, 403 or 404 are kept and retried instead of deleted (INT-5897).**
+  `HttpStatusPolicy` dropped the batch after a single attempt, so every event sent while the
+  gateway rejected the key, the project was over its analytics cap, or a route was missing was gone
+  by the time the server recovered, and later flushes had nothing to send. These statuses now join
+  408, 429, 5xx and network failures on the retry path (exponential backoff, 1 to 10 minutes),
+  bounded by the existing age expiration and database size limit. 400, 413, 422, redirects and
+  unlisted 4xx are still dropped. A 429's `Retry-After` is now honoured as the backoff floor; only a
+  5xx's was before.
+
 ## [5.0.0] - 2026-09-24
 
 ### Changed

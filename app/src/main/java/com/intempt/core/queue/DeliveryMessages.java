@@ -11,7 +11,7 @@
  *   - removed people, group, anonymous-profile and first-launch message types
  *   - removed Mixpanel default event properties and the session-replay event bridge
  *   - replaced form-urlencoded transport encoding with Intempt's JSON contract
- *   - replaced the HTTP error taxonomy so 429 is retried rather than discarded
+ *   - replaced the HTTP error taxonomy so 401/402/403/404/408/429/5xx are retried rather than discarded
  */
 package com.intempt.core.queue;
 
@@ -677,8 +677,8 @@ public class DeliveryMessages {
                             // Loud, because the alternative is a silent total loss.
                             QueueLog.e(
                                     LOGTAG,
-                                    "No Authorization header configured; every batch will 401 and be"
-                                            + " dropped. Check INTEMPT_API_KEY in intempt-config.json.");
+                                    "No Authorization header configured; every batch will 401 and nothing"
+                                            + " will be delivered. Check INTEMPT_API_KEY in intempt-config.json.");
                         }
                         headers.put("Content-Type", "application/json");
 
@@ -733,10 +733,11 @@ public class DeliveryMessages {
                         // Must precede the IOException catch below: ClientErrorException
                         // extends IOException, so without this branch every 4xx falls
                         // through to deleteEvents = false and is retried forever. A
-                        // rejected key or malformed body never becomes valid, and because
-                        // the batch is never deleted it blocks the queue head and stops
-                        // all delivery. 429 is deliberately excluded — the gateway uses it
-                        // for backpressure, so retrying is correct there.
+                        // malformed body (400, 413, 422) never becomes valid, and because
+                        // the batch is never deleted it would block the queue head. A
+                        // rejected key, plan limit, missing route or backpressure (401,
+                        // 402, 403, 404, 429) is fixed server-side, so those batches are
+                        // kept and retried with backoff — see HttpStatusPolicy.
                         final int status = e.getResponseCode();
                         if (HttpStatusPolicy.shouldDrop(status)) {
                             QueueLog.e(
@@ -748,6 +749,9 @@ public class DeliveryMessages {
                         } else {
                             logAboutMessage("Retryable client error from " + url + ".", e);
                             deleteEvents = false;
+                            // Same floor as the ServiceUnavailableException branch: a 429's
+                            // Retry-After must not be undercut by the exponential schedule.
+                            mTrackEngageRetryAfter = e.getRetryAfter() * 1000L;
                         }
                     } catch (final IOException e) {
                         logAboutMessage("Cannot post message to " + url + ".", e);

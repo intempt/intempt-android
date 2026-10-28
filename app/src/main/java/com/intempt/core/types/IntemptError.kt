@@ -22,9 +22,9 @@ package com.intempt.core.types
  * ## Terminal versus retryable is a real distinction, not a severity label
  *
  * [Terminal] means the request will never succeed on retry; [Retryable] means it should be retried
- * with backoff. Queued events are **kept** on a terminal 401, because the data is valid and the
- * integration is what is broken — deleting them is total silent data loss, and it has already
- * happened once in this transport. `HttpStatusPolicy` is the code that decides; this is how a host
+ * with backoff. Queued events are **kept** on a 401 (reported as [Retryable]), because the data is
+ * valid and the integration is what is broken — deleting them is total silent data loss, and it has
+ * already happened twice in this transport. `HttpStatusPolicy` decides; this is how a host
  * app hears about the decision.
  */
 sealed class IntemptError {

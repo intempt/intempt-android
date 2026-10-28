@@ -227,13 +227,45 @@ public class HttpServiceTest {
             new HttpService().performRequest(url(), null, null, jsonHeaders("Basic bad"), body("[]"), null);
             fail("a 401 must not be reported as a delivered batch");
         } catch (ServiceUnavailableException e) {
-            fail("a 401 is permanent and must not be classified as service-unavailable");
+            fail("a 401 is a client error and must not be classified as service-unavailable");
         } catch (RemoteService.ClientErrorException e) {
             assertEquals(
                     "delivery keys off the status to decide drop-versus-retry", 401, e.getResponseCode());
         } catch (IOException e) {
             fail("a 401 must be distinguishable from a transport failure, got " + e);
         }
+    }
+
+    /**
+     * A 429's Retry-After must reach delivery, which uses it as the floor of the next backoff.
+     * Without it the queue retries on its own schedule, which is how an SDK gets rate-limited.
+     */
+    @Test
+    public void a429CarriesItsRetryAfter() {
+        server.respondWithRetryAfter(429, "slow down", "30");
+
+        try {
+            new HttpService().performRequest(url(), null, null, jsonHeaders("Basic x"), body("[]"), null);
+            fail("a 429 must not be reported as a delivered batch");
+        } catch (RemoteService.ClientErrorException e) {
+            assertEquals(429, e.getResponseCode());
+            assertEquals("Retry-After seconds must be carried to delivery", 30, e.getRetryAfter());
+        } catch (Exception e) {
+            fail("expected ClientErrorException, got " + e);
+        }
+    }
+
+    /** No Retry-After, or one that is not delay-seconds, reads as 0 rather than throwing. */
+    @Test
+    public void aClientErrorWithoutAUsableRetryAfterReportsZero() {
+        assertEquals(0, new RemoteService.ClientErrorException(429, "x").getRetryAfter());
+        assertEquals(0, new RemoteService.ClientErrorException(429, "x", null).getRetryAfter());
+        assertEquals(
+                0,
+                new RemoteService.ClientErrorException(429, "x", "Wed, 21 Oct 2026 07:28:00 GMT")
+                        .getRetryAfter());
+        assertEquals(0, new RemoteService.ClientErrorException(429, "x", "-5").getRetryAfter());
+        assertEquals(7, new RemoteService.ClientErrorException(429, "x", " 7 ").getRetryAfter());
     }
 
     /** A client error will never succeed on retry, so burning all three attempts on it is waste. */
