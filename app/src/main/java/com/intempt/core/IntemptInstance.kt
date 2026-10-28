@@ -104,10 +104,27 @@ class IntemptInstance internal constructor(
     fun getSessionId(): String = core.capture.getSessionId()
 
     /** Rotates the anonymous identity, **keeping** whatever is queued. */
-    fun logOut() = core.capture.logOut()
+    fun logOut() {
+        core.capture.logOut()
+        reRegisterPushToken()
+    }
 
     /** Rotates the anonymous identity **and discards** queued events. */
-    fun reset() = core.capture.reset()
+    fun reset() {
+        core.capture.reset()
+        reRegisterPushToken()
+    }
+
+    /**
+     * Announces the device's FCM token for the profile the rotation just minted (INT-5964).
+     *
+     * The rotation wipes AppPrefs, and with it the "already registered" token, but nothing sent the
+     * token again: it waited for the next cold start or the next FCM rotation. Until then the new
+     * profile, and whoever is identified onto it, had no `fcm_token_<sourceId>`, so push to that
+     * user went nowhere. Called after the rotation so the event carries the new profileId; a no-op
+     * when `:push` is absent or Firebase has no token.
+     */
+    private fun reRegisterPushToken() = core.autoCapture.registerPushToken()
 
     // ----------------------------------------------------------------------- opt in / out
 

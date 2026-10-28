@@ -9,6 +9,16 @@ Only `v2.0.1` is tagged in this repository's history, so entries below it do not
 invent them, the `2.0.1` section records what the tag contains and nothing more. Everything since is
 under Unreleased.
 
+## [Unreleased]
+
+### Fixed
+
+- **The FCM token is registered again after `logOut()` and `reset()` (INT-5964).** Both calls wipe
+  the stored "already registered" token along with the rest of the identity, but the token was only
+  announced again on the next cold start or FCM rotation. Until then the freshly minted profile,
+  and any user identified onto it, had no `fcm_token_<sourceId>` and could not receive push on that
+  device. The token is now re-registered right after the rotation, carrying the new `profileId`.
+
 ## [5.0.0] - 2026-09-24
 
 ### Changed
