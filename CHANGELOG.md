@@ -35,6 +35,11 @@ under Unreleased.
   install/upgrade event for the old profile with an empty token, which the platform stores as a
   clear. Nothing is sent when no token was registered or when the user is opted out.
 
+- **A logout no longer causes a false "App Install" on the next launch (INT-5964).** The logout wipe
+  cleared the stored app version code along with the user's data, so with `versionChanges` on the
+  launch after any `logOut()` or `reset()` reported an install that never happened. The version code
+  describes the install, not the user, and now survives the wipe.
+
 ## [5.0.0] - 2026-09-24
 
 ### Changed

@@ -21,7 +21,9 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.kotlin.any
 import org.mockito.kotlin.anyOrNull
+import org.mockito.kotlin.argThat
 import org.mockito.kotlin.doNothing
+import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.spy
 import org.mockito.kotlin.times
@@ -50,6 +52,7 @@ class PushTokenAfterLogoutTest {
 
     private companion object {
         const val TOKEN = "fcm-token-aaa"
+        const val CURRENT_VERSION = 7L
     }
 
     @Before
@@ -97,5 +100,22 @@ class PushTokenAfterLogoutTest {
 
             verify(srv, times(2)).logAndDispatch(anyOrNull())
             assertEquals(TOKEN, srv.getStoredPushToken())
+        }
+
+    /**
+     * The wipe used to take the stored app version code with it, so with `versionChanges` on the
+     * launch after any logout reported a fresh "App Install" on a device that had it all along.
+     */
+    @Test
+    fun `the launch after a logout reports no install`() =
+        runTest {
+            doReturn(CURRENT_VERSION).whenever(srv).getConsumerAppVersionCode()
+            component.start(versionChanges = true, appStateChanges = false)
+            verify(srv).logAndDispatch(argThat { contains("Install detected") })
+
+            storage.clearAllStorage()
+            component.start(versionChanges = true, appStateChanges = false)
+
+            verify(srv, times(1)).logAndDispatch(argThat { contains("Install detected") })
         }
 }

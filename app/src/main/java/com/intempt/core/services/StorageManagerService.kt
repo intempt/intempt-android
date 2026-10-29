@@ -26,6 +26,9 @@ import javax.inject.Singleton
 @OptIn(ExperimentalCoroutinesApi::class)
 private val SERIAL_STORAGE_DISPATCHER = Dispatchers.IO.limitedParallelism(1)
 
+/** Keys that belong to the install, not the user, so a logout wipe keeps them. */
+private val DEVICE_STATE_KEYS = setOf(StorageKeys.PreviousVersionCode.key)
+
 @Singleton
 internal class StorageManagerService
     @Inject
@@ -199,9 +202,13 @@ internal class StorageManagerService
                 context.getSharedPreferences(scopedPrefs(StorageKeys.SessionPrefs.key), Context.MODE_PRIVATE)
             sessionPrefs.edit().clear().apply()
 
-            // Clear all entries in AppPrefs
+            // Clear AppPrefs, except what describes the install rather than the user (INT-5964).
+            // The stored version code went with everything else, so with versionChanges on the
+            // launch after any logout reported an "App Install" on a device that had it all along.
             val appPrefs = context.getSharedPreferences(scopedPrefs(StorageKeys.AppPrefs.key), Context.MODE_PRIVATE)
-            appPrefs.edit().clear().apply()
+            val appEditor = appPrefs.edit()
+            appPrefs.all.keys.filterNot { it in DEVICE_STATE_KEYS }.forEach { appEditor.remove(it) }
+            appEditor.apply()
 
             // Clear all entries in FragmentPrefs
             val fragmentPrefs =
@@ -212,7 +219,8 @@ internal class StorageManagerService
                 context.getSharedPreferences(scopedPrefs(StorageKeys.UserPrefs.key), Context.MODE_PRIVATE)
             userPrefs.edit().clear().apply()
 
-            localStore.clear()
+            // The cache too: a version code stored a moment ago may still be on its way to disk.
+            localStore.keys.retainAll(DEVICE_STATE_KEYS)
 
             // Issue a FRESH anonymous profileId rather than restoring the previous one.
             //
