@@ -97,9 +97,10 @@ internal class InstallUpgradeTrackerService
             }
         }
 
-        fun logAndDispatch(logMessage: String) {
+        /** Returns whether the event was accepted; false when opted out or the dispatch threw. */
+        fun logAndDispatch(logMessage: String): Boolean {
             val errorMessage = "AutoCapture | InstallUpgradeTracker Error handling"
-            utils.withTryCatch(errorMessage) {
+            return utils.withTryCatch(errorMessage) {
                 logger.log("InstallUpgradeTrackerComponent | $logMessage")
                 eventSrv.dispatchEvent(
                     DispatchEventProps(
@@ -110,6 +111,6 @@ internal class InstallUpgradeTrackerService
                     ),
                     "InstallUpgradeTrackerService",
                 )
-            }
+            } ?: false
         }
     }

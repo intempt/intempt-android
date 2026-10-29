@@ -128,8 +128,15 @@ class IntemptInstance internal constructor(
 
     // ----------------------------------------------------------------------- opt in / out
 
-    /** Resumes event capture after [optOut]. */
-    fun optIn() = core.capture.optIn()
+    /**
+     * Resumes event capture after [optOut], and announces the FCM token (INT-5964): a token is not
+     * announced while opted out, so without this push could not reach the device until the next
+     * cold start. A no-op when the token is already announced.
+     */
+    fun optIn() {
+        core.capture.optIn()
+        reRegisterPushToken()
+    }
 
     /** Stops event capture **and discards what is already queued.** Consent records survive. */
     fun optOut() = core.capture.optOut()

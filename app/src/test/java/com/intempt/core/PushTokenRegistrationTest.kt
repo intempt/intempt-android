@@ -61,6 +61,8 @@ class PushTokenRegistrationTest {
         // any dispatch below is attributable to the token and to nothing else.
         whenever(srv.getStoredVersionCode()).thenReturn(CURRENT_VERSION)
         whenever(srv.getStoredPushToken()).thenReturn(null)
+        // Accepted, as when opted in: a dropped dispatch must not record the token (PushTokenOptOutTest).
+        whenever(srv.logAndDispatch(any())).thenReturn(true)
 
         component = InstallUpgradeTrackerComponent(srv = srv, dispatcher = UnconfinedTestDispatcher())
     }

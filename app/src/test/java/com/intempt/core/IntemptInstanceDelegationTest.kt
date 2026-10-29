@@ -146,6 +146,21 @@ class IntemptInstanceDelegationTest {
         order.verify(f.autoCapture).registerPushToken()
     }
 
+    /**
+     * INT-5964. A token is not announced while the user is opted out, so opting back in must
+     * announce it; otherwise it waits for the next cold start and push cannot reach the device.
+     */
+    @Test
+    fun `optIn re-registers the push token`() {
+        val f = Fixture()
+
+        f.instance().optIn()
+
+        val order = inOrder(f.capture, f.autoCapture)
+        order.verify(f.capture).optIn()
+        order.verify(f.autoCapture).registerPushToken()
+    }
+
     @Test
     fun `reset re-registers the push token for the rotated profile`() {
         val f = Fixture()

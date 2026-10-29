@@ -95,11 +95,17 @@ internal open class EventPoolManagerService
             startEventCollection()
         }
 
+        /**
+         * Returns whether the event was accepted, false when the user is opted out. A caller that
+         * records the event as sent (the push-token dedupe) must not do so for a dropped one
+         * (INT-5964). Accepted means handed to the build; the payload itself is built async.
+         */
+        @Suppress("ReturnCount") // a guard and two paths; nesting them would hide the early drop
         fun dispatchEvent(
             props: DispatchEventProps,
             serviceName: String,
-        ) {
-            if (!config.isUserOptIn) return
+        ): Boolean {
+            if (!config.isUserOptIn) return false
             val (eventName, entityName, event, type, context, view) = props
             logger.log("$serviceName | Received Event: $eventName; Type:$type")
 
@@ -111,7 +117,7 @@ internal open class EventPoolManagerService
                         payload = event,
                     ),
                 )
-                return
+                return true
             }
 
             // launch + suspend rather than CompletableFuture.thenAccept. thenAccept is API 24,
@@ -138,6 +144,7 @@ internal open class EventPoolManagerService
                     )
                 }
             }
+            return true
         }
 
         fun emitEvent(event: IntemptEvent): Boolean {

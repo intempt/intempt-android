@@ -40,6 +40,12 @@ under Unreleased.
   launch after any `logOut()` or `reset()` reported an install that never happened. The version code
   describes the install, not the user, and now survives the wipe.
 
+- **A token obtained while opted out is announced after `optIn()` (INT-5964).** The token was recorded
+  as registered before the event was dispatched, and the dispatch drops everything while opted out,
+  so after opting back in the same token was skipped as a duplicate until FCM rotated it, and push
+  could not reach the device. The token is now recorded only when the event is accepted, and
+  `optIn()` announces it straight away.
+
 ## [5.0.0] - 2026-09-24
 
 ### Changed
