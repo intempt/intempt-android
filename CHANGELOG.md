@@ -28,6 +28,13 @@ under Unreleased.
   and any user identified onto it, had no `fcm_token_<sourceId>` and could not receive push on that
   device. The token is now re-registered right after the rotation, carrying the new `profileId`.
 
+- **`logOut()` and `reset()` take the FCM token off the profile they leave (INT-5964).** The token
+  is the profile attribute `fcm_token_<sourceId>`, and the rotation only changed which profile later
+  events belong to, so the previous profile kept it: on a shared device, push addressed to the user
+  who logged out still reached whoever used the phone next. Before rotating, the SDK now sends the
+  install/upgrade event for the old profile with an empty token, which the platform stores as a
+  clear. Nothing is sent when no token was registered or when the user is opted out.
+
 ## [5.0.0] - 2026-09-24
 
 ### Changed

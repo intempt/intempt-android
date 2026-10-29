@@ -24,6 +24,7 @@ import com.intempt.core.services.StorageManagerService
 import com.intempt.core.services.UtilsService
 import com.intempt.core.services.eventPool.EventPoolManagerService
 import com.intempt.core.types.ConsentAction
+import com.intempt.core.types.Constants
 import com.intempt.core.types.DefaultConfigs
 import com.intempt.core.types.EventType
 import com.intempt.core.types.FlagContext
@@ -341,6 +342,7 @@ internal class CustomCaptureComponent
         fun logOut() {
             utils.withTryCatch("logOut fails") {
                 srv.logger.log("Invoke logOut")
+                releasePushToken()
                 srv.logoutHandler()
             }
         }
@@ -350,8 +352,42 @@ internal class CustomCaptureComponent
             utils.withTryCatch("reset fails") {
                 srv.logger.log("Invoke reset")
                 eventPool.discardQueuedEvents()
+                // After the discard, which would otherwise throw the clear away with the rest.
+                releasePushToken()
                 srv.logoutHandler()
             }
+        }
+
+        /**
+         * Takes the device token off the profile that is about to be left behind (INT-5964).
+         *
+         * The token is a profile attribute, `fcm_token_<sourceId>`, and the rotation only changes
+         * which profile later events belong to. Left alone, the previous profile kept the token, so
+         * on a shared device every push addressed to the user who logged out still reached whoever
+         * used the phone next. The backend clears an attribute on an explicit `""` (a `null` is
+         * skipped and would keep the token), so this sends the install/upgrade event, the one that
+         * carries the attribute, with an empty token.
+         *
+         * Built and emitted synchronously, before the rotation: the payload reads the profileId as
+         * it is built, and the pool's async build path would stamp the new one. Skipped when no
+         * token was announced for this profile, and when opted out, where nothing leaves the device.
+         */
+        private fun releasePushToken() {
+            if (!config.isUserOptIn) return
+            val registered =
+                storage.getStorageItem<String>(
+                    prefs = StorageKeys.AppPrefs.key,
+                    key = StorageKeys.LastRegisteredPushToken.key,
+                ) { key, fallBack -> getString(key, fallBack) }
+            if (registered.isNullOrBlank()) return
+
+            eventPool.emitEvent(
+                IntemptEvent(
+                    name = Constants.InstallUpgrade.EVENT_NAME,
+                    type = Constants.InstallUpgrade.ENTITY_NAME,
+                    payload = intemptEvent.generateInstallUpgradeEventPayload(token = ""),
+                ),
+            )
         }
 
         fun flush(completion: ((Int) -> Unit)? = null) {
