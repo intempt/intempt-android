@@ -11,6 +11,16 @@ under Unreleased.
 
 ## [Unreleased]
 
+## [5.1.0] - 2026-10-30
+
+> **Release note: journeys triggered on "App install/upgrade" must exclude events where `reason`
+> is set.** From this version a `logOut()` or `reset()` on a device with a registered push token
+> sends **two** "App install/upgrade" events, neither of which is an install or upgrade: the release
+> of the token from the profile being left (`data.reason` = `"logout"` or `"reset"`, empty token),
+> then the re-registration of the token on the new anonymous profile (`data.reason` = `"token"`).
+> `optIn()` can send the re-registration too. A real install or upgrade carries no `reason`. Without
+> the filter, install journeys fire on every logout.
+
 ### Changed
 
 - **401, 402, 403 and 404 now reach the host error callback as `IntemptError.Retryable` instead of
@@ -20,7 +30,9 @@ under Unreleased.
 
 - **`logOut()` and `reset()` now release the push token (INT-5964).** The FCM token is cleared from
   the profile being left and re-registered on the new one, so push for the logged-out user no longer
-  reaches the device. Details under Fixed.
+  reaches the device. Each logout or reset with a registered token therefore sends two "App
+  install/upgrade" events, both marked with `data.reason` (see the release note above). Details
+  under Fixed.
 
 ### Fixed
 
@@ -37,7 +49,9 @@ under Unreleased.
   the stored "already registered" token along with the rest of the identity, but the token was only
   announced again on the next cold start or FCM rotation. Until then the freshly minted profile,
   and any user identified onto it, had no `fcm_token_<sourceId>` and could not receive push on that
-  device. The token is now re-registered right after the rotation, carrying the new `profileId`.
+  device. The token is now re-registered right after the rotation, carrying the new `profileId` and
+  `data.reason` = `"token"`, as is the announcement `optIn()` makes, so a journey filter that
+  excludes events with a `reason` skips it: no install or upgrade happened.
 
 - **`logOut()` and `reset()` take the FCM token off the profile they leave (INT-5964).** The token
   is the profile attribute `fcm_token_<sourceId>`, and the rotation only changed which profile later
@@ -47,9 +61,12 @@ under Unreleased.
   clear. Nothing is sent when no token was registered or when the user is opted out. That event
   carries `data.reason` (`"logout"` from `logOut()`, `"reset"` from `reset()`); a real
   install/upgrade has no `reason`. **Journeys triggered on "App install/upgrade" fire on this
-  release too unless they exclude it:** add a filter that `reason` is not set (or is not `logout`
-  and not `reset`). The first such event adds `reason` to the source's install/upgrade collection
-  through the usual schema update.
+  release, and on the `"token"` re-registration that follows it, unless they exclude them:** add a
+  filter that `reason` is not set. The first such event adds `reason` to the source's
+  install/upgrade collection through the usual schema update. The release is written straight into
+  the durable queue, so a full in-memory event buffer cannot drop it, and its PackageManager and
+  `BuildConfig` lookups run on a background thread, not the caller's; the profileId and other state
+  it reports are still captured before the rotation.
 
 - **A logout no longer causes a false "App Install" on the next launch (INT-5964).** The logout wipe
   cleared the stored app version code along with the user's data, so with `versionChanges` on the
