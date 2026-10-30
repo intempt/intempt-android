@@ -143,7 +143,7 @@ class IntemptInstanceDelegationTest {
 
         val order = inOrder(f.capture, f.autoCapture)
         order.verify(f.capture).logOut()
-        order.verify(f.autoCapture).registerPushToken()
+        order.verify(f.autoCapture).reRegisterPushToken()
     }
 
     /**
@@ -158,7 +158,7 @@ class IntemptInstanceDelegationTest {
 
         val order = inOrder(f.capture, f.autoCapture)
         order.verify(f.capture).optIn()
-        order.verify(f.autoCapture).registerPushToken()
+        order.verify(f.autoCapture).reRegisterPushToken()
     }
 
     @Test
@@ -169,7 +169,7 @@ class IntemptInstanceDelegationTest {
 
         val order = inOrder(f.capture, f.autoCapture)
         order.verify(f.capture).reset()
-        order.verify(f.autoCapture).registerPushToken()
+        order.verify(f.autoCapture).reRegisterPushToken()
     }
 
     @Test

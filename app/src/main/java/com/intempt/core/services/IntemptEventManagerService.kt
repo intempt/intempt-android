@@ -220,23 +220,47 @@ internal open class IntemptEventManagerService
         }
 
         fun generateInstallUpgradeEventPayload(token: String): Array<IntemptEventProvider> =
-            generateInstallUpgradeEventPayload(token = token, reason = null)
+            generateInstallUpgradeEventPayload(token = token, reason = null, snapshot = snapshotInstallUpgradeState())
 
         /**
-         * @param reason set only when the event is not an install or upgrade (the push-token release
-         * on logOut()/reset()); goes into `data.reason`, absent when null.
+         * Everything the install/upgrade event reads from storage, taken at one instant: the
+         * profileId it is stamped with, the session and page, and the stored version, build type
+         * and visibility. Cheap (cached storage reads), so it is safe on the caller's thread.
+         *
+         * Split from the payload build for the push-token release on logOut()/reset() (INT-5964):
+         * the rotation that follows wipes or replaces every one of these, so they must be read
+         * before it, while the PackageManager and `BuildConfig` lookups can run later on a
+         * background thread.
+         */
+        fun snapshotInstallUpgradeState(): InstallUpgradeSnapshot =
+            InstallUpgradeSnapshot(
+                base = getBaseEventProps(),
+                previousVersionCode = storage.getStoredVersionCode(),
+                previousBuildType = storage.getStoredBuildType(),
+                appVisibilityState = storage.getAppVisibilityState(),
+            )
+
+        /**
+         * Builds the event from [snapshot] plus the app's current version code and build type,
+         * which take a PackageManager call and a reflective `BuildConfig` lookup: keep this off the
+         * main thread.
+         *
+         * @param reason set only when the event is not an install or upgrade (`logout`/`reset` on
+         * the push-token release, `token` on the re-registration after it); goes into
+         * `data.reason`, absent when null.
          */
         fun generateInstallUpgradeEventPayload(
             token: String,
             reason: String?,
+            snapshot: InstallUpgradeSnapshot,
         ): Array<IntemptEventProvider> {
-            val eventProps = getBaseEventProps()
+            val eventProps = snapshot.base
 
             val currentVersionCode: Long = getCurrentVersionCode()
-            val previousVersionCode: Long = storage.getStoredVersionCode()
-            val previousBuildType: String = storage.getStoredBuildType() ?: ""
+            val previousVersionCode: Long = snapshot.previousVersionCode
+            val previousBuildType: String = snapshot.previousBuildType
             val currentBuildType: String = getConsumerAppBuildType() ?: ""
-            val appVisibilityState: AppVisibilityState = storage.getAppVisibilityState()
+            val appVisibilityState: AppVisibilityState = snapshot.appVisibilityState
             val isUpgrade = currentVersionCode != previousVersionCode || currentBuildType != previousBuildType
 
             return arrayOf(
@@ -540,3 +564,11 @@ internal open class IntemptEventManagerService
             }
         }
     }
+
+/** See [IntemptEventManagerService.snapshotInstallUpgradeState]. */
+internal class InstallUpgradeSnapshot(
+    val base: BaseIntemptEvent,
+    val previousVersionCode: Long,
+    val previousBuildType: String,
+    val appVisibilityState: AppVisibilityState,
+)

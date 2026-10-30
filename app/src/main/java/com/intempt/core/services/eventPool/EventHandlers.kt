@@ -72,7 +72,12 @@ internal class EventHandlers(
         logger.log("EventPool | InstallOrUpgrade called")
 
         val token = PushBridge.registerTokenIfPresent() ?: ""
-        val newEvent = intemptEvent.generateInstallUpgradeEventPayload(token = token)
+        val newEvent =
+            intemptEvent.generateInstallUpgradeEventPayload(
+                token = token,
+                reason = props.installReason,
+                snapshot = intemptEvent.snapshotInstallUpgradeState(),
+            )
 
         logger.log("EventPool | App installation/upgrade Event: $newEvent")
         return newEvent

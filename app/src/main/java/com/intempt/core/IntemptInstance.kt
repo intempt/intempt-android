@@ -122,9 +122,10 @@ class IntemptInstance internal constructor(
      * token again: it waited for the next cold start or the next FCM rotation. Until then the new
      * profile, and whoever is identified onto it, had no `fcm_token_<sourceId>`, so push to that
      * user went nowhere. Called after the rotation so the event carries the new profileId; a no-op
-     * when `:push` is absent or Firebase has no token.
+     * when `:push` is absent or Firebase has no token. The event carries `data.reason` = `"token"`,
+     * so journeys that exclude events with a reason skip it: no install or upgrade happened.
      */
-    private fun reRegisterPushToken() = core.autoCapture.registerPushToken()
+    private fun reRegisterPushToken() = core.autoCapture.reRegisterPushToken()
 
     // ----------------------------------------------------------------------- opt in / out
 

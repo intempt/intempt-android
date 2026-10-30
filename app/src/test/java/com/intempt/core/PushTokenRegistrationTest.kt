@@ -13,6 +13,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.kotlin.any
+import org.mockito.kotlin.anyOrNull
 import org.mockito.kotlin.argThat
 import org.mockito.kotlin.eq
 import org.mockito.kotlin.mock
@@ -62,7 +63,7 @@ class PushTokenRegistrationTest {
         whenever(srv.getStoredVersionCode()).thenReturn(CURRENT_VERSION)
         whenever(srv.getStoredPushToken()).thenReturn(null)
         // Accepted, as when opted in: a dropped dispatch must not record the token (PushTokenOptOutTest).
-        whenever(srv.logAndDispatch(any())).thenReturn(true)
+        whenever(srv.logAndDispatch(any(), anyOrNull())).thenReturn(true)
 
         component = InstallUpgradeTrackerComponent(srv = srv, dispatcher = UnconfinedTestDispatcher())
     }
@@ -76,7 +77,7 @@ class PushTokenRegistrationTest {
             component.start(versionChanges = false, appStateChanges = false)
 
             verify(srv).storePushToken(TOKEN)
-            verify(srv).logAndDispatch(argThat { contains("Push token") })
+            verify(srv).logAndDispatch(argThat { contains("Push token") }, anyOrNull())
         }
 
     /**
@@ -93,8 +94,8 @@ class PushTokenRegistrationTest {
             component.start(versionChanges = false, appStateChanges = false)
 
             verify(srv, never()).storeVersionCode(any())
-            verify(srv, never()).logAndDispatch(argThat { contains("Install detected") })
-            verify(srv).logAndDispatch(argThat { contains("Push token") })
+            verify(srv, never()).logAndDispatch(argThat { contains("Install detected") }, anyOrNull())
+            verify(srv).logAndDispatch(argThat { contains("Push token") }, anyOrNull())
         }
 
     @Test
@@ -105,7 +106,7 @@ class PushTokenRegistrationTest {
 
             component.start(versionChanges = false, appStateChanges = false)
 
-            verify(srv, never()).logAndDispatch(any())
+            verify(srv, never()).logAndDispatch(any(), anyOrNull())
             verify(srv, never()).storePushToken(any())
         }
 
@@ -115,7 +116,7 @@ class PushTokenRegistrationTest {
         runTest {
             component.start(versionChanges = false, appStateChanges = false)
 
-            verify(srv, never()).logAndDispatch(any())
+            verify(srv, never()).logAndDispatch(any(), anyOrNull())
             verify(srv, never()).storePushToken(any())
         }
 
@@ -131,8 +132,8 @@ class PushTokenRegistrationTest {
 
             component.start(versionChanges = true, appStateChanges = false)
 
-            verify(srv, times(1)).logAndDispatch(any())
-            verify(srv).logAndDispatch(argThat { contains("Install detected") })
+            verify(srv, times(1)).logAndDispatch(any(), anyOrNull())
+            verify(srv).logAndDispatch(argThat { contains("Install detected") }, anyOrNull())
             verify(srv).storeVersionCode(eq(CURRENT_VERSION))
             // Claimed even though the install event is what announces it, so the next launch does
             // not announce the same token a second time.
@@ -154,7 +155,7 @@ class PushTokenRegistrationTest {
             component.registerPushToken()
 
             verify(srv).storePushToken(ROTATED)
-            verify(srv).logAndDispatch(argThat { contains("Push token") })
+            verify(srv).logAndDispatch(argThat { contains("Push token") }, anyOrNull())
             verify(srv, never()).storeVersionCode(any())
         }
 
@@ -166,7 +167,7 @@ class PushTokenRegistrationTest {
 
             component.registerPushToken()
 
-            verify(srv, never()).logAndDispatch(any())
+            verify(srv, never()).logAndDispatch(any(), anyOrNull())
             verify(srv, never()).storePushToken(any())
         }
 }

@@ -72,7 +72,7 @@ class PushTokenAfterLogoutTest {
                     utils = utils,
                 ),
             )
-        doReturn(true).whenever(srv).logAndDispatch(any())
+        doReturn(true).whenever(srv).logAndDispatch(any(), anyOrNull())
         component = InstallUpgradeTrackerComponent(srv = srv, dispatcher = UnconfinedTestDispatcher())
     }
 
@@ -97,7 +97,7 @@ class PushTokenAfterLogoutTest {
             storage.clearAllStorage()
             component.registerPushToken()
 
-            verify(srv, times(2)).logAndDispatch(anyOrNull())
+            verify(srv, times(2)).logAndDispatch(anyOrNull(), anyOrNull())
             assertEquals(TOKEN, srv.getStoredPushToken())
         }
 
@@ -110,11 +110,11 @@ class PushTokenAfterLogoutTest {
         runTest {
             doReturn(CURRENT_VERSION).whenever(srv).getConsumerAppVersionCode()
             component.start(versionChanges = true, appStateChanges = false)
-            verify(srv).logAndDispatch(argThat { contains("Install detected") })
+            verify(srv).logAndDispatch(argThat { contains("Install detected") }, anyOrNull())
 
             storage.clearAllStorage()
             component.start(versionChanges = true, appStateChanges = false)
 
-            verify(srv, times(1)).logAndDispatch(argThat { contains("Install detected") })
+            verify(srv, times(1)).logAndDispatch(argThat { contains("Install detected") }, anyOrNull())
         }
 }

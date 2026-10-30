@@ -52,11 +52,24 @@ internal class InstallUpgradeTrackerComponent
          * reads: a push destination resolves its token from the profile attribute
          * `fcm_token_<sourceId>`, and only the install/upgrade event writes that attribute.
          */
-        suspend fun registerPushToken() =
+        suspend fun registerPushToken() = announcePushToken(installReason = null)
+
+        /**
+         * Announces the FCM token again after logOut()/reset() rotated the profile, or after
+         * optIn(), with `data.reason` = `"token"` (INT-5964).
+         *
+         * It is the "App install/upgrade" event, the only one that writes `fcm_token_<sourceId>`,
+         * but no install or upgrade happened. Without a reason it was indistinguishable from one,
+         * so a journey that followed the documented filter (exclude events where `reason` is set)
+         * still fired on every logout, for the new anonymous profile.
+         */
+        suspend fun reRegisterPushToken() = announcePushToken(installReason = REASON_TOKEN)
+
+        private suspend fun announcePushToken(installReason: String?) =
             withContext(dispatcher) {
                 val token = newPushToken()
                 if (token != null) {
-                    dispatchCarrying(token, "Push token registration")
+                    dispatchCarrying(token, "Push token registration", installReason)
                 } else {
                     srv.logger.log("No push token to register, or it is already registered")
                 }
@@ -140,8 +153,12 @@ internal class InstallUpgradeTrackerComponent
         private fun dispatchCarrying(
             token: String?,
             reason: String,
+            installReason: String? = null,
         ) {
-            val accepted = srv.logAndDispatch(reason)
+            val accepted = srv.logAndDispatch(reason, installReason)
             if (accepted && token != null) srv.storePushToken(token)
         }
     }
+
+/** `data.reason` on a token re-registration that is not an install or upgrade. */
+private const val REASON_TOKEN = "token"
