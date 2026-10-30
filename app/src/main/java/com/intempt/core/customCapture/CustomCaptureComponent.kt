@@ -24,6 +24,7 @@ import com.intempt.core.services.StorageManagerService
 import com.intempt.core.services.UtilsService
 import com.intempt.core.services.eventPool.EventPoolManagerService
 import com.intempt.core.types.ConsentAction
+import com.intempt.core.types.Constants
 import com.intempt.core.types.DefaultConfigs
 import com.intempt.core.types.EventType
 import com.intempt.core.types.FlagContext
@@ -341,6 +342,7 @@ internal class CustomCaptureComponent
         fun logOut() {
             utils.withTryCatch("logOut fails") {
                 srv.logger.log("Invoke logOut")
+                releasePushToken(reason = "logout")
                 srv.logoutHandler()
             }
         }
@@ -350,7 +352,49 @@ internal class CustomCaptureComponent
             utils.withTryCatch("reset fails") {
                 srv.logger.log("Invoke reset")
                 eventPool.discardQueuedEvents()
+                // After the discard, which would otherwise throw the clear away with the rest.
+                releasePushToken(reason = "reset")
                 srv.logoutHandler()
+            }
+        }
+
+        /**
+         * Takes the device token off the profile that is about to be left behind (INT-5964).
+         *
+         * The token is a profile attribute, `fcm_token_<sourceId>`, and the rotation only changes
+         * which profile later events belong to. Left alone, the previous profile kept the token, so
+         * on a shared device every push addressed to the user who logged out still reached whoever
+         * used the phone next. The backend clears an attribute on an explicit `""` (a `null` is
+         * skipped and would keep the token), so this sends the install/upgrade event, the one that
+         * carries the attribute, with an empty token.
+         *
+         * The profileId, session and stored state are captured here, synchronously and before the
+         * rotation, which replaces or wipes all of them; the PackageManager and `BuildConfig`
+         * lookups the rest of the payload needs run later on the pool's background dispatcher, not
+         * on the caller's thread (often main). The event then goes straight into the durable queue
+         * rather than through the bounded in-memory flow, whose `tryEmit` drops on a full buffer
+         * ([EventPoolManagerService.enqueueDurably]). Skipped when no token was announced for this
+         * profile, and when opted out, where nothing leaves the device.
+         *
+         * [reason] (`"logout"` or `"reset"`) goes into `data.reason`. This is the same event name
+         * journeys trigger on for installs, so without a marker every logout would fire them; a
+         * journey excludes the release with a `reason` filter. Real installs/upgrades carry none.
+         */
+        private fun releasePushToken(reason: String) {
+            if (!config.isUserOptIn) return
+            val registered =
+                storage.getStorageItem<String>(
+                    prefs = StorageKeys.AppPrefs.key,
+                    key = StorageKeys.LastRegisteredPushToken.key,
+                ) { key, fallBack -> getString(key, fallBack) }
+            if (registered.isNullOrBlank()) return
+
+            val snapshot = intemptEvent.snapshotInstallUpgradeState()
+            eventPool.enqueueDurably(
+                name = Constants.InstallUpgrade.EVENT_NAME,
+                type = Constants.InstallUpgrade.ENTITY_NAME,
+            ) {
+                intemptEvent.generateInstallUpgradeEventPayload(token = "", reason = reason, snapshot = snapshot)
             }
         }
 

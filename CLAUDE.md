@@ -104,7 +104,12 @@ adversarial sweep of `400..451` found **46 statuses** taking that path — inclu
 a customer every event they would ever send.
 
 Default is now inverted: `>= 300` and not explicitly retryable means **drop**.
-Only `408`, `429`, `5xx` and `<= 0` retry.
+Only `401`, `402`, `403`, `404`, `408`, `429`, `5xx` and `<= 0` retry.
+
+The other direction costs too (INT-5897): `401`/`402`/`404` were dropped after one
+attempt, so every event sent during an auth, plan-cap or routing outage was gone
+when the server recovered. Those are fixed server-side, so they retry; a stuck
+head is bounded by the age expiration and the database size limit.
 
 **Rule:** an unrecognised error must lose one batch, never block the queue. When
 you add a status, add it to the sweep test in `HostileInputTest`.

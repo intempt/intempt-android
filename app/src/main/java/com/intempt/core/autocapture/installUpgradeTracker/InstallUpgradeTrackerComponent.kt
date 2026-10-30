@@ -52,10 +52,24 @@ internal class InstallUpgradeTrackerComponent
          * reads: a push destination resolves its token from the profile attribute
          * `fcm_token_<sourceId>`, and only the install/upgrade event writes that attribute.
          */
-        suspend fun registerPushToken() =
+        suspend fun registerPushToken() = announcePushToken(installReason = null)
+
+        /**
+         * Announces the FCM token again after logOut()/reset() rotated the profile, or after
+         * optIn(), with `data.reason` = `"token"` (INT-5964).
+         *
+         * It is the "App install/upgrade" event, the only one that writes `fcm_token_<sourceId>`,
+         * but no install or upgrade happened. Without a reason it was indistinguishable from one,
+         * so a journey that followed the documented filter (exclude events where `reason` is set)
+         * still fired on every logout, for the new anonymous profile.
+         */
+        suspend fun reRegisterPushToken() = announcePushToken(installReason = REASON_TOKEN)
+
+        private suspend fun announcePushToken(installReason: String?) =
             withContext(dispatcher) {
-                if (claimNewPushToken()) {
-                    srv.logAndDispatch("Push token registration")
+                val token = newPushToken()
+                if (token != null) {
+                    dispatchCarrying(token, "Push token registration", installReason)
                 } else {
                     srv.logger.log("No push token to register, or it is already registered")
                 }
@@ -85,9 +99,9 @@ internal class InstallUpgradeTrackerComponent
                 val storedVersionCode = srv.getStoredVersionCode()
                 val invalidCode = -1L
 
-                // Claimed before the version branch, and never gated: this event is the only thing
+                // Read before the version branch, and never gated: this event is the only thing
                 // that puts `fcm_token_<sourceId>` on the wire.
-                val hasNewToken = claimNewPushToken()
+                val newToken = newPushToken()
 
                 val versionReason =
                     when {
@@ -100,10 +114,10 @@ internal class InstallUpgradeTrackerComponent
 
                 // One event, not two. The install/upgrade event already carries the token, so when
                 // both reasons hold at once there is nothing a second dispatch would add.
-                val reason = versionReason ?: "Push token registration".takeIf { hasNewToken }
+                val reason = versionReason ?: "Push token registration".takeIf { newToken != null }
 
                 if (reason != null) {
-                    srv.logAndDispatch(reason)
+                    dispatchCarrying(newToken, reason)
                 } else {
                     srv.logger.log("No Install/Upgrade event. Current version: $currentVersionCode")
                 }
@@ -115,18 +129,36 @@ internal class InstallUpgradeTrackerComponent
             }
 
         /**
-         * Reads the current FCM token and records it as registered, answering whether it is new.
-         *
-         * Recorded *before* the dispatch rather than after. The cost of this order is that a token
-         * lost between here and the durable queue waits for the next rotation; the cost of the
-         * other order is a duplicate registration on every launch until the handler has run, which
-         * is both worse and far more likely. Returns false when `:push` is absent, when Firebase
-         * is unconfigured, or when this exact token was already announced.
+         * The current FCM token when it has not been announced yet; null when `:push` is absent,
+         * Firebase is unconfigured, or this exact token was already announced.
          */
-        private suspend fun claimNewPushToken(): Boolean {
+        private suspend fun newPushToken(): String? {
             val token = PushBridge.registerTokenIfPresent()
-            if (token.isNullOrBlank() || token == srv.getStoredPushToken()) return false
-            srv.storePushToken(token)
-            return true
+            if (token.isNullOrBlank() || token == srv.getStoredPushToken()) return null
+            return token
+        }
+
+        /**
+         * Dispatches the install/upgrade event and, when it carries a new [token], records that
+         * token as announced, but only if the event was accepted (INT-5964).
+         *
+         * It used to be recorded before the dispatch regardless, and the dispatch drops everything
+         * while the user is opted out. The token counted as announced although it never left, so
+         * after opting back in it was skipped as a duplicate until FCM happened to rotate it, and
+         * push could not reach the device. Recording right after the synchronous accept, still
+         * ahead of the async build, keeps what the old order bought: no duplicate registration on
+         * the next launch while the handler has yet to run. A token lost between here and the
+         * durable queue still waits for the next rotation.
+         */
+        private fun dispatchCarrying(
+            token: String?,
+            reason: String,
+            installReason: String? = null,
+        ) {
+            val accepted = srv.logAndDispatch(reason, installReason)
+            if (accepted && token != null) srv.storePushToken(token)
         }
     }
+
+/** `data.reason` on a token re-registration that is not an install or upgrade. */
+private const val REASON_TOKEN = "token"

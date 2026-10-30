@@ -75,7 +75,7 @@ Screen | `View screen`, `Leave screen` | per Activity |
 Fragment | `Fragment transition` | |
 Touch | `Touch event` | UI element taps |
 Change | `Change event` | 9 widget types |
-Install | `App install/upgrade` | first-install vs version-bump; carries FCM token |
+Install | `App install/upgrade` | first-install vs version-bump; carries FCM token. Also sent twice by `logOut()`/`reset()` when a token is registered: the release (empty token, clears it from the profile being left, `data.reason` = `logout`/`reset`) and the re-registration on the new profile (`data.reason` = `token`, also sent by `optIn()`). Real installs/upgrades carry no `reason`; journeys exclude events where `reason` is set |
 
 **Change-tracked widgets:** `CompoundButton`, `EditText`, `Spinner`, `SeekBar`, `RatingBar`, `DatePicker`, `TimePicker`, `ListView`, `RadioButton` — with `RecyclerView` / `ViewGroup` traversal.
 
@@ -117,10 +117,10 @@ unaffected and remain part of the SDK.
 |---|---|---|
 Queue durability | in-memory only | ✨ disk-backed (SQLiteOpenHelper), survives process death |
 Delete timing | cleared **before** POST | 🔧 only after confirmed 2xx |
-Retry | none | ✨ 429 + 5xx + timeout + offline; exponential backoff capped at 10 min |
+Retry | none | ✨ 401 / 402 / 403 / 404 + 408 + 429 + 5xx + offline; exponential backoff capped at 10 min |
 `Retry-After` honored | no | ✨ yes |
 413 Payload Too Large | n/a | ✨ adaptive batch halving; drop single oversized event |
-Non-retryable statuses | all failures dropped | ✨ 401 / 403 / 400 / 422 not retried, logged |
+Non-retryable statuses | all failures dropped | ✨ 400 / 413 / 422, 3xx and unlisted 4xx dropped, logged |
 Duplicate protection | none | ✨ dedup by `eventId`, marked **before** send |
 Concurrent flush | race | ✨ in-progress guard |
 Crash-stranded items | lost | ✨ orphan recovery via `flushAfter` |

@@ -9,6 +9,76 @@ Only `v2.0.1` is tagged in this repository's history, so entries below it do not
 invent them, the `2.0.1` section records what the tag contains and nothing more. Everything since is
 under Unreleased.
 
+## [Unreleased]
+
+## [5.1.0] - 2026-10-30
+
+> **Release note: journeys triggered on "App install/upgrade" must exclude events where `reason`
+> is set.** From this version a `logOut()` or `reset()` on a device with a registered push token
+> sends **two** "App install/upgrade" events, neither of which is an install or upgrade: the release
+> of the token from the profile being left (`data.reason` = `"logout"` or `"reset"`, empty token),
+> then the re-registration of the token on the new anonymous profile (`data.reason` = `"token"`).
+> `optIn()` can send the re-registration too. A real install or upgrade carries no `reason`. Without
+> the filter, install journeys fire on every logout.
+
+### Changed
+
+- **401, 402, 403 and 404 now reach the host error callback as `IntemptError.Retryable` instead of
+  `IntemptError.Terminal` (INT-5897).** The callback reads the same policy that decides whether a
+  batch survives, so with those statuses moved to the retry path an app that branched on `Terminal`
+  to detect a bad key or missing route now sees `Retryable` (with the status code) on every attempt.
+
+- **`logOut()` and `reset()` now release the push token (INT-5964).** The FCM token is cleared from
+  the profile being left and re-registered on the new one, so push for the logged-out user no longer
+  reaches the device. Each logout or reset with a registered token therefore sends two "App
+  install/upgrade" events, both marked with `data.reason` (see the release note above). Details
+  under Fixed.
+
+### Fixed
+
+- **Events rejected with 401, 402, 403 or 404 are kept and retried instead of deleted (INT-5897).**
+  `HttpStatusPolicy` dropped the batch after a single attempt, so every event sent while the
+  gateway rejected the key, the project was over its analytics cap, or a route was missing was gone
+  by the time the server recovered, and later flushes had nothing to send. These statuses now join
+  408, 429, 5xx and network failures on the retry path (exponential backoff, 1 to 10 minutes),
+  bounded by the existing age expiration and database size limit. 400, 413, 422, redirects and
+  unlisted 4xx are still dropped. A 429's `Retry-After` is now honoured as the backoff floor; only a
+  5xx's was before.
+
+- **The FCM token is registered again after `logOut()` and `reset()` (INT-5964).** Both calls wipe
+  the stored "already registered" token along with the rest of the identity, but the token was only
+  announced again on the next cold start or FCM rotation. Until then the freshly minted profile,
+  and any user identified onto it, had no `fcm_token_<sourceId>` and could not receive push on that
+  device. The token is now re-registered right after the rotation, carrying the new `profileId` and
+  `data.reason` = `"token"`, as is the announcement `optIn()` makes, so a journey filter that
+  excludes events with a `reason` skips it: no install or upgrade happened.
+
+- **`logOut()` and `reset()` take the FCM token off the profile they leave (INT-5964).** The token
+  is the profile attribute `fcm_token_<sourceId>`, and the rotation only changed which profile later
+  events belong to, so the previous profile kept it: on a shared device, push addressed to the user
+  who logged out still reached whoever used the phone next. Before rotating, the SDK now sends the
+  install/upgrade event for the old profile with an empty token, which the platform stores as a
+  clear. Nothing is sent when no token was registered or when the user is opted out. That event
+  carries `data.reason` (`"logout"` from `logOut()`, `"reset"` from `reset()`); a real
+  install/upgrade has no `reason`. **Journeys triggered on "App install/upgrade" fire on this
+  release, and on the `"token"` re-registration that follows it, unless they exclude them:** add a
+  filter that `reason` is not set. The first such event adds `reason` to the source's
+  install/upgrade collection through the usual schema update. The release is written straight into
+  the durable queue, so a full in-memory event buffer cannot drop it, and its PackageManager and
+  `BuildConfig` lookups run on a background thread, not the caller's; the profileId and other state
+  it reports are still captured before the rotation.
+
+- **A logout no longer causes a false "App Install" on the next launch (INT-5964).** The logout wipe
+  cleared the stored app version code along with the user's data, so with `versionChanges` on the
+  launch after any `logOut()` or `reset()` reported an install that never happened. The version code
+  describes the install, not the user, and now survives the wipe.
+
+- **A token obtained while opted out is announced after `optIn()` (INT-5964).** The token was recorded
+  as registered before the event was dispatched, and the dispatch drops everything while opted out,
+  so after opting back in the same token was skipped as a duplicate until FCM rotated it, and push
+  could not reach the device. The token is now recorded only when the event is accepted, and
+  `optIn()` announces it straight away.
+
 ## [5.0.0] - 2026-09-24
 
 ### Changed
