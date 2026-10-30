@@ -11,6 +11,17 @@ under Unreleased.
 
 ## [Unreleased]
 
+### Changed
+
+- **401, 402, 403 and 404 now reach the host error callback as `IntemptError.Retryable` instead of
+  `IntemptError.Terminal` (INT-5897).** The callback reads the same policy that decides whether a
+  batch survives, so with those statuses moved to the retry path an app that branched on `Terminal`
+  to detect a bad key or missing route now sees `Retryable` (with the status code) on every attempt.
+
+- **`logOut()` and `reset()` now release the push token (INT-5964).** The FCM token is cleared from
+  the profile being left and re-registered on the new one, so push for the logged-out user no longer
+  reaches the device. Details under Fixed.
+
 ### Fixed
 
 - **Events rejected with 401, 402, 403 or 404 are kept and retried instead of deleted (INT-5897).**

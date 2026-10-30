@@ -116,9 +116,10 @@ public interface RemoteService {
         /**
          * @param strRetryAfter the raw Retry-After header, or null. Only the delay-seconds form is
          *     understood; an HTTP-date or garbage is treated as absent, as
-         *     {@link ServiceUnavailableException} does.
+         *     {@link ServiceUnavailableException} does. Package-private: only the transport builds
+         *     this, and no public callback hands the exception to a host app.
          */
-        public ClientErrorException(int responseCode, String message, String strRetryAfter) {
+        /* package */ ClientErrorException(int responseCode, String message, String strRetryAfter) {
             super("Client error " + responseCode + ": " + message);
             this.responseCode = responseCode;
             int retry;
@@ -135,7 +136,7 @@ public interface RemoteService {
         }
 
         /** The server's Retry-After in seconds (eg on a 429), or 0 when it sent none. */
-        public int getRetryAfter() {
+        /* package */ int getRetryAfter() {
             return retryAfter;
         }
     }
