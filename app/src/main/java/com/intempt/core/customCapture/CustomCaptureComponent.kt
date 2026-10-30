@@ -342,7 +342,7 @@ internal class CustomCaptureComponent
         fun logOut() {
             utils.withTryCatch("logOut fails") {
                 srv.logger.log("Invoke logOut")
-                releasePushToken()
+                releasePushToken(reason = "logout")
                 srv.logoutHandler()
             }
         }
@@ -353,7 +353,7 @@ internal class CustomCaptureComponent
                 srv.logger.log("Invoke reset")
                 eventPool.discardQueuedEvents()
                 // After the discard, which would otherwise throw the clear away with the rest.
-                releasePushToken()
+                releasePushToken(reason = "reset")
                 srv.logoutHandler()
             }
         }
@@ -371,8 +371,12 @@ internal class CustomCaptureComponent
          * Built and emitted synchronously, before the rotation: the payload reads the profileId as
          * it is built, and the pool's async build path would stamp the new one. Skipped when no
          * token was announced for this profile, and when opted out, where nothing leaves the device.
+         *
+         * [reason] (`"logout"` or `"reset"`) goes into `data.reason`. This is the same event name
+         * journeys trigger on for installs, so without a marker every logout would fire them; a
+         * journey excludes the release with a `reason` filter. Real installs/upgrades carry none.
          */
-        private fun releasePushToken() {
+        private fun releasePushToken(reason: String) {
             if (!config.isUserOptIn) return
             val registered =
                 storage.getStorageItem<String>(
@@ -385,7 +389,7 @@ internal class CustomCaptureComponent
                 IntemptEvent(
                     name = Constants.InstallUpgrade.EVENT_NAME,
                     type = Constants.InstallUpgrade.ENTITY_NAME,
-                    payload = intemptEvent.generateInstallUpgradeEventPayload(token = ""),
+                    payload = intemptEvent.generateInstallUpgradeEventPayload(token = "", reason = reason),
                 ),
             )
         }

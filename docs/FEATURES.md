@@ -75,7 +75,7 @@ Screen | `View screen`, `Leave screen` | per Activity |
 Fragment | `Fragment transition` | |
 Touch | `Touch event` | UI element taps |
 Change | `Change event` | 9 widget types |
-Install | `App install/upgrade` | first-install vs version-bump; carries FCM token |
+Install | `App install/upgrade` | first-install vs version-bump; carries FCM token. Also sent by `logOut()`/`reset()` with an empty token to clear it from the profile being left, marked `data.reason` = `logout`/`reset` (journeys exclude it on that field) |
 
 **Change-tracked widgets:** `CompoundButton`, `EditText`, `Spinner`, `SeekBar`, `RatingBar`, `DatePicker`, `TimePicker`, `ListView`, `RadioButton` — with `RecyclerView` / `ViewGroup` traversal.
 

@@ -17,6 +17,7 @@ import com.intempt.core.types.Constants
 import com.intempt.core.types.StorageKeys
 import kotlinx.coroutines.Dispatchers
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Before
 import org.junit.Test
@@ -51,6 +52,7 @@ class PushTokenReleaseOnLogoutTest {
     private lateinit var config: ConfigManagerService
     private lateinit var storage: StorageManagerService
     private lateinit var eventPool: EventPoolManagerService
+    private lateinit var events: IntemptEventManagerService
     private lateinit var component: CustomCaptureComponent
 
     private companion object {
@@ -67,12 +69,13 @@ class PushTokenReleaseOnLogoutTest {
         storage = StorageManagerService(context, utils, Dispatchers.Unconfined)
         storage.ensureProfileId()
         eventPool = mock()
+        events = IntemptEventManagerService(context, storage, utils, config)
         component =
             CustomCaptureComponent(
                 CustomCaptureService(storage, logger, errors),
                 config,
                 eventPool,
-                IntemptEventManagerService(context, storage, utils, config),
+                events,
                 utils,
                 storage,
                 errors,
@@ -94,6 +97,11 @@ class PushTokenReleaseOnLogoutTest {
     }
 
     @Suppress("UNCHECKED_CAST")
+    private fun data(event: IntemptEvent): Map<String, Any?> {
+        return event.payload.single().toFormated()["data"] as Map<String, Any?>
+    }
+
+    @Suppress("UNCHECKED_CAST")
     private fun assertClearsTokenOf(
         event: IntemptEvent,
         profileId: String,
@@ -112,7 +120,9 @@ class PushTokenReleaseOnLogoutTest {
 
         component.logOut()
 
-        assertClearsTokenOf(emitted(), leaving)
+        val event = emitted()
+        assertClearsTokenOf(event, leaving)
+        assertEquals("journeys on this event exclude the release by reason", "logout", data(event)["reason"])
         assertNotEquals("precondition: the identity rotated", leaving, storage.getProfileId())
     }
 
@@ -124,10 +134,38 @@ class PushTokenReleaseOnLogoutTest {
 
         component.reset()
 
-        assertClearsTokenOf(emitted(), leaving)
+        val event = emitted()
+        assertClearsTokenOf(event, leaving)
+        assertEquals("reset is told apart from logOut", "reset", data(event)["reason"])
         val order = inOrder(eventPool)
         order.verify(eventPool).discardQueuedEvents()
         order.verify(eventPool).emitEvent(any())
+    }
+
+    /**
+     * A real install/upgrade carries no reason, so a journey filter on `reason` excludes only the
+     * release, and the existing payload shape is unchanged.
+     */
+    @Suppress("UNCHECKED_CAST")
+    @Test
+    fun `a real install or upgrade event carries no reason`() {
+        val formatted = events.generateInstallUpgradeEventPayload(token = TOKEN).single().toFormated()
+
+        val data = formatted["data"] as Map<String, Any?>
+        assertFalse("no reason key at all, not a null one", data.containsKey("reason"))
+        assertEquals(
+            setOf(
+                "currentVersionCode",
+                "previousVersionCode",
+                "previousBuildType",
+                "currentBuildType",
+                "appVisibilityState",
+                "isUpgrade",
+            ),
+            data.keys,
+        )
+        val attributes = formatted["userAttributes"] as Map<String, Any?>
+        assertEquals(TOKEN, attributes["fcm_token_" + config.sourceId])
     }
 
     /** No token was ever announced for this profile, so there is nothing to take back. */

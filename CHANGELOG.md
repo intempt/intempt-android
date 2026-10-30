@@ -44,7 +44,12 @@ under Unreleased.
   events belong to, so the previous profile kept it: on a shared device, push addressed to the user
   who logged out still reached whoever used the phone next. Before rotating, the SDK now sends the
   install/upgrade event for the old profile with an empty token, which the platform stores as a
-  clear. Nothing is sent when no token was registered or when the user is opted out.
+  clear. Nothing is sent when no token was registered or when the user is opted out. That event
+  carries `data.reason` (`"logout"` from `logOut()`, `"reset"` from `reset()`); a real
+  install/upgrade has no `reason`. **Journeys triggered on "App install/upgrade" fire on this
+  release too unless they exclude it:** add a filter that `reason` is not set (or is not `logout`
+  and not `reset`). The first such event adds `reason` to the source's install/upgrade collection
+  through the usual schema update.
 
 - **A logout no longer causes a false "App Install" on the next launch (INT-5964).** The logout wipe
   cleared the stored app version code along with the user's data, so with `versionChanges` on the

@@ -219,7 +219,17 @@ internal open class IntemptEventManagerService
             }
         }
 
-        fun generateInstallUpgradeEventPayload(token: String): Array<IntemptEventProvider> {
+        fun generateInstallUpgradeEventPayload(token: String): Array<IntemptEventProvider> =
+            generateInstallUpgradeEventPayload(token = token, reason = null)
+
+        /**
+         * @param reason set only when the event is not an install or upgrade (the push-token release
+         * on logOut()/reset()); goes into `data.reason`, absent when null.
+         */
+        fun generateInstallUpgradeEventPayload(
+            token: String,
+            reason: String?,
+        ): Array<IntemptEventProvider> {
             val eventProps = getBaseEventProps()
 
             val currentVersionCode: Long = getCurrentVersionCode()
@@ -243,6 +253,7 @@ internal open class IntemptEventManagerService
                     isUpgrade = isUpgrade,
                     token = token,
                     config = config,
+                    reason = reason,
                 ),
             )
         }
