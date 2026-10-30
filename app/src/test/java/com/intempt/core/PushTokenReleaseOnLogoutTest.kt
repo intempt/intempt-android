@@ -5,7 +5,6 @@ package com.intempt.core
 import android.content.Context
 import com.intempt.core.customCapture.CustomCaptureComponent
 import com.intempt.core.customCapture.CustomCaptureService
-import com.intempt.core.eventModels.IntemptEvent
 import com.intempt.core.services.ConfigManagerService
 import com.intempt.core.services.ErrorReporter
 import com.intempt.core.services.IntemptEventManagerService
@@ -14,6 +13,7 @@ import com.intempt.core.services.StorageManagerService
 import com.intempt.core.services.UtilsService
 import com.intempt.core.services.eventPool.EventPoolManagerService
 import com.intempt.core.types.Constants
+import com.intempt.core.types.IntemptEventProvider
 import com.intempt.core.types.StorageKeys
 import kotlinx.coroutines.Dispatchers
 import org.junit.Assert.assertEquals
@@ -23,10 +23,13 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.kotlin.any
+import org.mockito.kotlin.anyOrNull
 import org.mockito.kotlin.argumentCaptor
+import org.mockito.kotlin.eq
 import org.mockito.kotlin.inOrder
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.never
+import org.mockito.kotlin.spy
 import org.mockito.kotlin.verify
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
@@ -44,7 +47,9 @@ import org.robolectric.annotation.Config
  * leave the token in place.
  *
  * Real storage and a real event builder, so the profileId asserted is the one the event was
- * actually stamped with, not one the test supplied.
+ * actually stamped with, not one the test supplied. The pool is a mock: the release hands it a
+ * builder, which a real pool runs on its background dispatcher; here the test runs it, after the
+ * rotation, which is the order production has too.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34], manifest = Config.NONE)
@@ -69,7 +74,7 @@ class PushTokenReleaseOnLogoutTest {
         storage = StorageManagerService(context, utils, Dispatchers.Unconfined)
         storage.ensureProfileId()
         eventPool = mock()
-        events = IntemptEventManagerService(context, storage, utils, config)
+        events = spy(IntemptEventManagerService(context, storage, utils, config))
         component =
             CustomCaptureComponent(
                 CustomCaptureService(storage, logger, errors),
@@ -90,24 +95,30 @@ class PushTokenReleaseOnLogoutTest {
         ) { key, value -> putString(key, value) }
     }
 
-    private fun emitted(): IntemptEvent {
-        val captor = argumentCaptor<IntemptEvent>()
-        verify(eventPool).emitEvent(captor.capture())
+    /** The builder the release handed the pool, checked against the event name and entity. */
+    private fun releaseBuilder(): () -> Array<IntemptEventProvider> {
+        val captor = argumentCaptor<() -> Array<IntemptEventProvider>>()
+        verify(eventPool).enqueueDurably(
+            eq(Constants.InstallUpgrade.EVENT_NAME),
+            eq(Constants.InstallUpgrade.ENTITY_NAME),
+            captor.capture(),
+        )
         return captor.firstValue
     }
 
+    private fun emitted(): IntemptEventProvider = releaseBuilder().invoke().single()
+
     @Suppress("UNCHECKED_CAST")
-    private fun data(event: IntemptEvent): Map<String, Any?> {
-        return event.payload.single().toFormated()["data"] as Map<String, Any?>
+    private fun data(event: IntemptEventProvider): Map<String, Any?> {
+        return event.toFormated()["data"] as Map<String, Any?>
     }
 
     @Suppress("UNCHECKED_CAST")
     private fun assertClearsTokenOf(
-        event: IntemptEvent,
+        event: IntemptEventProvider,
         profileId: String,
     ) {
-        assertEquals(Constants.InstallUpgrade.ENTITY_NAME, event.type)
-        val formatted = event.payload.single().toFormated()
+        val formatted = event.toFormated()
         assertEquals("stamped with the profile that is logging out", profileId, formatted["profileId"])
         val attributes = formatted["userAttributes"] as Map<String, Any?>
         assertEquals("\"\" is what the backend stores as a clear", "", attributes["fcm_token_" + config.sourceId])
@@ -139,7 +150,28 @@ class PushTokenReleaseOnLogoutTest {
         assertEquals("reset is told apart from logOut", "reset", data(event)["reason"])
         val order = inOrder(eventPool)
         order.verify(eventPool).discardQueuedEvents()
-        order.verify(eventPool).emitEvent(any())
+        order.verify(eventPool).enqueueDurably(any(), any(), any())
+    }
+
+    /**
+     * The PackageManager and `BuildConfig` lookups are not made on the caller's thread (often
+     * main): logOut() hands the pool a builder and returns. What the builder reads from the profile
+     * being left was captured before the rotation, so it still stamps the old profileId although
+     * it runs after it.
+     */
+    @Test
+    fun `logOut builds the payload off the caller's thread, from state captured before the rotation`() {
+        registerToken()
+        val leaving = storage.getProfileId()
+
+        component.logOut()
+
+        verify(events).snapshotInstallUpgradeState()
+        verify(events, never()).generateInstallUpgradeEventPayload(any(), anyOrNull(), any())
+        assertNotEquals("precondition: the identity rotated", leaving, storage.getProfileId())
+
+        val event = releaseBuilder().invoke().single()
+        assertClearsTokenOf(event, leaving)
     }
 
     /**
@@ -173,7 +205,7 @@ class PushTokenReleaseOnLogoutTest {
     fun `no registered token sends nothing`() {
         component.logOut()
 
-        verify(eventPool, never()).emitEvent(any())
+        verify(eventPool, never()).enqueueDurably(any(), any(), any())
     }
 
     /**
@@ -187,6 +219,6 @@ class PushTokenReleaseOnLogoutTest {
 
         component.logOut()
 
-        verify(eventPool, never()).emitEvent(any())
+        verify(eventPool, never()).enqueueDurably(any(), any(), any())
     }
 }

@@ -368,9 +368,13 @@ internal class CustomCaptureComponent
          * skipped and would keep the token), so this sends the install/upgrade event, the one that
          * carries the attribute, with an empty token.
          *
-         * Built and emitted synchronously, before the rotation: the payload reads the profileId as
-         * it is built, and the pool's async build path would stamp the new one. Skipped when no
-         * token was announced for this profile, and when opted out, where nothing leaves the device.
+         * The profileId, session and stored state are captured here, synchronously and before the
+         * rotation, which replaces or wipes all of them; the PackageManager and `BuildConfig`
+         * lookups the rest of the payload needs run later on the pool's background dispatcher, not
+         * on the caller's thread (often main). The event then goes straight into the durable queue
+         * rather than through the bounded in-memory flow, whose `tryEmit` drops on a full buffer
+         * ([EventPoolManagerService.enqueueDurably]). Skipped when no token was announced for this
+         * profile, and when opted out, where nothing leaves the device.
          *
          * [reason] (`"logout"` or `"reset"`) goes into `data.reason`. This is the same event name
          * journeys trigger on for installs, so without a marker every logout would fire them; a
@@ -385,13 +389,13 @@ internal class CustomCaptureComponent
                 ) { key, fallBack -> getString(key, fallBack) }
             if (registered.isNullOrBlank()) return
 
-            eventPool.emitEvent(
-                IntemptEvent(
-                    name = Constants.InstallUpgrade.EVENT_NAME,
-                    type = Constants.InstallUpgrade.ENTITY_NAME,
-                    payload = intemptEvent.generateInstallUpgradeEventPayload(token = "", reason = reason),
-                ),
-            )
+            val snapshot = intemptEvent.snapshotInstallUpgradeState()
+            eventPool.enqueueDurably(
+                name = Constants.InstallUpgrade.EVENT_NAME,
+                type = Constants.InstallUpgrade.ENTITY_NAME,
+            ) {
+                intemptEvent.generateInstallUpgradeEventPayload(token = "", reason = reason, snapshot = snapshot)
+            }
         }
 
         fun flush(completion: ((Int) -> Unit)? = null) {
