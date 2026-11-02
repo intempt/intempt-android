@@ -220,6 +220,15 @@ android {
             // Robolectric needs the merged manifest and the assets, which is how
             // SdkRunsLocallyTest reads the real intempt-config.json.
             isIncludeAndroidResources = true
+
+            // Same as :app: Robolectric fetches its android-all jars outside Gradle's repositories,
+            // and Maven Central answers the CI runners' shared egress IP with 429.
+            all {
+                it.systemProperty(
+                    "robolectric.dependency.repo.url",
+                    "https://maven-central.storage-download.googleapis.com/maven2",
+                )
+            }
         }
     }
 }
