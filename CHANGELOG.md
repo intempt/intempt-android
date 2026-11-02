@@ -13,6 +13,12 @@ under Unreleased.
 
 ## [5.1.0] - 2026-10-30
 
+> **Behaviour change: check your error callback.** 401, 402, 403 and 404 now arrive as
+> `IntemptError.Retryable` instead of `IntemptError.Terminal` (INT-5897), and the batch is kept and
+> retried instead of deleted. A host that branched on `Terminal` to detect a bad key, an exhausted
+> plan or a missing route no longer sees it; branch on the status code carried by `Retryable`
+> instead. Details under Changed.
+
 > **Release note: journeys triggered on "App install/upgrade" must exclude events where `reason`
 > is set.** From this version a `logOut()` or `reset()` on a device with a registered push token
 > sends **two** "App install/upgrade" events, neither of which is an install or upgrade: the release
@@ -58,8 +64,11 @@ under Unreleased.
   events belong to, so the previous profile kept it: on a shared device, push addressed to the user
   who logged out still reached whoever used the phone next. Before rotating, the SDK now sends the
   install/upgrade event for the old profile with an empty token, which the platform stores as a
-  clear. Nothing is sent when no token was registered or when the user is opted out. That event
-  carries `data.reason` (`"logout"` from `logOut()`, `"reset"` from `reset()`); a real
+  clear. Nothing is sent when no token was registered or when the user is opted out, so **an
+  opted-out user's push token stays on the profile it was last registered to**: `optOut()` followed
+  by `logOut()` or `reset()` sends nothing and leaves `fcm_token_<sourceId>` on the old profile. If
+  the release cannot be built (a storage read or the install/upgrade snapshot throws), the identity
+  still rotates; only the clear is skipped. That event carries `data.reason` (`"logout"` from `logOut()`, `"reset"` from `reset()`); a real
   install/upgrade has no `reason`. **Journeys triggered on "App install/upgrade" fire on this
   release, and on the `"token"` re-registration that follows it, unless they exclude them:** add a
   filter that `reason` is not set. The first such event adds `reason` to the source's

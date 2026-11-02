@@ -25,12 +25,14 @@ import org.junit.runner.RunWith
 import org.mockito.kotlin.any
 import org.mockito.kotlin.anyOrNull
 import org.mockito.kotlin.argumentCaptor
+import org.mockito.kotlin.doThrow
 import org.mockito.kotlin.eq
 import org.mockito.kotlin.inOrder
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.never
 import org.mockito.kotlin.spy
 import org.mockito.kotlin.verify
+import org.mockito.kotlin.whenever
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
@@ -217,6 +219,49 @@ class PushTokenReleaseOnLogoutTest {
         registerToken()
         config.isUserOptIn = false
 
+        component.logOut()
+
+        verify(eventPool, never()).enqueueDurably(any(), any(), any())
+    }
+
+    /**
+     * The release is best effort; the rotation is not. A release that throws (a storage read, the
+     * install/upgrade snapshot) used to abort the whole logOut() inside its guard, so the previous
+     * user's profileId stayed in place.
+     */
+    @Test
+    fun `logOut still rotates the identity when the release throws`() {
+        registerToken()
+        doThrow(IllegalStateException("snapshot failed")).whenever(events).snapshotInstallUpgradeState()
+        val leaving = storage.getProfileId()
+
+        component.logOut()
+
+        assertNotEquals("logoutHandler() ran despite the failed release", leaving, storage.getProfileId())
+    }
+
+    @Test
+    fun `reset still rotates the identity when the release throws`() {
+        registerToken()
+        doThrow(IllegalStateException("snapshot failed")).whenever(events).snapshotInstallUpgradeState()
+        val leaving = storage.getProfileId()
+
+        component.reset()
+
+        assertNotEquals("logoutHandler() ran despite the failed release", leaving, storage.getProfileId())
+    }
+
+    /**
+     * Pins the documented trade-off (CHANGELOG 5.1.0): opting out sends nothing, and neither does a
+     * logOut() after it, so a token announced while opted in stays on the profile it was last
+     * registered to. Sending a release on opt-out would be a product change.
+     */
+    @Test
+    fun `optOut then logOut sends nothing, leaving the token on the old profile`() {
+        component.optIn()
+        registerToken()
+
+        component.optOut()
         component.logOut()
 
         verify(eventPool, never()).enqueueDurably(any(), any(), any())

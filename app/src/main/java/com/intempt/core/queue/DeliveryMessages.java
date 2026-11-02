@@ -603,6 +603,17 @@ public class DeliveryMessages {
                 }
             } // handleMessage
 
+            /**
+             * A server's Retry-After (seconds) as a floor in milliseconds, capped at {@link
+             * DeliveryRetryPolicy#MAX_DELAY_MS}. The header is any int the server sends, so
+             * unclamped a hostile or buggy {@code Retry-After: 2000000000} broke the ten-minute
+             * cap, and the 503 branch multiplied in int, where it overflowed to a negative floor
+             * and retried after one minute instead.
+             */
+            private long retryAfterFloor(int retryAfterSeconds) {
+                return Math.min(retryAfterSeconds * 1000L, DeliveryRetryPolicy.MAX_DELAY_MS);
+            }
+
             protected long getTrackEngageRetryAfter() {
                 return mTrackEngageRetryAfter;
             }
@@ -728,7 +739,7 @@ public class DeliveryMessages {
                     } catch (final RemoteService.ServiceUnavailableException e) {
                         logAboutMessage("Cannot post message to " + url + ".", e);
                         deleteEvents = false;
-                        mTrackEngageRetryAfter = e.getRetryAfter() * 1000;
+                        mTrackEngageRetryAfter = retryAfterFloor(e.getRetryAfter());
                     } catch (final RemoteService.ClientErrorException e) {
                         // Must precede the IOException catch below: ClientErrorException
                         // extends IOException, so without this branch every 4xx falls
@@ -751,7 +762,7 @@ public class DeliveryMessages {
                             deleteEvents = false;
                             // Same floor as the ServiceUnavailableException branch: a 429's
                             // Retry-After must not be undercut by the exponential schedule.
-                            mTrackEngageRetryAfter = e.getRetryAfter() * 1000L;
+                            mTrackEngageRetryAfter = retryAfterFloor(e.getRetryAfter());
                         }
                     } catch (final IOException e) {
                         logAboutMessage("Cannot post message to " + url + ".", e);

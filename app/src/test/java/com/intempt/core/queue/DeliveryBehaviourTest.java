@@ -94,16 +94,26 @@ public class DeliveryBehaviourTest {
 
         private final int[] statuses;
         private final boolean throwIo;
+        private final Exception scripted;
 
         FakePoster(int status, boolean throwIo) {
             this.statuses = new int[] {status};
             this.throwIo = throwIo;
+            this.scripted = null;
         }
 
         /** Answers the n-th request with {@code statuses[n]}; the last one repeats. */
         FakePoster(int... statuses) {
             this.statuses = statuses;
             this.throwIo = false;
+            this.scripted = null;
+        }
+
+        /** Answers every request by throwing {@code scripted}, eg a 503 or 429 with a Retry-After. */
+        FakePoster(Exception scripted) {
+            this.statuses = new int[] {0};
+            this.throwIo = false;
+            this.scripted = scripted;
         }
 
         @Override
@@ -133,6 +143,12 @@ public class DeliveryBehaviourTest {
             sentBodies.add(requestBodyBytes);
             final int status = statuses[Math.min(call, statuses.length - 1)];
 
+            if (scripted instanceof ServiceUnavailableException) {
+                throw (ServiceUnavailableException) scripted;
+            }
+            if (scripted instanceof IOException) {
+                throw (IOException) scripted;
+            }
             if (throwIo) {
                 throw new IOException("simulated network failure");
             }
@@ -671,5 +687,45 @@ public class DeliveryBehaviourTest {
                         + "configured expiration for as long as the process lives",
                 0,
                 rowCount());
+    }
+
+    /**
+     * Posts one event through a transport that throws {@code failure} and returns the delay the
+     * worker scheduled its retry with.
+     */
+    private long retryDelayAfter(Exception failure) throws Exception {
+        FakePoster poster = new FakePoster(failure);
+        TestableDelivery delivery = deliveryWith(poster);
+        delivery.enqueueEvent(event("retry after"));
+        delivery.flush();
+
+        long deadline = System.currentTimeMillis() + 10_000;
+        while (System.currentTimeMillis() < deadline && poster.calls.get() == 0) {
+            Thread.sleep(25);
+        }
+        Thread.sleep(400);
+        assertTrue("delivery never posted at all", poster.calls.get() >= 1);
+        return delivery.getTrackEngageRetryAfter();
+    }
+
+    /**
+     * A 503's Retry-After was multiplied in int: 2000000000 * 1000 overflowed to a negative
+     * floor, and the batch was retried after one minute instead of at the ten-minute cap.
+     */
+    @Test
+    public void aHugeRetryAfterOnA503IsClampedToTheCap() throws Exception {
+        long delay =
+                retryDelayAfter(new RemoteService.ServiceUnavailableException("simulated 503", "2000000000"));
+
+        assertEquals(DeliveryRetryPolicy.MAX_DELAY_MS, delay);
+    }
+
+    /** The same header on a retryable 4xx must not push the retry past the cap either. */
+    @Test
+    public void aHugeRetryAfterOnA429IsClampedToTheCap() throws Exception {
+        long delay =
+                retryDelayAfter(new RemoteService.ClientErrorException(429, "simulated 429", "2000000000"));
+
+        assertEquals(DeliveryRetryPolicy.MAX_DELAY_MS, delay);
     }
 }

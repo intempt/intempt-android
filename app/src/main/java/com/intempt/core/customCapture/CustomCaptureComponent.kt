@@ -342,7 +342,8 @@ internal class CustomCaptureComponent
         fun logOut() {
             utils.withTryCatch("logOut fails") {
                 srv.logger.log("Invoke logOut")
-                releasePushToken(reason = "logout")
+                // Its own guard: a release that throws must not skip the rotation.
+                utils.withTryCatch("releasePushToken fails") { releasePushToken(reason = "logout") }
                 srv.logoutHandler()
             }
         }
@@ -353,7 +354,8 @@ internal class CustomCaptureComponent
                 srv.logger.log("Invoke reset")
                 eventPool.discardQueuedEvents()
                 // After the discard, which would otherwise throw the clear away with the rest.
-                releasePushToken(reason = "reset")
+                // Its own guard: a release that throws must not skip the rotation.
+                utils.withTryCatch("releasePushToken fails") { releasePushToken(reason = "reset") }
                 srv.logoutHandler()
             }
         }
