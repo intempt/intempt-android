@@ -99,6 +99,11 @@ internal class AutoCaptureComponent
             coroutineScope.launch { installUpgrade.registerPushToken() }
         }
 
+        /** The token again after logOut()/reset()/optIn(), marked `reason: "token"` (INT-5964). */
+        fun reRegisterPushToken() {
+            coroutineScope.launch { installUpgrade.reRegisterPushToken() }
+        }
+
         /**
          * Installs the view-layer hooks. Idempotent; returns false when they were already on.
          *

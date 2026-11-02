@@ -97,9 +97,16 @@ internal class InstallUpgradeTrackerService
             }
         }
 
-        fun logAndDispatch(logMessage: String) {
+        /**
+         * Returns whether the event was accepted; false when opted out or the dispatch threw.
+         * [installReason] becomes `data.reason`; null for a real install, upgrade or FCM rotation.
+         */
+        fun logAndDispatch(
+            logMessage: String,
+            installReason: String?,
+        ): Boolean {
             val errorMessage = "AutoCapture | InstallUpgradeTracker Error handling"
-            utils.withTryCatch(errorMessage) {
+            return utils.withTryCatch(errorMessage) {
                 logger.log("InstallUpgradeTrackerComponent | $logMessage")
                 eventSrv.dispatchEvent(
                     DispatchEventProps(
@@ -107,9 +114,10 @@ internal class InstallUpgradeTrackerService
                         entityName = Constants.InstallUpgrade.ENTITY_NAME,
                         type = Constants.InstallUpgrade.EVENT_TYPE,
                         context = context,
+                        installReason = installReason,
                     ),
                     "InstallUpgradeTrackerService",
                 )
-            }
+            } ?: false
         }
     }

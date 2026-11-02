@@ -85,6 +85,47 @@ class StorageManagerServiceTest {
     }
 
     /**
+     * INT-5964. The stored app version code describes the install, not the user, but it lives in
+     * AppPrefs and the wipe cleared it with everything else. With `versionChanges` on, the next
+     * launch after any logout found no stored code and reported an "App Install" that never
+     * happened. Checked through a second instance too, so the kept value is on disk and not only
+     * in this instance's cache.
+     */
+    @Test
+    fun `clearAllStorage keeps the stored app version code`() {
+        storage.setStorageItem(
+            prefs = StorageKeys.AppPrefs.key,
+            key = StorageKeys.PreviousVersionCode.key,
+            value = 7L,
+        ) { key, value -> putLong(key, value) }
+
+        storage.clearAllStorage()
+
+        assertEquals(7L, storage.getStoredVersionCode())
+        assertEquals(7L, StorageManagerService(context, utils, Dispatchers.Unconfined).getStoredVersionCode())
+    }
+
+    /** The rest of AppPrefs is still the user's and still goes: the push-token dedupe among it. */
+    @Test
+    fun `clearAllStorage still wipes the rest of AppPrefs`() {
+        storage.setStorageItem(
+            prefs = StorageKeys.AppPrefs.key,
+            key = StorageKeys.LastRegisteredPushToken.key,
+            value = "fcm-token-aaa",
+        ) { key, value -> putString(key, value) }
+
+        storage.clearAllStorage()
+
+        val fresh = StorageManagerService(context, utils, Dispatchers.Unconfined)
+        val token =
+            fresh.getStorageItem<String>(
+                prefs = StorageKeys.AppPrefs.key,
+                key = StorageKeys.LastRegisteredPushToken.key,
+            ) { key, fallBack -> getString(key, fallBack) }
+        assertEquals(null, token)
+    }
+
+    /**
      * Pre-3.0.4, getProfileId() read ONLY the in-memory cache, which a fire-and-forget
      * coroutine populated some time after initialize() returned. On a cold device the read
      * won the race and returned "" even though the id sat in SharedPreferences — observed

@@ -321,6 +321,17 @@ Clear the current user session. Call when the user signs out.
 Intempt.logOut()
 ```
 
+If a push token was registered, `logOut()` (and `reset()`) sends **two** `App install/upgrade`
+events, neither of them an install or upgrade:
+
+1. the release, with an empty token, which removes the token from the profile being left; its data
+   carries `reason: "logout"` (`"reset"` for `reset()`);
+2. the re-registration of the token on the new anonymous profile, carrying `reason: "token"`
+   (`optIn()` sends this one too when the token was not yet announced).
+
+Ordinary installs and upgrades carry no `reason`. **A journey triggered on `App install/upgrade`
+must exclude events where `reason` is set**, or it fires on every logout.
+
 ## Ecommerce
 
 ### productView

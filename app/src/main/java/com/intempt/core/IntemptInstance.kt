@@ -104,15 +104,40 @@ class IntemptInstance internal constructor(
     fun getSessionId(): String = core.capture.getSessionId()
 
     /** Rotates the anonymous identity, **keeping** whatever is queued. */
-    fun logOut() = core.capture.logOut()
+    fun logOut() {
+        core.capture.logOut()
+        reRegisterPushToken()
+    }
 
     /** Rotates the anonymous identity **and discards** queued events. */
-    fun reset() = core.capture.reset()
+    fun reset() {
+        core.capture.reset()
+        reRegisterPushToken()
+    }
+
+    /**
+     * Announces the device's FCM token for the profile the rotation just minted (INT-5964).
+     *
+     * The rotation wipes AppPrefs, and with it the "already registered" token, but nothing sent the
+     * token again: it waited for the next cold start or the next FCM rotation. Until then the new
+     * profile, and whoever is identified onto it, had no `fcm_token_<sourceId>`, so push to that
+     * user went nowhere. Called after the rotation so the event carries the new profileId; a no-op
+     * when `:push` is absent or Firebase has no token. The event carries `data.reason` = `"token"`,
+     * so journeys that exclude events with a reason skip it: no install or upgrade happened.
+     */
+    private fun reRegisterPushToken() = core.autoCapture.reRegisterPushToken()
 
     // ----------------------------------------------------------------------- opt in / out
 
-    /** Resumes event capture after [optOut]. */
-    fun optIn() = core.capture.optIn()
+    /**
+     * Resumes event capture after [optOut], and announces the FCM token (INT-5964): a token is not
+     * announced while opted out, so without this push could not reach the device until the next
+     * cold start. A no-op when the token is already announced.
+     */
+    fun optIn() {
+        core.capture.optIn()
+        reRegisterPushToken()
+    }
 
     /** Stops event capture **and discards what is already queued.** Consent records survive. */
     fun optOut() = core.capture.optOut()

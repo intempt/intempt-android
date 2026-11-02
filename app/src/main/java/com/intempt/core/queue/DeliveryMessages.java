@@ -11,7 +11,7 @@
  *   - removed people, group, anonymous-profile and first-launch message types
  *   - removed Mixpanel default event properties and the session-replay event bridge
  *   - replaced form-urlencoded transport encoding with Intempt's JSON contract
- *   - replaced the HTTP error taxonomy so 429 is retried rather than discarded
+ *   - replaced the HTTP error taxonomy so 401/402/403/404/408/429/5xx are retried rather than discarded
  */
 package com.intempt.core.queue;
 
@@ -603,6 +603,17 @@ public class DeliveryMessages {
                 }
             } // handleMessage
 
+            /**
+             * A server's Retry-After (seconds) as a floor in milliseconds, capped at {@link
+             * DeliveryRetryPolicy#MAX_DELAY_MS}. The header is any int the server sends, so
+             * unclamped a hostile or buggy {@code Retry-After: 2000000000} broke the ten-minute
+             * cap, and the 503 branch multiplied in int, where it overflowed to a negative floor
+             * and retried after one minute instead.
+             */
+            private long retryAfterFloor(int retryAfterSeconds) {
+                return Math.min(retryAfterSeconds * 1000L, DeliveryRetryPolicy.MAX_DELAY_MS);
+            }
+
             protected long getTrackEngageRetryAfter() {
                 return mTrackEngageRetryAfter;
             }
@@ -677,8 +688,8 @@ public class DeliveryMessages {
                             // Loud, because the alternative is a silent total loss.
                             QueueLog.e(
                                     LOGTAG,
-                                    "No Authorization header configured; every batch will 401 and be"
-                                            + " dropped. Check INTEMPT_API_KEY in intempt-config.json.");
+                                    "No Authorization header configured; every batch will 401 and nothing"
+                                            + " will be delivered. Check INTEMPT_API_KEY in intempt-config.json.");
                         }
                         headers.put("Content-Type", "application/json");
 
@@ -728,15 +739,16 @@ public class DeliveryMessages {
                     } catch (final RemoteService.ServiceUnavailableException e) {
                         logAboutMessage("Cannot post message to " + url + ".", e);
                         deleteEvents = false;
-                        mTrackEngageRetryAfter = e.getRetryAfter() * 1000;
+                        mTrackEngageRetryAfter = retryAfterFloor(e.getRetryAfter());
                     } catch (final RemoteService.ClientErrorException e) {
                         // Must precede the IOException catch below: ClientErrorException
                         // extends IOException, so without this branch every 4xx falls
                         // through to deleteEvents = false and is retried forever. A
-                        // rejected key or malformed body never becomes valid, and because
-                        // the batch is never deleted it blocks the queue head and stops
-                        // all delivery. 429 is deliberately excluded — the gateway uses it
-                        // for backpressure, so retrying is correct there.
+                        // malformed body (400, 413, 422) never becomes valid, and because
+                        // the batch is never deleted it would block the queue head. A
+                        // rejected key, plan limit, missing route or backpressure (401,
+                        // 402, 403, 404, 429) is fixed server-side, so those batches are
+                        // kept and retried with backoff — see HttpStatusPolicy.
                         final int status = e.getResponseCode();
                         if (HttpStatusPolicy.shouldDrop(status)) {
                             QueueLog.e(
@@ -748,6 +760,9 @@ public class DeliveryMessages {
                         } else {
                             logAboutMessage("Retryable client error from " + url + ".", e);
                             deleteEvents = false;
+                            // Same floor as the ServiceUnavailableException branch: a 429's
+                            // Retry-After must not be undercut by the exponential schedule.
+                            mTrackEngageRetryAfter = retryAfterFloor(e.getRetryAfter());
                         }
                     } catch (final IOException e) {
                         logAboutMessage("Cannot post message to " + url + ".", e);

@@ -1,6 +1,9 @@
 pluginManagement {
     repositories {
         gradlePluginPortal()
+        // Google's Maven Central mirror first: CI runners share one egress IP and Maven Central
+        // answers it with 429 (Robolectric's nativeruntime jar). Central stays as the fallback.
+        maven("https://maven-central.storage-download.googleapis.com/maven2/")
         mavenCentral()
         google {
             content {
@@ -17,6 +20,9 @@ dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {
         google()
+        // Google's Maven Central mirror first: CI runners share one egress IP and Maven Central
+        // answers it with 429 (Robolectric's nativeruntime jar). Central stays as the fallback.
+        maven("https://maven-central.storage-download.googleapis.com/maven2/")
         mavenCentral()
     }
 }

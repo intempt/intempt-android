@@ -298,6 +298,14 @@ android {
             it.systemProperty("intempt.project", cred("intempt.project", "INTEMPT_PROJECT_ID"))
             it.systemProperty("intempt.sourceId", cred("intempt.sourceId", "INTEMPT_SOURCE_ID"))
 
+            // Robolectric fetches its android-all jars at test time, outside Gradle's repositories.
+            // Maven Central answers the CI runners' shared egress IP with 429, so it reads the same
+            // Google mirror settings.gradle.kts puts first.
+            it.systemProperty(
+                "robolectric.dependency.repo.url",
+                "https://maven-central.storage-download.googleapis.com/maven2",
+            )
+
             // A JVM per test class. This is containment, not a fix.
             //
             // Production code still starts coroutines on hardcoded dispatchers in scopes

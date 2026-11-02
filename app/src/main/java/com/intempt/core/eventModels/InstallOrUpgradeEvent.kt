@@ -23,6 +23,12 @@ internal class InstallOrUpgradeEvent(
     private val isUpgrade: Boolean,
     private val token: String,
     private val config: ConfigManagerService,
+    /**
+     * Why the event was sent, when it is not an install or upgrade: `"logout"` or `"reset"` on the
+     * push-token release (INT-5964). Absent from `data` otherwise, so ordinary install/upgrade
+     * events keep their shape and journeys triggered on this event can exclude the release.
+     */
+    private val reason: String? = null,
 ) : IntemptEventProvider {
     override fun getEventTime(): Long {
         return timestamp
@@ -43,7 +49,7 @@ internal class InstallOrUpgradeEvent(
                     "currentBuildType" to currentBuildType,
                     "appVisibilityState" to appVisibilityState,
                     "isUpgrade" to isUpgrade,
-                ),
+                ) + reason?.let { mapOf("reason" to it) }.orEmpty(),
             "userAttributes" to
                 mapOf(
                     "fcm_token_" + config.sourceId to token,
@@ -66,6 +72,7 @@ internal class InstallOrUpgradeEvent(
                     currentBuildType: $currentBuildType,
                     currentBuildType: $appVisibilityState,
                     currentBuildType: $appVisibilityState,
+                    reason: $reason,
                 },
                 userAttributes: {
                     fcm_token_${config.sourceId}: $token
@@ -93,7 +100,8 @@ internal class InstallOrUpgradeEvent(
             appVisibilityState == other.appVisibilityState &&
             isUpgrade == other.isUpgrade &&
             token == other.token &&
-            config == other.config
+            config == other.config &&
+            reason == other.reason
     }
 
     override fun hashCode(): Int {
@@ -110,6 +118,7 @@ internal class InstallOrUpgradeEvent(
         result = 31 * result + isUpgrade.hashCode()
         result = 31 * result + token.hashCode()
         result = 31 * result + config.hashCode()
+        result = 31 * result + reason.hashCode()
         return result
     }
 }

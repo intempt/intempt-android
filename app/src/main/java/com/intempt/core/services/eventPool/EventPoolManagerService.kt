@@ -95,11 +95,17 @@ internal open class EventPoolManagerService
             startEventCollection()
         }
 
+        /**
+         * Returns whether the event was accepted, false when the user is opted out. A caller that
+         * records the event as sent (the push-token dedupe) must not do so for a dropped one
+         * (INT-5964). Accepted means handed to the build; the payload itself is built async.
+         */
+        @Suppress("ReturnCount") // a guard and two paths; nesting them would hide the early drop
         fun dispatchEvent(
             props: DispatchEventProps,
             serviceName: String,
-        ) {
-            if (!config.isUserOptIn) return
+        ): Boolean {
+            if (!config.isUserOptIn) return false
             val (eventName, entityName, event, type, context, view) = props
             logger.log("$serviceName | Received Event: $eventName; Type:$type")
 
@@ -111,7 +117,7 @@ internal open class EventPoolManagerService
                         payload = event,
                     ),
                 )
-                return
+                return true
             }
 
             // launch + suspend rather than CompletableFuture.thenAccept. thenAccept is API 24,
@@ -125,6 +131,7 @@ internal open class EventPoolManagerService
                             context = context,
                             view = view,
                             targetIdOverride = props.targetIdOverride,
+                            installReason = props.installReason,
                         ),
                     )
                 if (payload.isNotEmpty()) {
@@ -138,6 +145,7 @@ internal open class EventPoolManagerService
                     )
                 }
             }
+            return true
         }
 
         fun emitEvent(event: IntemptEvent): Boolean {
@@ -149,6 +157,36 @@ internal open class EventPoolManagerService
             logger.log("EventPool | Event is emitted: $isEmitted")
             return isEmitted
         }
+
+        /**
+         * Builds an event off the caller's thread and writes it straight into the durable queue,
+         * bypassing the in-memory flow (INT-5964).
+         *
+         * For the push-token release on logOut()/reset(), the one event whose loss is a privacy
+         * defect rather than an analytics gap: if it never arrives, the logged-out user's token stays
+         * on their profile and their push keeps reaching the device. [emitEvent] is a `tryEmit` on a
+         * bounded flow and drops when the buffer is full, which a burst just before a logout can
+         * cause. This path has no buffer to fill: [build] runs on [dispatcher] and the result goes
+         * to [DeliveryMessages.enqueueEvent], which only posts to the delivery worker. The session
+         * tracker does not see the event, which is right for one that belongs to the profile being
+         * left. Whatever [build] needs from the profile being left it must capture before this call.
+         *
+         * A failure is logged as an error naming the event, since nothing retries it.
+         */
+        fun enqueueDurably(
+            name: String,
+            type: String,
+            build: () -> Array<IntemptEventProvider>,
+        ): Job =
+            coroutineScope.launch {
+                try {
+                    val event = IntemptEvent(name = name, type = type, payload = build())
+                    delivery.enqueueEvent(JSONObject(event.toFormated()))
+                    logger.log("EventPool | '$name' written to the durable queue")
+                } catch (e: Exception) {
+                    logger.error("EventPool | '$name' was NOT queued and will not be sent: ${e.message}")
+                }
+            }
 
         /**
          * Sends whatever is queued now, instead of waiting for the timer or the size trigger.
