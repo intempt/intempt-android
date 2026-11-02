@@ -40,6 +40,11 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+      # The self-hosted runner image has no Android SDK (GitHub-hosted runners did), so AGP failed
+      # with "SDK location not found" on v5.1.0. Same setup as ci.yml.
+      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407  # v3
+        with:
+          packages: platform-tools
 
       - name: Determine release version
         env:
