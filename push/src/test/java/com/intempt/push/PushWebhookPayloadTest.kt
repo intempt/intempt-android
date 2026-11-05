@@ -222,4 +222,74 @@ class PushWebhookPayloadTest {
             "\"destinationType\":\"firebase_cloud_messaging\"",
         ).forEach { assertTrue("missing $it in $json", json.contains(it)) }
     }
+
+    // -------------------------------------------------------------- run identity (INT-5960)
+
+    /**
+     * A journey send's metadata parses, run ids included.
+     *
+     * destinations-processor stamps `runId`/`subrunId` into the metadata of every send that belongs
+     * to a journey run, and writes the eight identifiers as JSON numbers. Without
+     * `@JsonIgnoreProperties` the run ids failed the parse, `parseMetadata` returned null, and the
+     * SDK sent no delivered, opened or bounced webhook at all for any journey push.
+     */
+    @Test
+    fun `a journey send's metadata parses with its run ids`() {
+        val json =
+            """
+            {"orgId":11,"projectId":22,"transformerId":33,"pipelineId":44,
+             "destinationId":55,"masterId":66,"accountId":77,"templateId":88,
+             "runId":"run-1","subrunId":"sub-1"}
+            """.trimIndent()
+
+        val parsed = mapper.readValue<PushNotificationMetadata>(json)
+
+        assertEquals(metadata().copy(runId = "run-1", subrunId = "sub-1"), parsed)
+    }
+
+    /** The same rule as content: a field the server adds later must not cost the tracking. */
+    @Test
+    fun `an unknown metadata field does not fail the parse`() {
+        val json =
+            """
+            {"orgId":"11","projectId":"22","transformerId":"33","pipelineId":"44",
+             "destinationId":"55","masterId":"66","accountId":"77","templateId":"88",
+             "runId":"run-1","somethingNew":"added next quarter"}
+            """.trimIndent()
+
+        val parsed = mapper.readValue<PushNotificationMetadata>(json)
+
+        assertEquals(metadata().copy(runId = "run-1"), parsed)
+        assertNull(parsed.subrunId)
+    }
+
+    /**
+     * The webhook carries the run ids it was sent with.
+     *
+     * The journey waiting on this push's outcome only accepts a webhook addressed to its run, so a
+     * dropped `runId` leaves the run waiting on an open that already happened.
+     */
+    @Test
+    fun `every webhook type carries the send's run ids`() {
+        val journeySend = metadata().copy(runId = "run-1", subrunId = "sub-1")
+
+        PushNotificationWebhookRequest.WebhookType.entries.forEach { type ->
+            val json = mapper.writeValueAsString(PushNotificationWebhookRequest(type, journeySend))
+
+            assertTrue("missing runId in $json", json.contains("\"runId\":\"run-1\""))
+            assertTrue("missing subrunId in $json", json.contains("\"subrunId\":\"sub-1\""))
+        }
+    }
+
+    /** A send outside a journey has no run ids, and the webhook says so rather than inventing one. */
+    @Test
+    fun `a send without run ids reports them as null`() {
+        val request =
+            PushNotificationWebhookRequest(PushNotificationWebhookRequest.WebhookType.OPENED, metadata())
+
+        assertNull(request.runId)
+        assertNull(request.subrunId)
+        assertEquals(11L, request.orgId)
+        assertEquals(88L, request.templateId)
+    }
 }
