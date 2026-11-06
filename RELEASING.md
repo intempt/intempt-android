@@ -16,9 +16,10 @@ can never be cut from a feature branch or a stale local checkout.
   automatically on a merge to `main`, but a real actor pushing the tag by hand works the same way.
 - **Guard:** the job fails unless the tagged/dispatched commit is contained in `origin/main`.
 - **Build & sign:** builds the AAR and signs it in-memory using the release key.
-- **Staged upload:** uploads `:app` and `:push` as two separate `./gradlew` invocations (they can't
-  configure in the same Gradle build — see "Two artifacts" below) as *staged* deployments to the
-  Central Portal. **Nothing goes live automatically** — a human must click *Publish*.
+- **Upload and release:** uploads `:app` and `:push` as two separate `./gradlew` invocations (they can't
+  configure in the same Gradle build — see "Two artifacts" below) with `publishAndReleaseToMavenCentral`.
+  Each Central Portal deployment is released as soon as it validates; nobody has to click *Publish*.
+  Once a version is live on Maven Central it cannot be changed or removed.
 
 ## Auto-tagging on merge (`.github/workflows/tag-release.yml`)
 
@@ -35,7 +36,7 @@ loop-prevention rule) — `publish.yml`'s `on: push: tags:` would silently never
 
 So cutting a release is now just: land the `VERSION` bump + `CHANGELOG.md` entry on `main` via a
 normal PR. `tag-release.yml` tags it; the tag push fires `publish.yml`; the rest is unchanged
-(staged upload, manual Publish click on the Central Portal).
+(upload and automatic release on the Central Portal).
 
 ## One-time setup (already done)
 
@@ -85,11 +86,11 @@ The version is read from `VERSION` in `gradle.properties` (overridable per-relea
 5. **Watch the run:** GitHub → **Actions** → "Publish to Maven Central". It will:
    - verify the commit is on `main`,
    - build + sign,
-   - upload a **staged** deployment.
+   - upload both deployments and release them automatically.
 
-6. **Publish on the portal:** go to [central.sonatype.com](https://central.sonatype.com) →
-   **Deployments**, review both `com.intempt.sdk:intempt-android:<version>` **and**
-   `com.intempt.sdk:intempt-push:<version>`, and click **Publish** on each.
+6. **Check the portal only if the run failed:** [central.sonatype.com](https://central.sonatype.com) →
+   **Deployments** shows validation errors for `com.intempt.sdk:intempt-android:<version>` and
+   `com.intempt.sdk:intempt-push:<version>`. A deployment that fails validation is not released.
 
 7. **Verify:** after it validates and syncs (~15–30 min) both versions appear at
    `https://repo1.maven.org/maven2/com/intempt/sdk/intempt-android/` and
@@ -114,7 +115,7 @@ independent versioning for `:push` today.
 > can't be registered from two subprojects in one build. `--configure-on-demand` alone does not
 > fix it while both modules' tasks are requested together. The fix is to publish them as **two
 > separate `./gradlew` processes**, each scoped to one module
-> (`:app:publishToMavenCentral` / `:push:publishToMavenCentral`, both with
+> (`:app:publishAndReleaseToMavenCentral` / `:push:publishAndReleaseToMavenCentral`, both with
 > `--configure-on-demand`) — verified locally via dry-run, and `publish.yml` now runs them as two
 > separate steps.
 
@@ -126,9 +127,9 @@ independent versioning for `:push` today.
   in sync with `gradle.properties` `VERSION`.
 - **Re-running a failed release** — fix the cause, delete and re-push the tag
   (`git push --delete origin v2.0.1` then re-tag), or use the manual `workflow_dispatch` run.
-- **Auto-release instead of staged** — change the Gradle task in `publish.yml` from
-  `publishToMavenCentral` to `publishAndReleaseToMavenCentral` (skips the manual Publish click;
-  irreversible once live — not recommended).
+- **Auto-release** — `publish.yml` runs `publishAndReleaseToMavenCentral`, and `gradle.properties`
+  sets `SONATYPE_AUTOMATIC_RELEASE=true` (the key the 0.28.0 plugin reads). Before that change the
+  workflow only staged the deployment, and v5.1.0 waited on the portal after a green run (INT-5897).
 - **Signing key** — the public key must be discoverable on a keyserver
   (`keyserver.ubuntu.com` / `keys.openpgp.org`) or Central can't verify the signature.
 - **Local testing** — `./gradlew publishToMavenLocal -PVERSION=<v>-LOCAL -PSKIP_SIGNING=true`
