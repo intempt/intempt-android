@@ -16,9 +16,10 @@ can never be cut from a feature branch or a stale local checkout.
   automatically on a merge to `main`, but a real actor pushing the tag by hand works the same way.
 - **Guard:** the job fails unless the tagged/dispatched commit is contained in `origin/main`.
 - **Build & sign:** builds the AAR and signs it in-memory using the release key.
-- **Staged upload:** uploads `:app` and `:push` as two separate `./gradlew` invocations (they can't
-  configure in the same Gradle build — see "Two artifacts" below) as *staged* deployments to the
-  Central Portal. **Nothing goes live automatically** — a human must click *Publish*.
+- **Upload and release:** uploads `:app` and `:push` as two separate `./gradlew` invocations (they can't
+  configure in the same Gradle build — see "Two artifacts" below) with `publishAndReleaseToMavenCentral`.
+  Each Central Portal deployment is released as soon as it validates; nobody has to click *Publish*.
+  Once a version is live on Maven Central it cannot be changed or removed.
 
 ## Auto-tagging on merge (`.github/workflows/tag-release.yml`)
 
@@ -34,8 +35,8 @@ pushed with the default `GITHUB_TOKEN` does **not** trigger other workflows (Git
 loop-prevention rule) — `publish.yml`'s `on: push: tags:` would silently never fire without it.
 
 So cutting a release is now just: land the `VERSION` bump + `CHANGELOG.md` entry on `main` via a
-normal PR. `tag-release.yml` tags it; the tag push fires `publish.yml`; the rest is unchanged
-(staged upload, manual Publish click on the Central Portal).
+normal PR. `tag-release.yml` tags it, and the tag push fires `publish.yml`, which uploads both
+modules and releases them on the Central Portal automatically (no manual *Publish* click).
 
 ## One-time setup (already done)
 
@@ -85,11 +86,12 @@ The version is read from `VERSION` in `gradle.properties` (overridable per-relea
 5. **Watch the run:** GitHub → **Actions** → "Publish to Maven Central". It will:
    - verify the commit is on `main`,
    - build + sign,
-   - upload a **staged** deployment.
+   - upload both deployments, release them automatically, and wait (up to 40 min per module)
+     until the Central Portal reports each version as published. A green run means both are live.
 
-6. **Publish on the portal:** go to [central.sonatype.com](https://central.sonatype.com) →
-   **Deployments**, review both `com.intempt.sdk:intempt-android:<version>` **and**
-   `com.intempt.sdk:intempt-push:<version>`, and click **Publish** on each.
+6. **Check the portal only if the run failed:** [central.sonatype.com](https://central.sonatype.com) →
+   **Deployments** shows validation errors for `com.intempt.sdk:intempt-android:<version>` and
+   `com.intempt.sdk:intempt-push:<version>`. A deployment that fails validation is not released.
 
 7. **Verify:** after it validates and syncs (~15–30 min) both versions appear at
    `https://repo1.maven.org/maven2/com/intempt/sdk/intempt-android/` and
@@ -114,7 +116,7 @@ independent versioning for `:push` today.
 > can't be registered from two subprojects in one build. `--configure-on-demand` alone does not
 > fix it while both modules' tasks are requested together. The fix is to publish them as **two
 > separate `./gradlew` processes**, each scoped to one module
-> (`:app:publishToMavenCentral` / `:push:publishToMavenCentral`, both with
+> (`:app:publishAndReleaseToMavenCentral` / `:push:publishAndReleaseToMavenCentral`, both with
 > `--configure-on-demand`) — verified locally via dry-run, and `publish.yml` now runs them as two
 > separate steps.
 
@@ -124,11 +126,24 @@ independent versioning for `:push` today.
   Merge to `main` first, then tag the merged commit.
 - **Tag name vs version** — the tag drives the published version (`v2.0.1` → `2.0.1`). Keep it
   in sync with `gradle.properties` `VERSION`.
-- **Re-running a failed release** — fix the cause, delete and re-push the tag
-  (`git push --delete origin v2.0.1` then re-tag), or use the manual `workflow_dispatch` run.
-- **Auto-release instead of staged** — change the Gradle task in `publish.yml` from
-  `publishToMavenCentral` to `publishAndReleaseToMavenCentral` (skips the manual Publish click;
-  irreversible once live — not recommended).
+- **Re-running a failed release** — fix the cause, then run the manual `workflow_dispatch` with the
+  same version (or delete and re-push the tag: `git push --delete origin v2.0.1`, then re-tag). Each
+  publish step first asks the Central Portal (`.github/scripts/central-published.sh`) whether that
+  artifact/version is already published and skips it if so. A re-run never tries to re-release an
+  immutable version. If the run failed in the wait ("uploaded but is not published"), first open
+  the deployment on central.sonatype.com. Re-run only after it has settled: if it is still
+  publishing, the re-run uploads a duplicate that Central rejects. If it failed validation, fix the
+  cause and re-run.
+- **Partial release** — `:app` and `:push` go out as two Gradle runs, `:app` first. If the `:push`
+  step fails after `:app` was released, `intempt-android:<v>` is live and `intempt-push:<v>` is
+  missing. That is a usable state, because push depends on core and not the other way round. Fix the
+  cause and re-run as above: `:app` is skipped and only `:push` is uploaded and released. Do not bump
+  the version for this. If `:push` cannot be fixed at that version, release `<v+1>` for both.
+- **Auto-release** — `publish.yml` calls `publishAndReleaseToMavenCentral`. In plugin 0.28.0 that
+  task makes the Central Portal upload use `publishingType=AUTOMATIC`. Release is deliberately not
+  enabled in `gradle.properties`, so a local `./gradlew publishToMavenCentral` still only stages.
+  (The old `mavenCentralAutomaticPublishing=true` key was never read by 0.28.0, which is why v5.1.0
+  waited on the portal after a green run: INT-5897.)
 - **Signing key** — the public key must be discoverable on a keyserver
   (`keyserver.ubuntu.com` / `keys.openpgp.org`) or Central can't verify the signature.
 - **Local testing** — `./gradlew publishToMavenLocal -PVERSION=<v>-LOCAL -PSKIP_SIGNING=true`
