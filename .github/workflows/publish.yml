@@ -58,7 +58,7 @@ jobs:
 
       # A tag with no changelog entry is how this SDK reached 2.0.1 with no changelog at all. The
       # workflow already resolved RELEASE_VERSION above, so the check costs nothing and runs before
-      # anything is uploaded — a staged deployment is awkward to retract, an early exit is not.
+      # anything is uploaded — a released version cannot be retracted, an early exit costs nothing.
       - name: Refuse to publish a version with no CHANGELOG entry
         run: |
           set -euo pipefail
@@ -82,10 +82,26 @@ jobs:
       # bump was tried and didn't clear it — see RELEASING.md). --configure-on-demand alone does
       # NOT fix it when both modules' tasks are requested together; the two publishes must be
       # separate `./gradlew` processes.
+      # Both steps use publishAndReleaseToMavenCentral: each Central Portal deployment is released as
+      # soon as it validates, so a green run means the version reaches Maven Central (~15-30 min sync).
+      # The plain publishToMavenCentral task only stages it and waits for a manual "Publish" click on
+      # central.sonatype.com, which is how v5.1.0 sat unreleased after a green run (INT-5897).
+      #
+      # Partial releases: the two modules cannot go out in one Gradle invocation (see above), so a
+      # failure in the :push step can leave :app released without :push. :app goes first on purpose:
+      # :push depends on :app, so "core released, push missing" is a usable state, the reverse is not.
+      # A released version is immutable, so each step first asks the Central Portal whether its
+      # artifact/version is already published and skips the upload if so. Recovery from a partial
+      # release is therefore a plain re-run of this workflow (or workflow_dispatch with the same
+      # version): :app is skipped and only :push is uploaded. See RELEASING.md "Partial release".
       - name: Publish and release :app to Maven Central
         run: |
           chmod +x ./gradlew
-          ./gradlew :app:publishAndReleaseToMavenCentral -PVERSION="$RELEASE_VERSION" --configure-on-demand --no-configuration-cache --stacktrace
+          if .github/scripts/central-published.sh intempt-android "$RELEASE_VERSION"; then
+            echo "com.intempt.sdk:intempt-android:$RELEASE_VERSION is already published, skipping."
+          else
+            ./gradlew :app:publishAndReleaseToMavenCentral -PVERSION="$RELEASE_VERSION" --configure-on-demand --no-configuration-cache --stacktrace
+          fi
         env:
           ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
           ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
@@ -94,17 +110,16 @@ jobs:
 
       - name: Publish and release :push to Maven Central
         run: |
-          ./gradlew :push:publishAndReleaseToMavenCentral -PVERSION="$RELEASE_VERSION" --configure-on-demand --no-configuration-cache --stacktrace
+          if .github/scripts/central-published.sh intempt-push "$RELEASE_VERSION"; then
+            echo "com.intempt.sdk:intempt-push:$RELEASE_VERSION is already published, skipping."
+          else
+            ./gradlew :push:publishAndReleaseToMavenCentral -PVERSION="$RELEASE_VERSION" --configure-on-demand --no-configuration-cache --stacktrace
+          fi
         env:
           ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
           ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
           ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SIGNING_KEY }}
           ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SIGNING_PASSWORD }}
-
-      # Both use publishAndReleaseToMavenCentral: the Central Portal deployment is released as soon
-      # as it validates, so a green run means the version reaches Maven Central (~15-30 min sync).
-      # The plain publishToMavenCentral task only stages it and waits for a manual "Publish" click
-      # on central.sonatype.com, which is how v5.1.0 sat unreleased after a green run (INT-5897).
 
       # Additive only — does not touch the Maven Central publish above. The CHANGELOG check
       # earlier in this job already proved a matching "## [<version>]" heading exists, so this

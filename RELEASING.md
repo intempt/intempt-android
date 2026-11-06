@@ -35,8 +35,8 @@ pushed with the default `GITHUB_TOKEN` does **not** trigger other workflows (Git
 loop-prevention rule) — `publish.yml`'s `on: push: tags:` would silently never fire without it.
 
 So cutting a release is now just: land the `VERSION` bump + `CHANGELOG.md` entry on `main` via a
-normal PR. `tag-release.yml` tags it; the tag push fires `publish.yml`; the rest is unchanged
-(upload and automatic release on the Central Portal).
+normal PR. `tag-release.yml` tags it, and the tag push fires `publish.yml`, which uploads both
+modules and releases them on the Central Portal automatically (no manual *Publish* click).
 
 ## One-time setup (already done)
 
@@ -125,11 +125,21 @@ independent versioning for `:push` today.
   Merge to `main` first, then tag the merged commit.
 - **Tag name vs version** — the tag drives the published version (`v2.0.1` → `2.0.1`). Keep it
   in sync with `gradle.properties` `VERSION`.
-- **Re-running a failed release** — fix the cause, delete and re-push the tag
-  (`git push --delete origin v2.0.1` then re-tag), or use the manual `workflow_dispatch` run.
-- **Auto-release** — `publish.yml` runs `publishAndReleaseToMavenCentral`, and `gradle.properties`
-  sets `SONATYPE_AUTOMATIC_RELEASE=true` (the key the 0.28.0 plugin reads). Before that change the
-  workflow only staged the deployment, and v5.1.0 waited on the portal after a green run (INT-5897).
+- **Re-running a failed release** — fix the cause, then run the manual `workflow_dispatch` with the
+  same version (or delete and re-push the tag: `git push --delete origin v2.0.1`, then re-tag). Each
+  publish step first asks the Central Portal (`.github/scripts/central-published.sh`) whether that
+  artifact/version is already published and skips it if so. A re-run never tries to re-release an
+  immutable version.
+- **Partial release** — `:app` and `:push` go out as two Gradle runs, `:app` first. If the `:push`
+  step fails after `:app` was released, `intempt-android:<v>` is live and `intempt-push:<v>` is
+  missing. That is a usable state, because push depends on core and not the other way round. Fix the
+  cause and re-run as above: `:app` is skipped and only `:push` is uploaded and released. Do not bump
+  the version for this. If `:push` cannot be fixed at that version, release `<v+1>` for both.
+- **Auto-release** — `publish.yml` calls `publishAndReleaseToMavenCentral`. In plugin 0.28.0 that
+  task makes the Central Portal upload use `publishingType=AUTOMATIC`. Release is deliberately not
+  enabled in `gradle.properties`, so a local `./gradlew publishToMavenCentral` still only stages.
+  (The old `mavenCentralAutomaticPublishing=true` key was never read by 0.28.0, which is why v5.1.0
+  waited on the portal after a green run: INT-5897.)
 - **Signing key** — the public key must be discoverable on a keyserver
   (`keyserver.ubuntu.com` / `keys.openpgp.org`) or Central can't verify the signature.
 - **Local testing** — `./gradlew publishToMavenLocal -PVERSION=<v>-LOCAL -PSKIP_SIGNING=true`
