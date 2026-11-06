@@ -19,6 +19,7 @@ if [ "${1:-}" = "--wait" ]; then wait_mode=true; shift; fi
 artifact="$1"
 version="$2"
 timeout="${3:-2400}"
+case "$timeout" in ""|*[!0-9]*) usage ;; esac
 group="com.intempt.sdk"
 
 user="${ORG_GRADLE_PROJECT_mavenCentralUsername:-}"
