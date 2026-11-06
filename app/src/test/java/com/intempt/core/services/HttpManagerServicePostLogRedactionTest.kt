@@ -43,7 +43,9 @@ class HttpManagerServicePostLogRedactionTest {
                         seen += String(buf, 0, n)
                     }
                     Thread.sleep(150) // let the small body arrive
-                    sock.getOutputStream().write("HTTP/1.1 $status X\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".toByteArray())
+                    sock.getOutputStream().write(
+                        "HTTP/1.1 $status X\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".toByteArray(),
+                    )
                 }
             }
         }
