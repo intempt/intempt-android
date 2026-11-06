@@ -46,7 +46,6 @@ class DataClassHashCodeOnDeviceTest {
                 appName = "sample",
                 appVersion = "1.0.0",
                 appIdentifier = "com.intempt.sample",
-                androidId = "aid",
                 userAttributes =
                     SessionUserAttributes(deviceType = "phone", carrier = "", platform = "android"),
             )

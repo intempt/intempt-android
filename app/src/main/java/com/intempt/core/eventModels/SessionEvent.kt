@@ -15,7 +15,6 @@ internal class SessionEvent(
     val appName: String,
     val appVersion: String,
     val appIdentifier: String,
-    val androidId: String,
     val source: String = "android",
     val userAttributes: SessionUserAttributes,
 ) : IntemptEventProvider {
@@ -38,7 +37,6 @@ internal class SessionEvent(
                     "appName" to appName,
                     "appVersion" to appVersion,
                     "appIdentifier" to appIdentifier,
-                    "androidId" to androidId,
                 ),
             "userAttributes" to
                 mapOf(
@@ -62,8 +60,7 @@ internal class SessionEvent(
                 source: $source,
                 appName: $appName,
                 appVersion: $appVersion,
-                appIdentifier: $appIdentifier,
-                androidId: $androidId
+                appIdentifier: $appIdentifier
             },
             userAttributes: {
                 deviceType: ${userAttributes.deviceType},
@@ -92,7 +89,6 @@ internal class SessionEvent(
             appName == other.appName &&
             appVersion == other.appVersion &&
             appIdentifier == other.appIdentifier &&
-            androidId == other.androidId &&
             source == other.source &&
             userAttributes == other.userAttributes
     }
@@ -108,7 +104,6 @@ internal class SessionEvent(
         result = 31 * result + appName.hashCode()
         result = 31 * result + appVersion.hashCode()
         result = 31 * result + appIdentifier.hashCode()
-        result = 31 * result + androidId.hashCode()
         result = 31 * result + source.hashCode()
         result = 31 * result + userAttributes.hashCode()
         return result
