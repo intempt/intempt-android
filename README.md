@@ -423,6 +423,23 @@ carry `ipAddress`, `city`, `region` or `country` — earlier versions fetched th
 third-party service on every session start. If you read those fields, see
 [docs/MIGRATION.md](docs/MIGRATION.md).
 
+### Backup
+
+The SDK stores `profileId` and session ids in plain `SharedPreferences` (`user_prefs`,
+`session_prefs`, `app_prefs`, `fragment_prefs`). A library cannot set `allowBackup` for your app, so
+if your app allows backup those files travel in Auto Backup and `adb backup`. Exclude them with the
+rules the SDK ships:
+
+```xml
+<application
+    android:fullBackupContent="@xml/intempt_backup_rules"
+    android:dataExtractionRules="@xml/intempt_data_extraction_rules" ...>
+```
+
+If you already have rules files, copy the `<exclude>` lines from those two into yours. A named
+Intempt instance adds a `_<name>` suffix to each file name; exclude those too. Or set
+`android:allowBackup="false"`.
+
 ### Logging
 
 Toggle SDK debug logging.

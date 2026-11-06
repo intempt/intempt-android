@@ -11,6 +11,9 @@ under Unreleased.
 
 ## [Unreleased]
 
+- Security: `HttpManagerService.post` no longer writes the request body (PII) to the debug log; it logs the size only (INT-3914).
+- Security: ships `intempt_backup_rules` and `intempt_data_extraction_rules` excluding the identity SharedPreferences from backup; see README "Backup" (INT-3927, INT-3889).
+
 ## [5.1.0] - 2026-10-30
 
 > **Behaviour change: check your error callback.** 401, 402, 403 and 404 now arrive as

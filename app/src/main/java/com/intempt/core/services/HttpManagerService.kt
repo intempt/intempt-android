@@ -71,6 +71,7 @@ class HttpManagerService
             return try {
                 val authHeader = "Basic ${config.token()}"
 
+                // INT-3914: the body is redacted too (userId, email, attributes, captured text); size only.
                 // Redacted. This used to print the full `Authorization: Basic <base64>` value, so
                 // any host app that enabled logging — or called Intempt.Logging.start() — wrote the
                 // project's ingestion credential into logcat, where it reaches bug reports and
@@ -84,7 +85,7 @@ class HttpManagerService
                     Headers:
                         Authorization: Basic <redacted>
                         Content-Type: $type
-                    Body: $body
+                    Body: <redacted, ${body.toString().length} chars>
                     """.trimIndent(),
                 )
 
@@ -95,7 +96,7 @@ class HttpManagerService
                         header(HttpHeaders.Authorization, authHeader)
                     }
                 if (response.status.value in 200..299) {
-                    logger.log("POST | URL: $url. BODY: $body. Status: ${response.status.value}")
+                    logger.log("POST | URL: $url. Status: ${response.status.value}")
                     response
                 } else {
                     throw Exception("Failed with status code: ${response.status.value}")
