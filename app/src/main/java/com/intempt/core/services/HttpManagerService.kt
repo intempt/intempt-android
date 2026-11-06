@@ -5,6 +5,7 @@ package com.intempt.core.services
 import com.intempt.core.internal.InternalIntemptApi
 import com.intempt.core.internal.traced
 import io.ktor.client.HttpClient
+import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.get
 import io.ktor.client.request.header
@@ -45,12 +46,18 @@ class HttpManagerService
          * entered concurrently, and `PUBLICATION` would allow two clients to be built and one
          * silently discarded along with its connection pool.
          */
-        private val client by lazy {
+        internal val client by lazy {
             // Traced so the benchmark can show the cost MOVED rather than vanished. A drop in
             // Intempt.provideHttp on its own would look identical to R8 having stripped the client
             // entirely, which would be a bug reported as a win.
             traced("Intempt.httpClientInit") {
                 HttpClient {
+                    // INT-3902: without this a stalled connection holds the coroutine indefinitely.
+                    install(HttpTimeout) {
+                        requestTimeoutMillis = REQUEST_TIMEOUT_MS
+                        connectTimeoutMillis = CONNECT_TIMEOUT_MS
+                        socketTimeoutMillis = SOCKET_TIMEOUT_MS
+                    }
                     install(ContentNegotiation) {
                         json(
                             Json {
@@ -115,5 +122,11 @@ class HttpManagerService
                 // INT-3907 — rethrow the cause; a bare Exception() hid what failed.
                 throw e
             }
+        }
+
+        internal companion object {
+            const val REQUEST_TIMEOUT_MS = 30_000L
+            const val CONNECT_TIMEOUT_MS = 10_000L
+            const val SOCKET_TIMEOUT_MS = 30_000L
         }
     }
