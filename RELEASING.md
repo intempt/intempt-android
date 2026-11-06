@@ -86,7 +86,8 @@ The version is read from `VERSION` in `gradle.properties` (overridable per-relea
 5. **Watch the run:** GitHub → **Actions** → "Publish to Maven Central". It will:
    - verify the commit is on `main`,
    - build + sign,
-   - upload both deployments and release them automatically.
+   - upload both deployments, release them automatically, and wait (up to 40 min per module)
+     until the Central Portal reports each version as published. A green run means both are live.
 
 6. **Check the portal only if the run failed:** [central.sonatype.com](https://central.sonatype.com) →
    **Deployments** shows validation errors for `com.intempt.sdk:intempt-android:<version>` and
@@ -129,7 +130,10 @@ independent versioning for `:push` today.
   same version (or delete and re-push the tag: `git push --delete origin v2.0.1`, then re-tag). Each
   publish step first asks the Central Portal (`.github/scripts/central-published.sh`) whether that
   artifact/version is already published and skips it if so. A re-run never tries to re-release an
-  immutable version.
+  immutable version. If the run failed in the wait ("uploaded but is not published"), first open
+  the deployment on central.sonatype.com. Re-run only after it has settled: if it is still
+  publishing, the re-run uploads a duplicate that Central rejects. If it failed validation, fix the
+  cause and re-run.
 - **Partial release** — `:app` and `:push` go out as two Gradle runs, `:app` first. If the `:push`
   step fails after `:app` was released, `intempt-android:<v>` is live and `intempt-push:<v>` is
   missing. That is a usable state, because push depends on core and not the other way round. Fix the

@@ -83,7 +83,9 @@ jobs:
       # NOT fix it when both modules' tasks are requested together; the two publishes must be
       # separate `./gradlew` processes.
       # Both steps use publishAndReleaseToMavenCentral: each Central Portal deployment is released as
-      # soon as it validates, so a green run means the version reaches Maven Central (~15-30 min sync).
+      # soon as it validates. Validation and publishing are asynchronous, so each step then waits
+      # (up to 40 min) until the portal reports the version as published and fails otherwise.
+      # A green run therefore means both versions are live on Maven Central.
       # The plain publishToMavenCentral task only stages it and waits for a manual "Publish" click on
       # central.sonatype.com, which is how v5.1.0 sat unreleased after a green run (INT-5897).
       #
@@ -97,11 +99,14 @@ jobs:
       - name: Publish and release :app to Maven Central
         run: |
           chmod +x ./gradlew
-          if .github/scripts/central-published.sh intempt-android "$RELEASE_VERSION"; then
-            echo "com.intempt.sdk:intempt-android:$RELEASE_VERSION is already published, skipping."
-          else
-            ./gradlew :app:publishAndReleaseToMavenCentral -PVERSION="$RELEASE_VERSION" --configure-on-demand --no-configuration-cache --stacktrace
-          fi
+          rc=0; .github/scripts/central-published.sh intempt-android "$RELEASE_VERSION" || rc=$?
+          case "$rc" in
+            0) echo "com.intempt.sdk:intempt-android:$RELEASE_VERSION is already published, skipping." ;;
+            1) ./gradlew :app:publishAndReleaseToMavenCentral -PVERSION="$RELEASE_VERSION" --configure-on-demand --no-configuration-cache --stacktrace
+               # The portal validates and publishes asynchronously; only call it done once it is live.
+               .github/scripts/central-published.sh --wait intempt-android "$RELEASE_VERSION" 2400 ;;
+            *) echo "::error::central-published.sh failed (exit $rc)"; exit "$rc" ;;
+          esac
         env:
           ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
           ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
@@ -110,11 +115,14 @@ jobs:
 
       - name: Publish and release :push to Maven Central
         run: |
-          if .github/scripts/central-published.sh intempt-push "$RELEASE_VERSION"; then
-            echo "com.intempt.sdk:intempt-push:$RELEASE_VERSION is already published, skipping."
-          else
-            ./gradlew :push:publishAndReleaseToMavenCentral -PVERSION="$RELEASE_VERSION" --configure-on-demand --no-configuration-cache --stacktrace
-          fi
+          rc=0; .github/scripts/central-published.sh intempt-push "$RELEASE_VERSION" || rc=$?
+          case "$rc" in
+            0) echo "com.intempt.sdk:intempt-push:$RELEASE_VERSION is already published, skipping." ;;
+            1) ./gradlew :push:publishAndReleaseToMavenCentral -PVERSION="$RELEASE_VERSION" --configure-on-demand --no-configuration-cache --stacktrace
+               # The portal validates and publishes asynchronously; only call it done once it is live.
+               .github/scripts/central-published.sh --wait intempt-push "$RELEASE_VERSION" 2400 ;;
+            *) echo "::error::central-published.sh failed (exit $rc)"; exit "$rc" ;;
+          esac
         env:
           ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
           ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
