@@ -16,10 +16,24 @@ import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.contentType
 import io.ktor.serialization.kotlinx.json.json
+import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.json.Json
 import org.json.JSONObject
 import javax.inject.Inject
 import javax.inject.Singleton
+
+private const val HTTP_OK_FIRST = 200
+private const val HTTP_OK_LAST = 299
+private const val MILLIS_PER_SECOND = 1000L
+
+/**
+ * What a POST came back with, for the one caller (consent retry) that has to tell a 5xx or a
+ * network error from a 4xx. [status] is the HTTP status, or 0 when no response arrived.
+ */
+@InternalIntemptApi
+data class PostOutcome(val status: Int, val retryAfterMs: Long? = null) {
+    val isSuccess: Boolean get() = status in HTTP_OK_FIRST..HTTP_OK_LAST
+}
 
 @Singleton
 @InternalIntemptApi
@@ -111,6 +125,35 @@ class HttpManagerService
             } catch (e: Exception) {
                 logger.error("HttpService post request error: ${e.message}")
                 null
+            }
+        }
+
+        /**
+         * Like [post], but reports the status instead of collapsing every failure into null.
+         * [post] is unchanged and keeps its callers' behaviour; this exists for consent retry.
+         */
+        suspend fun postForStatus(
+            url: String,
+            body: JSONObject,
+            type: ContentType = ContentType.Application.Json,
+        ): PostOutcome {
+            return try {
+                val response =
+                    client.post(url) {
+                        contentType(type)
+                        setBody(body.toString())
+                        header(HttpHeaders.Authorization, "Basic ${config.token()}")
+                    }
+                val status = response.status.value
+                logger.log("POST | URL: $url. Status: $status")
+                val retryAfterMs =
+                    response.headers[HttpHeaders.RetryAfter]?.trim()?.toLongOrNull()?.let { it * MILLIS_PER_SECOND }
+                PostOutcome(status, retryAfterMs)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                logger.error("HttpService post request error: ${e.message}")
+                PostOutcome(0)
             }
         }
 

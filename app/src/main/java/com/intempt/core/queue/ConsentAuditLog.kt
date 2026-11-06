@@ -47,16 +47,65 @@ internal class ConsentAuditLog(
      * consent endpoint succeeded, failed, or hasn't been attempted yet.
      */
     @Synchronized
-    fun record(payload: JSONObject) {
-        try {
+    fun record(payload: JSONObject): Long {
+        return try {
             val db = dbHelper.writableDatabase
             val cv = ContentValues()
             cv.put(COLUMN_PAYLOAD, payload.toString())
             cv.put(COLUMN_CREATED_AT, System.currentTimeMillis())
+            cv.put(COLUMN_STATE, STATE_PENDING)
             db.insert(TABLE_NAME, null, cv)
         } catch (e: Exception) {
             // Nothing further to fall back to: this *is* the fallback. The call site already
             // logs whether the network send failed.
+            -1L
+        } finally {
+            dbHelper.close()
+        }
+    }
+
+    /** A recorded decision that the server has not yet acknowledged. */
+    data class PendingConsent(val id: Long, val payload: JSONObject)
+
+    /** The oldest decision still awaiting delivery, or null. The payload keeps its original timestamp. */
+    @Synchronized
+    fun oldestPending(): PendingConsent? {
+        return try {
+            dbHelper.readableDatabase.query(
+                TABLE_NAME,
+                arrayOf(COLUMN_ID, COLUMN_PAYLOAD),
+                "$COLUMN_STATE = ?",
+                arrayOf(STATE_PENDING.toString()),
+                null,
+                null,
+                "$COLUMN_ID ASC",
+                "1",
+            ).use { c -> if (c.moveToFirst()) PendingConsent(c.getLong(0), JSONObject(c.getString(1))) else null }
+        } catch (e: Exception) {
+            null
+        } finally {
+            dbHelper.close()
+        }
+    }
+
+    /** The server acknowledged this decision with a 2xx; it is never sent again. The row stays as audit history. */
+    @Synchronized
+    fun markDelivered(id: Long) = setState(id, STATE_DELIVERED)
+
+    /** The server rejected this decision as unusable; stop retrying it. The row stays as audit history. */
+    @Synchronized
+    fun markDropped(id: Long) = setState(id, STATE_DROPPED)
+
+    private fun setState(
+        id: Long,
+        state: Int,
+    ) {
+        try {
+            val cv = ContentValues()
+            cv.put(COLUMN_STATE, state)
+            dbHelper.writableDatabase.update(TABLE_NAME, cv, "$COLUMN_ID = ?", arrayOf(id.toString()))
+        } catch (e: Exception) {
+            // A failed update leaves the row pending, which at worst resends; never crash the caller.
         } finally {
             dbHelper.close()
         }
@@ -100,22 +149,34 @@ internal class ConsentAuditLog(
             oldVersion: Int,
             newVersion: Int,
         ) {
-            db.execSQL("DROP TABLE IF EXISTS $TABLE_NAME")
-            db.execSQL(CREATE_TABLE)
+            // Never drop: this table is the consent audit history. Version 1 -> 2 adds the delivery
+            // state. Rows from version 1 predate the retry queue and are marked delivered, because
+            // whether they reached the server is unknown and the backend has no idempotency key,
+            // so replaying them could publish a duplicate.
+            if (oldVersion < 2) {
+                db.execSQL(
+                    "ALTER TABLE $TABLE_NAME ADD COLUMN $COLUMN_STATE INTEGER NOT NULL DEFAULT $STATE_DELIVERED",
+                )
+            }
         }
     }
 
     companion object {
         private const val DATABASE_NAME = "intempt_consent_audit"
-        private const val DATABASE_VERSION = 1
+        private const val DATABASE_VERSION = 2
         private const val TABLE_NAME = "consent_decisions"
         private const val COLUMN_ID = "_id"
         private const val COLUMN_PAYLOAD = "payload"
         private const val COLUMN_CREATED_AT = "created_at"
+        private const val COLUMN_STATE = "state"
+        private const val STATE_PENDING = 0
+        private const val STATE_DELIVERED = 1
+        private const val STATE_DROPPED = 2
         private const val CREATE_TABLE =
             "CREATE TABLE $TABLE_NAME (" +
                 "$COLUMN_ID INTEGER PRIMARY KEY AUTOINCREMENT, " +
                 "$COLUMN_PAYLOAD TEXT NOT NULL, " +
-                "$COLUMN_CREATED_AT INTEGER NOT NULL)"
+                "$COLUMN_CREATED_AT INTEGER NOT NULL, " +
+                "$COLUMN_STATE INTEGER NOT NULL DEFAULT $STATE_DELIVERED)"
     }
 }
