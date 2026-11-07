@@ -45,7 +45,11 @@ internal object PushTargetGuard {
             } else {
                 context.packageManager.getLaunchIntentForPackage(context.packageName) ?: Intent()
             }
-        return intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        return intent.addFlags(
+            Intent.FLAG_ACTIVITY_NEW_TASK or
+                Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                Intent.FLAG_ACTIVITY_SINGLE_TOP,
+        )
     }
 
     /** Target for the dispatcher Activity, built only from the vetted URL extra. */
