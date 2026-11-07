@@ -11,6 +11,16 @@ under Unreleased.
 
 ## [Unreleased]
 
+- Security: `HttpManagerService.post` no longer writes the request body (PII) to the debug log; it logs the size only (INT-3914).
+- Security: ships `intempt_backup_rules` and `intempt_data_extraction_rules` excluding the identity SharedPreferences from backup; see README "Backup" (INT-3927, INT-3889).
+
+### Removed
+
+- **`ANDROID_ID` collection (INT-3890).** The SDK no longer reads `Settings.Secure.ANDROID_ID` at session
+  start. **Payload change:** the `androidId` field is no longer sent in the session-start event `data`.
+  The ingestion schema field is nullable, so no server change is needed; any downstream consumer that
+  read `androidId` from session events will now see it absent. There is no opt-in flag.
+
 ## [5.1.0] - 2026-10-30
 
 > **Behaviour change: check your error callback.** 401, 402, 403 and 404 now arrive as

@@ -194,12 +194,11 @@ class EventModelEqualsHashCodeTest {
         appName: String = "sample",
         appVersion: String = "1.0.0",
         appIdentifier: String = "com.intempt.sample",
-        androidId: String = "aid",
         source: String = "android",
         userAttributes: SessionUserAttributes = sessionUserAttributes(),
     ) = SessionEvent(
         eventId, sessionId, pageId, profileId, timestamp,
-        sessionStartEventName, deviceName, appName, appVersion, appIdentifier, androidId, source, userAttributes,
+        sessionStartEventName, deviceName, appName, appVersion, appIdentifier, source, userAttributes,
     )
 
     @Test
@@ -221,7 +220,6 @@ class EventModelEqualsHashCodeTest {
         assertNotEquals(a, sessionEvent(appName = "other"))
         assertNotEquals(a, sessionEvent(appVersion = "other"))
         assertNotEquals(a, sessionEvent(appIdentifier = "other"))
-        assertNotEquals(a, sessionEvent(androidId = "other"))
         assertNotEquals(a, sessionEvent(source = "other"))
         assertNotEquals(a, sessionEvent(userAttributes = sessionUserAttributes(deviceType = "tablet")))
     }

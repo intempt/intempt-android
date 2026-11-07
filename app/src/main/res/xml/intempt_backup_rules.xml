@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  INT-3927 / INT-3889: keep the Intempt identity out of Auto Backup and `adb backup`.
+  Reference from the host app (Android 11 and below):
+      android:fullBackupContent="@xml/intempt_backup_rules"
+  or <include> these lines from the host's own rules file. See README, "Backup".
+  File names are StorageKeys.{User,Session,App,Fragment}Prefs; a named Intempt instance adds a
+  `_<name>` suffix, which must be excluded the same way.
+-->
+<full-backup-content>
+    <exclude domain="sharedpref" path="user_prefs.xml" />
+    <exclude domain="sharedpref" path="session_prefs.xml" />
+    <exclude domain="sharedpref" path="app_prefs.xml" />
+    <exclude domain="sharedpref" path="fragment_prefs.xml" />
+</full-backup-content>

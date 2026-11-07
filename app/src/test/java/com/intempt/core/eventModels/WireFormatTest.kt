@@ -8,6 +8,7 @@ package com.intempt.core.eventModels
 import com.intempt.core.services.ConfigManagerService
 import com.intempt.core.types.AppVisibilityState
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -145,7 +146,6 @@ class WireFormatTest {
                 appName = "Sample",
                 appVersion = "1.2.3",
                 appIdentifier = "com.example.sample",
-                androidId = "aid-123",
                 userAttributes =
                     SessionUserAttributes(
                         deviceType = "phone",
@@ -162,7 +162,7 @@ class WireFormatTest {
         assertEquals("Sample", data["appName"])
         assertEquals("1.2.3", data["appVersion"])
         assertEquals("com.example.sample", data["appIdentifier"])
-        assertEquals("aid-123", data["androidId"])
+        assertFalse("INT-3890: androidId is no longer collected or sent", data.containsKey("androidId"))
         assertEquals("the platform keys off this to pick the Android pipeline", "android", data["source"])
 
         val attrs = formatted.userAttributes()
@@ -201,7 +201,6 @@ class WireFormatTest {
                 appName = "Sample",
                 appVersion = "1.2.3",
                 appIdentifier = "com.example.sample",
-                androidId = "aid-123",
                 userAttributes =
                     SessionUserAttributes(deviceType = "phone", carrier = "", platform = "android"),
             )

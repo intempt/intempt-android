@@ -2,14 +2,11 @@
 
 package com.intempt.core.services
 
-import android.annotation.SuppressLint
 import android.app.Activity
-import android.content.ContentResolver
 import android.content.Context
 import android.content.res.Configuration
 import android.content.res.Resources
 import android.os.Build
-import android.provider.Settings
 import android.telephony.TelephonyManager
 import android.text.InputType
 import android.view.View
@@ -60,7 +57,6 @@ internal open class IntemptEventManagerService
         private val utils: UtilsService,
         private val config: ConfigManagerService,
     ) {
-        @SuppressLint("HardwareIds")
         fun generateSessionEventPayload(sessionStartEventName: String): Array<IntemptEventProvider> {
             val eventProps = getBaseEventProps()
 
@@ -68,7 +64,6 @@ internal open class IntemptEventManagerService
             val appName = context.applicationInfo?.loadLabel(context.packageManager).toString()
             val appVersion = context.packageManager?.getPackageInfo(context.packageName, 0)?.versionName.toString()
             val appIdentifier = context.packageName
-            val androidId = Settings.Secure.getString((context.contentResolver ?: "") as ContentResolver?, Settings.Secure.ANDROID_ID)
 
             return arrayOf(
                 SessionEvent(
@@ -81,7 +76,6 @@ internal open class IntemptEventManagerService
                     appName = appName,
                     appVersion = appVersion,
                     appIdentifier = appIdentifier,
-                    androidId = androidId,
                     userAttributes =
                         SessionUserAttributes(
                             deviceType = getDeviceType(),

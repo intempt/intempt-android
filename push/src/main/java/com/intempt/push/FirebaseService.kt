@@ -11,7 +11,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
-import android.net.Uri
 import android.os.Build
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
@@ -214,22 +213,17 @@ internal class FirebaseService : FirebaseMessagingService() {
                 .createNotificationChannel(channel)
         }
 
-        val intentTest: Intent =
-            when {
-                !content.webUrl.isNullOrBlank() -> {
-                    logger.debug("[FCM] Creating VIEW intent for ${content.webUrl}")
-                    Intent(Intent.ACTION_VIEW, Uri.parse(content.webUrl))
-                }
-                else -> {
-                    logger.debug("[FCM] Creating launch intent for package")
-                    context.packageManager.getLaunchIntentForPackage(context.packageName) ?: Intent()
-                }
-            }
-        intentTest.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        // INT-3893: the URL is vetted here and again in the dispatcher; a denied scheme is dropped
+        // and the dispatcher falls back to the app's launch intent.
+        val safeUrl = PushTargetGuard.vet(content.webUrl)
+        if (!content.webUrl.isNullOrBlank() && safeUrl == null) {
+            logger.debug("[FCM] Ignoring webUrl with a denied or invalid scheme")
+        }
         val dispatcherIntent =
             Intent(context, NotificationDispatcherActivity::class.java).apply {
                 metadata?.let { putExtra("metadata", it) }
-                putExtra("intent_test", intentTest)
+                // INT-3931: a URL string, not an Intent; the dispatcher rebuilds the Intent itself.
+                safeUrl?.let { putExtra(PushTargetGuard.EXTRA_TARGET_URL, it) }
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
             }
 
