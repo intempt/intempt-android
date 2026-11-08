@@ -26,7 +26,8 @@ internal class ConsentRetryPolicy(
 
     fun recordFailure(retryAfterMs: Long? = null) {
         consecutiveFailures += 1
-        var wait = retryAfterMs ?: 0L
+        // A server-supplied Retry-After is capped: an absurd value must not park consents for the session.
+        var wait = (retryAfterMs ?: 0L).coerceIn(0L, MAX_BACKOFF_MS)
         if (consecutiveFailures >= FAILURES_TILL_BACKOFF) {
             wait = maxOf(wait, backoffMs(consecutiveFailures))
         }
@@ -48,3 +49,25 @@ internal class ConsentRetryPolicy(
         private const val MAX_EXPONENT = 20
     }
 }
+
+private const val HTTP_UNAUTHORIZED = 401
+private const val HTTP_FORBIDDEN = 403
+private const val HTTP_REQUEST_TIMEOUT = 408
+private const val HTTP_TOO_MANY_REQUESTS = 429
+private const val HTTP_SERVER_ERROR_FIRST = 500
+private const val HTTP_SERVER_ERROR_LAST = 599
+
+/**
+ * Fail safe (CLAUDE.md section 6): a consent status is kept and retried only when a later attempt
+ * can plausibly succeed with the same payload. Anything else that is not 2xx (the other 4xx, 3xx, a
+ * status above 599) counts as a rejection of that record and is dropped after
+ * MAX_CONSENT_REJECTIONS consecutive answers, so an unrecognised status loses one consent instead
+ * of blocking every later one. Same default as HttpStatusPolicy.shouldDrop.
+ */
+internal fun isConsentRetryable(status: Int): Boolean =
+    status <= 0 ||
+        status == HTTP_UNAUTHORIZED ||
+        status == HTTP_FORBIDDEN ||
+        status == HTTP_REQUEST_TIMEOUT ||
+        status == HTTP_TOO_MANY_REQUESTS ||
+        status in HTTP_SERVER_ERROR_FIRST..HTTP_SERVER_ERROR_LAST

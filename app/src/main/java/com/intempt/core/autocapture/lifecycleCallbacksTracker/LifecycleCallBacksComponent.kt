@@ -14,6 +14,7 @@ import javax.inject.Singleton
 internal class LifecycleCallBacksComponent(
     private val srv: LifecycleCallbackService,
     private val delivery: DeliveryMessages,
+    private val onBackground: () -> Unit = {},
 ) : Application.ActivityLifecycleCallbacks,
     FragmentManager.FragmentLifecycleCallbacks() {
     override fun onActivityResumed(activity: Activity) {
@@ -42,6 +43,8 @@ internal class LifecycleCallBacksComponent(
         //
         // flush() only posts a message to the worker, so this does not block the UI thread.
         delivery.flush()
+        // Pending consents are not in the delivery queue; retry them here too.
+        onBackground()
     }
 
     override fun onActivityDestroyed(activity: Activity) {}

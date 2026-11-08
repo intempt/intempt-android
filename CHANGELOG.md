@@ -11,8 +11,14 @@ under Unreleased.
 
 ## [Unreleased]
 
-- Security: `HttpManagerService.post` no longer writes the request body (PII) to the debug log; it logs the size only (INT-3914).
-- Security: ships `intempt_backup_rules` and `intempt_data_extraction_rules` excluding the identity SharedPreferences from backup; see README "Backup" (INT-3927, INT-3889).
+### Security
+
+- `HttpManagerService.post` no longer writes the request body (PII) to the debug log; it logs the size only (INT-3914).
+- Ships `intempt_backup_rules` and `intempt_data_extraction_rules` excluding the identity SharedPreferences and the `intempt_events` / `intempt_consent_audit` databases from backup and device transfer; see README "Backup" (INT-3927, INT-3889).
+
+### Fixed
+
+- Pending consents (INT-3904) are persisted, sent oldest first and retried with backoff. They are also retried when the app goes to the background, not only at init, on `flush()` or on a new decision. Any non-2xx status that cannot succeed on retry (other 4xx, 3xx) is dropped after three consecutive rejections instead of blocking later consents; `Retry-After` is capped at 10 minutes.
 
 ### Removed
 

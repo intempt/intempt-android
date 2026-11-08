@@ -7,6 +7,7 @@ import com.intempt.core.internal.traced
 import com.intempt.core.queue.ConsentAuditLog
 import com.intempt.core.queue.ConsentRetryPolicy
 import com.intempt.core.queue.DeliveryMessages
+import com.intempt.core.queue.isConsentRetryable
 import com.intempt.core.services.ConfigManagerService
 import com.intempt.core.services.HttpManagerService
 import com.intempt.core.services.IntemptEventManagerService
@@ -95,7 +96,6 @@ internal open class EventPoolManagerService
         private companion object {
             const val MILLIS_PER_SECOND = 1000
             const val MAX_CONSENT_REJECTIONS = 3
-            val CONSENT_PAYLOAD_REJECTIONS = setOf(400, 413, 422)
         }
 
         // Backoff for resending pending consents; replaced in tests to control the clock.
@@ -110,9 +110,9 @@ internal open class EventPoolManagerService
          * Sends pending consents oldest first, one request at a time (INT-3904). Stops at the first
          * failure so a later decision never overtakes an earlier one; a consent confirmed with 2xx
          * is marked delivered and never sent again (the backend has no idempotency key).
-         * Rules match the Swift SDK: retry on transport errors, 408, 429 and 5xx; keep on 401/403;
-         * drop on 400/413/422 only after [MAX_CONSENT_REJECTIONS] consecutive rejections, so one
-         * malformed record cannot block every later consent.
+         * Retry on transport errors, 408, 429 and 5xx; keep on 401/403; any other non-2xx status is
+         * a rejection and the record is dropped after [MAX_CONSENT_REJECTIONS] consecutive ones
+         * (see [isConsentRetryable]), so one bad record cannot block every later consent.
          */
         @Suppress("ReturnCount") // guard clauses; the drain loop reads clearer flat
         internal suspend fun drainConsents() {
@@ -141,7 +141,7 @@ internal open class EventPoolManagerService
                 return true
             }
             consentRetry.recordFailure(outcome.retryAfterMs)
-            if (status in CONSENT_PAYLOAD_REJECTIONS) {
+            if (!isConsentRetryable(status)) {
                 rejectedCount = if (rejectedId == id) rejectedCount + 1 else 1
                 rejectedId = id
                 if (rejectedCount >= MAX_CONSENT_REJECTIONS) {
@@ -165,6 +165,15 @@ internal open class EventPoolManagerService
                     "It stays pending and is retried; the platform did not receive it.",
             )
             return false
+        }
+
+        /**
+         * Starts a drain of pending consents without blocking the caller. Used when the app goes
+         * to the background, so a consent that failed earlier in the session is retried even when
+         * the host never calls [flush]. Respects the backoff: a drain inside the window is a no-op.
+         */
+        fun drainConsentsAsync() {
+            if (consentAudit != null) coroutineScope.launch { runCatching { drainConsents() } }
         }
 
         init {

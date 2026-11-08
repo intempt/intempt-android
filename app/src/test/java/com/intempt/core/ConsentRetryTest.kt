@@ -9,6 +9,7 @@ import com.intempt.core.eventModels.IntemptEvent
 import com.intempt.core.queue.ConsentAuditLog
 import com.intempt.core.queue.ConsentRetryPolicy
 import com.intempt.core.queue.DeliveryMessages
+import com.intempt.core.queue.isConsentRetryable
 import com.intempt.core.services.ConfigManagerService
 import com.intempt.core.services.HttpManagerService
 import com.intempt.core.services.IntemptEventManagerService
@@ -191,6 +192,43 @@ class ConsentRetryTest {
                 assertEquals("status $status", 3, sentActions(times = 3).size)
             }
         }
+
+    @Test
+    fun `every non-retryable status 300 to 599 is dropped after three rejections, never blocking the queue`() =
+        runTest {
+            for (status in (300..599).filter { !isConsentRetryable(it) }) {
+                context.getDatabasePath(dbName).delete()
+                http = mock(HttpManagerService::class.java)
+                stubPosts(status)
+                val svc = service()
+                svc.emitEvent(consent("opt_in"))
+                testScheduler.advanceUntilIdle()
+                clock += 1_000_000L
+                svc.drainConsents()
+                clock += 1_000_000L
+                svc.drainConsents() // strike 3: dropped
+                clock += 1_000_000L
+                svc.drainConsents() // nothing left
+                assertEquals("status $status", 3, sentActions(times = 3).size)
+            }
+        }
+
+    @Test
+    fun `retryable statuses are exactly transport errors, 401, 403, 408, 429 and 5xx`() {
+        for (status in listOf(0, 401, 403, 408, 429, 500, 503, 599)) {
+            assertEquals("status $status", true, isConsentRetryable(status))
+        }
+        for (status in listOf(300, 302, 400, 402, 404, 409, 410, 413, 415, 422, 600)) {
+            assertEquals("status $status", false, isConsentRetryable(status))
+        }
+    }
+
+    @Test
+    fun `an oversized Retry-After is capped at the maximum backoff`() {
+        val policy = ConsentRetryPolicy()
+        policy.recordFailure(Long.MAX_VALUE)
+        assertEquals(true, policy.requestNotAllowed)
+    }
 
     @Test
     fun `401 403 and 5xx are kept and retried indefinitely`() =

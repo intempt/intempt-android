@@ -60,7 +60,7 @@ Auth: `Authorization: Basic base64(identifier:secret)` — the canonical form; p
 | Purpose | Endpoint | Batched |
 |---|---|---|
 Event ingestion | `sources/{sourceId}/track` | ✅ yes |
-Consent | `consents/data` | no — fires immediately |
+Consent | `consents/data` | no — sent immediately, persisted in `intempt_consent_audit`, retried with backoff (init, `flush()`, app background) until delivered or dropped |
 Recommendations | `feeds/{id}/data` | n/a |
 Push lifecycle | `webhooks/events/push-notification` | no |
 
