@@ -8,11 +8,17 @@ import java.util.Locale
 /**
  * INT-3893 / INT-3931: the notification-tap target comes from an FCM payload, i.e. from outside
  * the app. A denylist (not https-only) keeps custom-scheme deep links such as `myapp://` working
- * while refusing the schemes that turn a tap into code or local-data access. The built Intent is
- * BROWSABLE-only, and a custom scheme is restricted to the host app's own package.
+ * while refusing the schemes that turn a tap into code or local-data access. http(s) and custom-scheme
+ * Intents are BROWSABLE-only, a custom scheme is restricted to the host app's own package, and
+ * platform schemes (market, tel, mailto, sms, smsto, geo) open unpinned as they always did.
  */
 internal object PushTargetGuard {
     private val WEB_SCHEMES = setOf("http", "https")
+
+    // Platform-handled schemes a marketer legitimately sends (store page, dialer, mail, sms, map).
+    // They open exactly as before this guard: no package pin and no BROWSABLE requirement, since
+    // the system handlers for them are not necessarily BROWSABLE and are not the host's own links.
+    private val SYSTEM_SCHEMES = setOf("market", "tel", "mailto", "sms", "smsto", "geo")
     private val DENIED_SCHEMES = setOf("intent", "javascript", "file", "content", "android-app")
 
     /** Extra on the dispatcher Intent carrying the vetted URL string (never an Intent). */
@@ -32,11 +38,11 @@ internal object PushTargetGuard {
         return !normalized.isNullOrEmpty() && normalized !in DENIED_SCHEMES
     }
 
-    private fun isWebScheme(url: String): Boolean =
+    private fun schemeOf(url: String): String? =
         try {
-            Uri.parse(url).scheme?.lowercase(Locale.ROOT) in WEB_SCHEMES
+            Uri.parse(url).scheme?.lowercase(Locale.ROOT)
         } catch (_: Exception) {
-            false
+            null
         }
 
     /** The vetted URL, trimmed, or null when it must not be opened. */
@@ -51,10 +57,12 @@ internal object PushTargetGuard {
         val intent =
             if (safe != null) {
                 Intent(Intent.ACTION_VIEW, Uri.parse(safe)).apply {
-                    // A payload URL may only open a browsable target. A custom-scheme deep link is
-                    // pinned to the host app's own package so no other installed app can claim it.
-                    addCategory(Intent.CATEGORY_BROWSABLE)
-                    if (!isWebScheme(safe)) setPackage(context.packageName)
+                    // http(s) and custom-scheme links only open a browsable target. A custom-scheme
+                    // deep link is also pinned to the host app's own package so no other installed
+                    // app can claim it. Platform schemes (market, tel, mailto...) are left as before.
+                    val scheme = schemeOf(safe)
+                    if (scheme !in SYSTEM_SCHEMES) addCategory(Intent.CATEGORY_BROWSABLE)
+                    if (scheme !in WEB_SCHEMES && scheme !in SYSTEM_SCHEMES) setPackage(context.packageName)
                 }
             } else {
                 context.packageManager.getLaunchIntentForPackage(context.packageName) ?: Intent()

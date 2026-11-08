@@ -239,14 +239,35 @@ class ConsentRetryTest {
         }
 
     @Test
+    fun `a consent recorded during backoff is sent when the window closes, without another trigger`() =
+        runTest {
+            stubPosts(0, 0, 200)
+            val svc = service()
+            svc.emitEvent(consent("c1"))
+            svc.emitEvent(consent("c2")) // second failure on the head: backoff opens
+            svc.emitEvent(consent("c3")) // recorded inside the window, not sent yet
+            assertEquals(2, sentActions(times = 2).size)
+
+            clock += 700_000L // past the maximum backoff
+            testScheduler.advanceUntilIdle() // the scheduled drain fires
+
+            // c1 again (the head), then c2 and c3, in order.
+            assertEquals(listOf("c1", "c1", "c1", "c2", "c3"), sentActions(times = 5))
+        }
+
+    @Test
     fun `an oversized Retry-After is capped at the maximum backoff`() {
-        val policy = ConsentRetryPolicy()
+        var t = 1_000_000L
+        val policy = ConsentRetryPolicy(now = { t })
         policy.recordFailure(Long.MAX_VALUE)
-        assertEquals(true, policy.requestNotAllowed)
+        t += ConsentRetryPolicy.MAX_BACKOFF_MS - 1
+        assertEquals("still blocked just inside the cap", true, policy.requestNotAllowed)
+        t += 1
+        assertEquals("open again at the cap, not at Long.MAX_VALUE", false, policy.requestNotAllowed)
     }
 
     @Test
-    fun `401 403 and 5xx are kept and retried indefinitely`() =
+    fun `401 402 403 404 408 429 and 5xx are kept and retried until the age limit`() =
         runTest {
             for (status in listOf(401, 402, 403, 404, 500, 503, 408, 429)) {
                 context.getDatabasePath(dbName).delete()

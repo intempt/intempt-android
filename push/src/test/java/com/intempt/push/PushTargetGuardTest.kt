@@ -65,6 +65,17 @@ class PushTargetGuardTest {
     }
 
     @Test
+    fun platformSchemesOpenUnpinnedAndWithoutTheBrowsableRequirement() {
+        val ctx = ApplicationProvider.getApplicationContext<android.content.Context>()
+        listOf("market://details?id=com.x", "tel:+15551234", "mailto:a@b.co", "sms:+1555", "geo:0,0?q=x").forEach {
+            val t = PushTargetGuard.buildTarget(ctx, it)
+            assertEquals(it, Intent.ACTION_VIEW, t.action)
+            assertEquals(it, null, t.`package`)
+            assertFalse(it, t.hasCategory(Intent.CATEGORY_BROWSABLE))
+        }
+    }
+
+    @Test
     fun dispatcherIgnoresAnInjectedIntentExtraAndDeniedUrl() {
         val ctx = ApplicationProvider.getApplicationContext<android.content.Context>()
         val evil = Intent().setClassName("com.evil", "com.evil.Main")

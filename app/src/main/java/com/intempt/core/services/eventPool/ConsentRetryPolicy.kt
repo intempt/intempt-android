@@ -1,5 +1,11 @@
 package com.intempt.core.services.eventPool
 
+import com.intempt.core.queue.isStatusRetryable
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlin.random.Random
 
 /**
@@ -18,6 +24,9 @@ internal class ConsentRetryPolicy(
 
     /** True while a backoff window is open. */
     val requestNotAllowed: Boolean get() = now() < allowedAfter
+
+    /** Milliseconds until the open backoff window closes; 0 when none is open. */
+    fun remainingMs(): Long = (allowedAfter - now()).coerceAtLeast(0L)
 
     fun recordSuccess() {
         consecutiveFailures = 0
@@ -50,31 +59,40 @@ internal class ConsentRetryPolicy(
     }
 }
 
-private const val HTTP_UNAUTHORIZED = 401
-private const val HTTP_PAYMENT_REQUIRED = 402
-private const val HTTP_FORBIDDEN = 403
-private const val HTTP_NOT_FOUND = 404
-private const val HTTP_REQUEST_TIMEOUT = 408
-private const val HTTP_TOO_MANY_REQUESTS = 429
-private const val HTTP_SERVER_ERROR_FIRST = 500
-private const val HTTP_SERVER_ERROR_LAST = 599
-
 /**
- * Fail safe (CLAUDE.md section 6): a consent status is kept and retried only when a later attempt
- * can plausibly succeed with the same payload. That is the same set as the event queue's
- * HttpStatusPolicy.isRetryable: transport errors (<= 0), 401, 402, 403, 404 (fixed server-side,
- * INT-5897), 408, 429 and 5xx. Anything else that is not 2xx (the other 4xx, 3xx, a status above
- * 599) counts as a rejection of that record and is dropped after MAX_CONSENT_REJECTIONS
+ * Fail safe (CLAUDE.md section 6): a consent status is kept and retried only when the event
+ * queue's `HttpStatusPolicy.isRetryable` says a later attempt can plausibly succeed. This
+ * delegates to it, so the two cannot drift. Anything it rejects (the other 4xx, 3xx, a status
+ * above 599) counts as a rejection of that record and is dropped after MAX_CONSENT_REJECTIONS
  * consecutive answers, so an unrecognised status loses one consent instead of blocking every
- * later one. A consent kept by this set is still bounded: the drain drops it once it is older
+ * later one. A consent kept by this policy is still bounded: the drain drops it once it is older
  * than the maximum consent age.
  */
-internal fun isConsentRetryable(status: Int): Boolean =
-    status <= 0 ||
-        status == HTTP_UNAUTHORIZED ||
-        status == HTTP_PAYMENT_REQUIRED ||
-        status == HTTP_FORBIDDEN ||
-        status == HTTP_NOT_FOUND ||
-        status == HTTP_REQUEST_TIMEOUT ||
-        status == HTTP_TOO_MANY_REQUESTS ||
-        status in HTTP_SERVER_ERROR_FIRST..HTTP_SERVER_ERROR_LAST
+internal fun isConsentRetryable(status: Int): Boolean = isStatusRetryable(status)
+
+/**
+ * Runs [block] once after [delayMs], unless [existing] is still pending or the delay is not
+ * positive (nothing is waiting). Returns the job to remember. Cancellation is rethrown, any other
+ * failure goes to [onError].
+ */
+@Suppress("TooGenericExceptionCaught") // a failed background drain must be logged, never crash the host
+internal fun CoroutineScope.launchOnceAfter(
+    existing: Job?,
+    delayMs: Long,
+    onError: (Exception) -> Unit,
+    block: suspend () -> Unit,
+): Job? =
+    if (delayMs <= 0L || existing?.isActive == true) {
+        existing
+    } else {
+        launch {
+            delay(delayMs)
+            try {
+                block()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                onError(e)
+            }
+        }
+    }

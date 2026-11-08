@@ -19,12 +19,39 @@ import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.json.Json
 import org.json.JSONObject
+import java.text.ParseException
+import java.text.SimpleDateFormat
+import java.util.Locale
+import java.util.TimeZone
 import javax.inject.Inject
 import javax.inject.Singleton
 
 private const val HTTP_OK_FIRST = 200
 private const val HTTP_OK_LAST = 299
 private const val MILLIS_PER_SECOND = 1000L
+
+/**
+ * `Retry-After` as milliseconds from [nowMs] (RFC 9110 section 10.2.3): either a number of seconds
+ * or an HTTP-date. Null when absent or unparseable; never negative (a date in the past is 0).
+ */
+@InternalIntemptApi
+fun parseRetryAfterMs(
+    value: String?,
+    nowMs: Long,
+): Long? {
+    val text = value?.trim().orEmpty()
+    return text.toLongOrNull()?.let { (it * MILLIS_PER_SECOND).coerceAtLeast(0L) }
+        ?: parseHttpDate(text)?.let { (it - nowMs).coerceAtLeast(0L) }
+}
+
+private fun parseHttpDate(text: String): Long? =
+    try {
+        val format = SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss zzz", Locale.US)
+        format.timeZone = TimeZone.getTimeZone("GMT")
+        if (text.isEmpty()) null else format.parse(text)?.time
+    } catch (_: ParseException) {
+        null
+    }
 
 /**
  * What a POST came back with, for the one caller (consent retry) that has to tell a 5xx or a
@@ -147,7 +174,7 @@ class HttpManagerService
                 val status = response.status.value
                 logger.log("POST | URL: $url. Status: $status")
                 val retryAfterMs =
-                    response.headers[HttpHeaders.RetryAfter]?.trim()?.toLongOrNull()?.let { it * MILLIS_PER_SECOND }
+                    parseRetryAfterMs(response.headers[HttpHeaders.RetryAfter], System.currentTimeMillis())
                 PostOutcome(status, retryAfterMs)
             } catch (e: CancellationException) {
                 throw e

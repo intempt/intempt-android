@@ -95,6 +95,7 @@ internal open class EventPoolManagerService
             const val MILLIS_PER_SECOND = 1000
             const val MAX_CONSENT_REJECTIONS = 3
             const val CONSENT_MAX_AGE_DAYS = 30L
+            private const val BACKOFF_DRAIN_SLACK_MS = 1_000L
             val CONSENT_MAX_AGE_MS = java.util.concurrent.TimeUnit.DAYS.toMillis(CONSENT_MAX_AGE_DAYS)
         }
 
@@ -112,10 +113,13 @@ internal open class EventPoolManagerService
         /**
          * Sends pending consents oldest first, one request at a time (INT-3904). Stops at the first
          * failure so a later decision never overtakes an earlier one; a consent confirmed with 2xx
-         * is marked delivered and never sent again (the backend has no idempotency key).
-         * Retry on transport errors, 408, 429 and 5xx; keep on 401/403; any other non-2xx status is
-         * a rejection and the record is dropped after [MAX_CONSENT_REJECTIONS] consecutive ones
-         * (see [isConsentRetryable]), so one bad record cannot block every later consent.
+         * is marked delivered and never sent again. The backend has no idempotency key, so a send
+         * whose answer was lost (timeout, status 0) is retried and can arrive twice: delivery is
+         * at-least-once, and a duplicate consent row is the accepted cost of never losing one.
+         * Statuses the event queue treats as retryable (transport errors, 401, 402, 403, 404, 408,
+         * 429, 5xx) keep the record; any other non-2xx status is a rejection and the record is
+         * dropped after [MAX_CONSENT_REJECTIONS] consecutive ones (see [isConsentRetryable]), so
+         * one bad record cannot block every later consent.
          */
         @Suppress("ReturnCount") // guard clauses; the drain loop reads clearer flat
         internal suspend fun drainConsents() {
@@ -197,6 +201,8 @@ internal open class EventPoolManagerService
                 }
             }
         }
+
+        private var backoffDrainJob: Job? = null
 
         init {
             startEventCollection()
@@ -469,6 +475,14 @@ internal open class EventPoolManagerService
                 try {
                     if (recorded >= 0) {
                         drainConsents()
+                        // A consent recorded inside a backoff window is saved but not yet sent:
+                        // schedule one drain for when the window closes (one-shot, deduplicated).
+                        backoffDrainJob =
+                            coroutineScope.launchOnceAfter(
+                                backoffDrainJob,
+                                consentRetry.remainingMs().takeIf { it > 0L }?.plus(BACKOFF_DRAIN_SLACK_MS) ?: 0L,
+                                { logger.error("sendConsentEvent | scheduled consent drain failed: ${it.message}") },
+                            ) { drainConsents() }
                     } else {
                         // No usable local store: one best-effort attempt, as before INT-3904.
                         val outcome = http.postForStatus(config.consentUrl, requestBodyJson)

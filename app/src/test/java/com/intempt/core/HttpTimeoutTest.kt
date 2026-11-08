@@ -22,9 +22,28 @@ class HttpTimeoutTest {
     fun clientInstallsHttpTimeoutWithExpectedLimits() {
         val svc = HttpManagerService(mock<ConfigManagerService>(), mock<LoggerManagerService>())
         // plugin() throws IllegalStateException if HttpTimeout is not installed.
-        svc.client.plugin(HttpTimeout)
+        val plugin = svc.client.plugin(HttpTimeout)
+        // Read what the installed plugin actually holds, not the constants it was built from, so a
+        // client wired with other values (or none) fails here.
+        assertEquals(HttpManagerService.REQUEST_TIMEOUT_MS, longField(plugin, "requestTimeoutMillis"))
+        assertEquals(HttpManagerService.CONNECT_TIMEOUT_MS, longField(plugin, "connectTimeoutMillis"))
+        assertEquals(HttpManagerService.SOCKET_TIMEOUT_MS, longField(plugin, "socketTimeoutMillis"))
+        // And pin the numbers themselves, so a change to a constant is a conscious one.
         assertEquals(30_000L, HttpManagerService.REQUEST_TIMEOUT_MS)
         assertEquals(10_000L, HttpManagerService.CONNECT_TIMEOUT_MS)
         assertEquals(30_000L, HttpManagerService.SOCKET_TIMEOUT_MS)
+    }
+
+    private fun longField(
+        plugin: Any,
+        name: String,
+    ): Long? {
+        val field =
+            generateSequence<Class<*>>(plugin.javaClass) { it.superclass }
+                .flatMap { it.declaredFields.asSequence() }
+                .firstOrNull { it.name == name || it.name == "_$name" }
+                ?: error("no field $name on ${plugin.javaClass}")
+        field.isAccessible = true
+        return field.get(plugin) as Long?
     }
 }
