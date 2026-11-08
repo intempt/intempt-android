@@ -8,9 +8,11 @@ import java.util.Locale
 /**
  * INT-3893 / INT-3931: the notification-tap target comes from an FCM payload, i.e. from outside
  * the app. A denylist (not https-only) keeps custom-scheme deep links such as `myapp://` working
- * while refusing the schemes that turn a tap into code or local-data access.
+ * while refusing the schemes that turn a tap into code or local-data access. The built Intent is
+ * BROWSABLE-only, and a custom scheme is restricted to the host app's own package.
  */
 internal object PushTargetGuard {
+    private val WEB_SCHEMES = setOf("http", "https")
     private val DENIED_SCHEMES = setOf("intent", "javascript", "file", "content", "android-app")
 
     /** Extra on the dispatcher Intent carrying the vetted URL string (never an Intent). */
@@ -30,6 +32,13 @@ internal object PushTargetGuard {
         return !normalized.isNullOrEmpty() && normalized !in DENIED_SCHEMES
     }
 
+    private fun isWebScheme(url: String): Boolean =
+        try {
+            Uri.parse(url).scheme?.lowercase(Locale.ROOT) in WEB_SCHEMES
+        } catch (_: Exception) {
+            false
+        }
+
     /** The vetted URL, trimmed, or null when it must not be opened. */
     fun vet(url: String?): String? = url?.trim()?.takeIf { isAllowed(it) }
 
@@ -41,7 +50,12 @@ internal object PushTargetGuard {
         val safe = vet(url)
         val intent =
             if (safe != null) {
-                Intent(Intent.ACTION_VIEW, Uri.parse(safe))
+                Intent(Intent.ACTION_VIEW, Uri.parse(safe)).apply {
+                    // A payload URL may only open a browsable target. A custom-scheme deep link is
+                    // pinned to the host app's own package so no other installed app can claim it.
+                    addCategory(Intent.CATEGORY_BROWSABLE)
+                    if (!isWebScheme(safe)) setPackage(context.packageName)
+                }
             } else {
                 context.packageManager.getLaunchIntentForPackage(context.packageName) ?: Intent()
             }

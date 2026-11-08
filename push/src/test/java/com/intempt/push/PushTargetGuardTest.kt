@@ -54,6 +54,17 @@ class PushTargetGuardTest {
     }
 
     @Test
+    fun viewIntentIsBrowsableAndCustomSchemeIsPinnedToTheHostPackage() {
+        val ctx = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val web = PushTargetGuard.buildTarget(ctx, "https://example.com/a")
+        assertTrue(web.hasCategory(Intent.CATEGORY_BROWSABLE))
+        assertEquals(null, web.`package`)
+        val deep = PushTargetGuard.buildTarget(ctx, "myapp://product/42")
+        assertTrue(deep.hasCategory(Intent.CATEGORY_BROWSABLE))
+        assertEquals(ctx.packageName, deep.`package`)
+    }
+
+    @Test
     fun dispatcherIgnoresAnInjectedIntentExtraAndDeniedUrl() {
         val ctx = ApplicationProvider.getApplicationContext<android.content.Context>()
         val evil = Intent().setClassName("com.evil", "com.evil.Main")

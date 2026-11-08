@@ -5,9 +5,7 @@ import com.intempt.core.autocapture.BaseComponent
 import com.intempt.core.eventModels.IntemptEvent
 import com.intempt.core.internal.traced
 import com.intempt.core.queue.ConsentAuditLog
-import com.intempt.core.queue.ConsentRetryPolicy
 import com.intempt.core.queue.DeliveryMessages
-import com.intempt.core.queue.isConsentRetryable
 import com.intempt.core.services.ConfigManagerService
 import com.intempt.core.services.HttpManagerService
 import com.intempt.core.services.IntemptEventManagerService
@@ -96,13 +94,18 @@ internal open class EventPoolManagerService
         private companion object {
             const val MILLIS_PER_SECOND = 1000
             const val MAX_CONSENT_REJECTIONS = 3
+            const val CONSENT_MAX_AGE_DAYS = 30L
+            val CONSENT_MAX_AGE_MS = java.util.concurrent.TimeUnit.DAYS.toMillis(CONSENT_MAX_AGE_DAYS)
         }
 
         // Backoff for resending pending consents; replaced in tests to control the clock.
         internal var consentRetry = ConsentRetryPolicy()
+
+        // Clock for the consent age limit; replaced in tests.
+        internal var consentClock: () -> Long = System::currentTimeMillis
         private val consentDrainLock = Mutex()
 
-        // Consecutive 400/413/422 answers for the consent at the head of the queue, in memory only.
+        // Consecutive non-retryable answers (see isConsentRetryable) for the head consent, in memory only.
         private var rejectedId = -1L
         private var rejectedCount = 0
 
@@ -120,6 +123,15 @@ internal open class EventPoolManagerService
             consentDrainLock.withLock {
                 while (!consentRetry.requestNotAllowed) {
                     val pending = audit.oldestPending() ?: return
+                    if (consentClock() - pending.createdAt > CONSENT_MAX_AGE_MS) {
+                        // Kept-forever statuses (401/402/403/404...) must not park the queue head for ever.
+                        audit.markDropped(pending.id)
+                        logger.error(
+                            "sendConsentEvent | consent ${pending.id} dropped: undelivered for over " +
+                                "$CONSENT_MAX_AGE_DAYS days",
+                        )
+                        continue
+                    }
                     val outcome = http.postForStatus(config.consentUrl, pending.payload)
                     if (!applyConsentOutcome(audit, pending.id, outcome)) return
                 }
@@ -168,18 +180,28 @@ internal open class EventPoolManagerService
         }
 
         /**
-         * Starts a drain of pending consents without blocking the caller. Used when the app goes
-         * to the background, so a consent that failed earlier in the session is retried even when
-         * the host never calls [flush]. Respects the backoff: a drain inside the window is a no-op.
+         * Starts a drain of pending consents without blocking the caller. Used at init, on [flush]
+         * and when the app goes to the background, so a consent that failed earlier is retried
+         * even when the host never calls [flush]. Respects the backoff: a drain inside the window
+         * is a no-op. A failure is logged; cancellation is rethrown so it is never swallowed.
          */
         fun drainConsentsAsync() {
-            if (consentAudit != null) coroutineScope.launch { runCatching { drainConsents() } }
+            if (consentAudit == null) return
+            coroutineScope.launch {
+                try {
+                    drainConsents()
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    logger.error("sendConsentEvent | consent drain failed: ${e.message}")
+                }
+            }
         }
 
         init {
             startEventCollection()
             // Consents left pending by an earlier run (failed send, process death) go out now.
-            if (consentAudit != null) coroutineScope.launch { runCatching { drainConsents() } }
+            drainConsentsAsync()
         }
 
         /**
@@ -282,7 +304,7 @@ internal open class EventPoolManagerService
          * worker thread, so a host app that touches UI from it must post to the main thread itself.
          */
         fun flush(completion: ((Int) -> Unit)? = null) {
-            if (consentAudit != null) coroutineScope.launch { runCatching { drainConsents() } }
+            drainConsentsAsync()
             if (completion == null) {
                 delivery.flush()
             } else {

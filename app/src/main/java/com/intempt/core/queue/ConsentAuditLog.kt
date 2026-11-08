@@ -65,7 +65,7 @@ internal class ConsentAuditLog(
     }
 
     /** A recorded decision that the server has not yet acknowledged. */
-    data class PendingConsent(val id: Long, val payload: JSONObject)
+    data class PendingConsent(val id: Long, val payload: JSONObject, val createdAt: Long)
 
     /** The oldest decision still awaiting delivery, or null. The payload keeps its original timestamp. */
     @Synchronized
@@ -73,14 +73,14 @@ internal class ConsentAuditLog(
         return try {
             dbHelper.readableDatabase.query(
                 TABLE_NAME,
-                arrayOf(COLUMN_ID, COLUMN_PAYLOAD),
+                arrayOf(COLUMN_ID, COLUMN_PAYLOAD, COLUMN_CREATED_AT),
                 "$COLUMN_STATE = ?",
                 arrayOf(STATE_PENDING.toString()),
                 null,
                 null,
                 "$COLUMN_ID ASC",
                 "1",
-            ).use { c -> if (c.moveToFirst()) PendingConsent(c.getLong(0), JSONObject(c.getString(1))) else null }
+            ).use { c -> if (c.moveToFirst()) PendingConsent(c.getLong(0), JSONObject(c.getString(1)), c.getLong(2)) else null }
         } catch (e: Exception) {
             null
         } finally {

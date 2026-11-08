@@ -7,15 +7,15 @@ import androidx.test.core.app.ApplicationProvider
 import com.intempt.core.eventModels.ConsentEvent
 import com.intempt.core.eventModels.IntemptEvent
 import com.intempt.core.queue.ConsentAuditLog
-import com.intempt.core.queue.ConsentRetryPolicy
 import com.intempt.core.queue.DeliveryMessages
-import com.intempt.core.queue.isConsentRetryable
 import com.intempt.core.services.ConfigManagerService
 import com.intempt.core.services.HttpManagerService
 import com.intempt.core.services.IntemptEventManagerService
 import com.intempt.core.services.LoggerManagerService
 import com.intempt.core.services.PostOutcome
+import com.intempt.core.services.eventPool.ConsentRetryPolicy
 import com.intempt.core.services.eventPool.EventPoolManagerService
+import com.intempt.core.services.eventPool.isConsentRetryable
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
@@ -214,14 +214,29 @@ class ConsentRetryTest {
         }
 
     @Test
-    fun `retryable statuses are exactly transport errors, 401, 403, 408, 429 and 5xx`() {
-        for (status in listOf(0, 401, 403, 408, 429, 500, 503, 599)) {
+    fun `retryable statuses are exactly transport errors, 401, 402, 403, 404, 408, 429 and 5xx`() {
+        for (status in listOf(0, 401, 402, 403, 404, 408, 429, 500, 503, 599)) {
             assertEquals("status $status", true, isConsentRetryable(status))
         }
-        for (status in listOf(300, 302, 400, 402, 404, 409, 410, 413, 415, 422, 600)) {
+        for (status in listOf(300, 302, 400, 409, 410, 413, 415, 422, 600)) {
             assertEquals("status $status", false, isConsentRetryable(status))
         }
     }
+
+    @Test
+    fun `a consent older than the maximum age is dropped even while the server answers 401`() =
+        runTest {
+            stubPosts(401)
+            val svc = service()
+            svc.emitEvent(consent("opt_in"))
+            testScheduler.advanceUntilIdle() // the immediate attempt
+            svc.consentClock = { System.currentTimeMillis() + 31L * 24 * 60 * 60 * 1000 }
+            clock += 1_000_000L
+            svc.drainConsents() // expired: dropped without a send
+            clock += 1_000_000L
+            svc.drainConsents() // nothing left
+            assertEquals(1, sentActions(times = 1).size)
+        }
 
     @Test
     fun `an oversized Retry-After is capped at the maximum backoff`() {
@@ -233,7 +248,7 @@ class ConsentRetryTest {
     @Test
     fun `401 403 and 5xx are kept and retried indefinitely`() =
         runTest {
-            for (status in listOf(401, 403, 500, 503, 408, 429)) {
+            for (status in listOf(401, 402, 403, 404, 500, 503, 408, 429)) {
                 context.getDatabasePath(dbName).delete()
                 http = mock(HttpManagerService::class.java)
                 stubPosts(status)

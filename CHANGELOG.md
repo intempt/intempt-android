@@ -18,7 +18,7 @@ under Unreleased.
 
 ### Fixed
 
-- Pending consents (INT-3904) are persisted, sent oldest first and retried with backoff. They are also retried when the app goes to the background, not only at init, on `flush()` or on a new decision. Any non-2xx status that cannot succeed on retry (other 4xx, 3xx) is dropped after three consecutive rejections instead of blocking later consents; `Retry-After` is capped at 10 minutes.
+- Pending consents (INT-3904) are persisted, sent oldest first and retried with backoff. They are also retried when the app goes to the background, not only at init, on `flush()` or on a new decision. Statuses that can succeed later (transport errors, 401, 402, 403, 404, 408, 429, 5xx) are retried; any other non-2xx (other 4xx, 3xx) is dropped after three consecutive rejections instead of blocking later consents, and a consent still undelivered after 30 days is dropped. `Retry-After` is capped at 10 minutes. Push tap targets are opened with `CATEGORY_BROWSABLE`, and a custom-scheme deep link is restricted to the host app's package.
 
 ### Removed
 
