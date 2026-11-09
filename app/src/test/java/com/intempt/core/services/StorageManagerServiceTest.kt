@@ -2,8 +2,11 @@ package com.intempt.core.services
 
 import android.content.Context
 import com.intempt.core.types.StorageKeys
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.asCoroutineDispatcher
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -15,8 +18,13 @@ import org.mockito.Mockito.`when`
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
+import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.concurrent.thread
+import kotlin.coroutines.CoroutineContext
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34], manifest = Config.NONE)
@@ -224,7 +232,134 @@ class StorageManagerServiceTest {
         assertTrue("the last call must be the durable value", prefs.getBoolean(key, false))
     }
 
+    /**
+     * INT-3924, residual 2. `setStorageItem` writes the cache now and queues the prefs write on the
+     * serial dispatcher; `clearAllStorage` runs on the caller's thread. A session id stored just
+     * before logout could therefore reach disk AFTER the wipe, and the next cold read put the
+     * previous user's session back. A dispatcher that only queues makes the interleaving exact:
+     * the write is issued, the clear runs, and only then does the write get to execute.
+     */
+    @Test
+    fun `a prefs write queued before clearAllStorage does not land after it (INT-3924)`() {
+        val queued = QueueingDispatcher()
+        val serial = StorageManagerService(context, utils, queued)
+
+        serial.setStorageItem(StorageKeys.SessionPrefs.key, StorageKeys.SessionId.key, "sess_old") { k, v ->
+            putString(k, v)
+        }
+        serial.setStorageItem(StorageKeys.SessionPrefs.key, StorageKeys.PageId.key, "page_old") { k, v ->
+            putString(k, v)
+        }
+        serial.clearAllStorage()
+        queued.drain()
+
+        val prefs = context.getSharedPreferences(StorageKeys.SessionPrefs.key, Context.MODE_PRIVATE)
+        assertFalse("the old session id must not reach disk after the wipe", prefs.contains(StorageKeys.SessionId.key))
+        assertFalse("the old page id must not reach disk after the wipe", prefs.contains(StorageKeys.PageId.key))
+        val cold = StorageManagerService(context, utils, Dispatchers.Unconfined)
+        assertEquals("a cold read must not resurrect the old session", "", cold.getSessionId())
+        assertEquals("a cold read must not resurrect the old page", "", cold.getPageId())
+    }
+
+    /**
+     * The generation check that drops stale writes must not drop the one key the clear keeps on
+     * purpose: a version code on its way to disk at logout still has to arrive, or the next launch
+     * reports an install that never happened (INT-5964).
+     */
+    @Test
+    fun `a queued version code write still lands after clearAllStorage`() {
+        val queued = QueueingDispatcher()
+        val serial = StorageManagerService(context, utils, queued)
+
+        serial.setStorageItem(StorageKeys.AppPrefs.key, StorageKeys.PreviousVersionCode.key, 9L) { k, v ->
+            putLong(k, v)
+        }
+        serial.clearAllStorage()
+        queued.drain()
+
+        val prefs = context.getSharedPreferences(StorageKeys.AppPrefs.key, Context.MODE_PRIVATE)
+        assertEquals(9L, prefs.getLong(StorageKeys.PreviousVersionCode.key, -1L))
+    }
+
+    /**
+     * INT-3924, residual 1. `localStore` was a plain LinkedHashMap written from the host app's
+     * thread and the IO capture services while `clearAllStorage` ran `retainAll` over it. Fresh
+     * keys on every write so each one is a structural insert, which is what trips the iterator.
+     * After the writers stop, one last clear must leave nothing behind, in the cache or on disk.
+     */
+    @Test
+    fun `concurrent writes during clearAllStorage neither throw nor survive the final clear (INT-3924)`() {
+        val executor = Executors.newSingleThreadExecutor()
+        val serial = StorageManagerService(context, utils, executor.asCoroutineDispatcher())
+        val writers = 4
+        val writesPerThread = 300
+        val start = CountDownLatch(1)
+        val done = CountDownLatch(writers + 1)
+        val failures = ConcurrentLinkedQueue<Throwable>()
+        val writing = AtomicBoolean(true)
+
+        repeat(writers) { t ->
+            thread(name = "writer-$t") {
+                try {
+                    start.await()
+                    repeat(writesPerThread) { i ->
+                        serial.setStorageItem(StorageKeys.FragmentPrefs.key, "k_${t}_$i", "v") { k, v ->
+                            putString(k, v)
+                        }
+                        serial.getFragmentName("k_${t}_${i / 2}")
+                    }
+                } catch (e: Throwable) {
+                    failures.add(e)
+                } finally {
+                    done.countDown()
+                }
+            }
+        }
+        thread(name = "clearer") {
+            try {
+                start.await()
+                while (writing.get()) serial.clearAllStorage()
+            } catch (e: Throwable) {
+                failures.add(e)
+            } finally {
+                done.countDown()
+            }
+        }
+
+        start.countDown()
+        // Writers finish on their own; the clearer loops until told to stop.
+        while (done.count > 1) Thread.sleep(5)
+        writing.set(false)
+        assertTrue(done.await(WAIT_SECONDS, TimeUnit.SECONDS))
+        assertTrue("concurrent access threw: ${failures.firstOrNull()}", failures.isEmpty())
+
+        serial.clearAllStorage()
+        executor.submit {}.get(DRAIN_SECONDS, TimeUnit.SECONDS)
+        executor.shutdown()
+
+        val prefs = context.getSharedPreferences(StorageKeys.FragmentPrefs.key, Context.MODE_PRIVATE)
+        assertTrue("no pre-clear write may survive on disk: ${prefs.all.keys.take(5)}", prefs.all.isEmpty())
+        assertEquals("no pre-clear write may survive in the cache", "", serial.getFragmentName("k_0_0"))
+    }
+
+    /** Queues every dispatched block and runs them only when told to. */
+    private class QueueingDispatcher : CoroutineDispatcher() {
+        private val queue = ConcurrentLinkedQueue<Runnable>()
+
+        override fun dispatch(
+            context: CoroutineContext,
+            block: Runnable,
+        ) {
+            queue.add(block)
+        }
+
+        fun drain() {
+            while (true) (queue.poll() ?: return).run()
+        }
+    }
+
     private companion object {
         const val WAIT_SECONDS = 5L
+        const val DRAIN_SECONDS = 60L
     }
 }

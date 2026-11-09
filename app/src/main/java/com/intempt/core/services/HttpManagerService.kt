@@ -5,6 +5,7 @@ package com.intempt.core.services
 import com.intempt.core.internal.InternalIntemptApi
 import com.intempt.core.internal.traced
 import io.ktor.client.HttpClient
+import io.ktor.client.engine.android.Android
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.get
@@ -92,7 +93,19 @@ class HttpManagerService
             // Intempt.provideHttp on its own would look identical to R8 having stripped the client
             // entirely, which would be a bug reported as a win.
             traced("Intempt.httpClientInit") {
-                HttpClient {
+                // The Android engine named explicitly rather than found through ServiceLoader:
+                // it is the only engine on the classpath, and naming it is what exposes the
+                // engine block below.
+                HttpClient(Android) {
+                    // INT-3945: the same opt-in certificatePins the event queue uses. Without this
+                    // a host app that enabled pinning had it on events and not on consent,
+                    // optimization, feeds or the push webhook, all of which carry the write key.
+                    // No pins (the default) leaves the connection on platform TLS, untouched.
+                    engine {
+                        CertificatePinning.sslSocketFactoryFor(config.certificatePins)?.let { pinned ->
+                            sslManager = { connection -> connection.sslSocketFactory = pinned }
+                        }
+                    }
                     // INT-3902: without this a stalled connection holds the coroutine indefinitely.
                     install(HttpTimeout) {
                         requestTimeoutMillis = REQUEST_TIMEOUT_MS

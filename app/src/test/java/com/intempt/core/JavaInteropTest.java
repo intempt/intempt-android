@@ -6,6 +6,7 @@ import androidx.test.core.app.ApplicationProvider;
 
 import com.intempt.core.types.ConsentAction;
 import com.intempt.core.types.IntemptCredentials;
+import com.intempt.core.types.IntemptRuntimeOptions;
 import com.intempt.core.types.IntemptValue;
 import com.intempt.core.types.Product;
 
@@ -149,6 +150,18 @@ public class JavaInteropTest {
                 bad.problems().get(0).contains("no-separator"));
 
         assertFalse(Intempt.initialize(ApplicationProvider.getApplicationContext(), bad));
+    }
+
+    /**
+     * INT-5178 added apiUrl to the runtime options. Every arity a Java caller could already write
+     * must still compile, and the new one must be reachable without the Kotlin defaults mask.
+     */
+    @Test
+    public void runtimeOptionsAreConstructibleFromJavaAtEveryArity() {
+        assertEquals(null, new IntemptRuntimeOptions().getApiUrl());
+        assertEquals(Boolean.FALSE, new IntemptRuntimeOptions(false).getUseIpAddressForGeolocation());
+        final IntemptRuntimeOptions both = new IntemptRuntimeOptions(null, "https://api.example.com");
+        assertEquals("https://api.example.com", both.getApiUrl());
     }
 
     /** The 3.0 additions, at the static form a Java host app writes. */

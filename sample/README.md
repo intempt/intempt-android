@@ -42,6 +42,8 @@ ingestion endpoint. That's fine for everything above — the queue persists and 
 of what the server says, and the parts that depend on a real project are covered elsewhere. To
 point it at a real project, replace the four `auth` values.
 
-Note that the endpoint itself is not configurable: `Constants.API_URL` is hardcoded to
-`https://api.intempt.com`, so this app cannot be aimed at a local or staging server without
-editing the library.
+To aim it at a local or staging server, set `intempt.apiUrl` in `local.properties` or
+`INTEMPT_API_URL` in the environment; `build.gradle.kts` writes it into the generated config as
+`options.apiUrl`. The SDK accepts `https://`, or `http://` to a loopback host only (`localhost`,
+`127.0.0.1`, `[::1]`, or `10.0.2.2` from the emulator), and refuses to initialize on anything
+else. An app can also pass `IntemptRuntimeOptions(apiUrl = ...)` to `Intempt.initialize`.
