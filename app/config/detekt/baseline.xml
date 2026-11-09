@@ -42,7 +42,6 @@
     <ID>MaxLineLength:ChangeTrackerService.kt$ChangeTrackerService.&lt;no name provided>$logger.error("onItemSelected | Error: childView is null for ListView item selected at position $position")</ID>
     <ID>MaxLineLength:CustomCaptureService.kt$CustomCaptureService$private</ID>
     <ID>MaxLineLength:FirebaseService.kt$FirebaseService$intentTest.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)</ID>
-    <ID>MaxLineLength:IntemptEventManagerService.kt$IntemptEventManagerService$val androidId = Settings.Secure.getString((context.contentResolver ?: "") as ContentResolver?, Settings.Secure.ANDROID_ID)</ID>
     <ID>MaxLineLength:SessionTrackerServiceTest.kt$SessionTrackerServiceTest$assertFalse("exactly at the timeout must not itself count as expired", elapsed > Constants.SESSION.SESSION_TIMEOUT)</ID>
     <ID>MaxLineLength:Types.kt$HandleEventTypeProps</ID>
     <ID>MayBeConst:Constants.kt$Constants$// val API_URL = "https://api.staging.intempt.com/v1" val API_URL = "https://api.intempt.com"</ID>

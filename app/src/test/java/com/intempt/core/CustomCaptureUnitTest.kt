@@ -25,6 +25,7 @@ import com.intempt.core.services.ErrorReporter
 import com.intempt.core.services.HttpManagerService
 import com.intempt.core.services.IntemptEventManagerService
 import com.intempt.core.services.LoggerManagerService
+import com.intempt.core.services.PostOutcome
 import com.intempt.core.services.StorageManagerService
 import com.intempt.core.services.UtilsService
 import com.intempt.core.services.eventPool.EventPoolManagerService
@@ -311,7 +312,7 @@ class CustomCaptureUnitTest {
 
             testScheduler.advanceUntilIdle()
             assertTrue("an opted-out user must still be able to withdraw consent", accepted)
-            verify(httpSrv, atLeastOnce()).post(any(), any<JSONObject>(), any())
+            verify(httpSrv, atLeastOnce()).postForStatus(any(), any<JSONObject>(), any())
         }
 
     /**
@@ -584,6 +585,11 @@ class CustomCaptureUnitTest {
                 } finally {
                     testScheduler.advanceUntilIdle()
                 }
-            }.whenever(httpSrv).post(any(), any<JSONObject>(), any())
+                PostOutcome(HTTP_OK)
+            }.whenever(httpSrv).postForStatus(any(), any<JSONObject>(), any())
         }
+
+    private companion object {
+        const val HTTP_OK = 200
+    }
 }

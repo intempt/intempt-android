@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  INT-3927 / INT-3889: Android 12+ counterpart of intempt_backup_rules.xml.
+  Reference from the host app:
+      android:dataExtractionRules="@xml/intempt_data_extraction_rules"
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="sharedpref" path="user_prefs.xml" />
+        <exclude domain="sharedpref" path="session_prefs.xml" />
+        <exclude domain="sharedpref" path="app_prefs.xml" />
+        <exclude domain="sharedpref" path="fragment_prefs.xml" />
+        <exclude domain="database" path="intempt_events" />
+        <exclude domain="database" path="intempt_events-journal" />
+        <exclude domain="database" path="intempt_events-wal" />
+        <exclude domain="database" path="intempt_events-shm" />
+        <exclude domain="database" path="intempt_consent_audit" />
+        <exclude domain="database" path="intempt_consent_audit-journal" />
+        <exclude domain="database" path="intempt_consent_audit-wal" />
+        <exclude domain="database" path="intempt_consent_audit-shm" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="sharedpref" path="user_prefs.xml" />
+        <exclude domain="sharedpref" path="session_prefs.xml" />
+        <exclude domain="sharedpref" path="app_prefs.xml" />
+        <exclude domain="sharedpref" path="fragment_prefs.xml" />
+        <exclude domain="database" path="intempt_events" />
+        <exclude domain="database" path="intempt_events-journal" />
+        <exclude domain="database" path="intempt_events-wal" />
+        <exclude domain="database" path="intempt_events-shm" />
+        <exclude domain="database" path="intempt_consent_audit" />
+        <exclude domain="database" path="intempt_consent_audit-journal" />
+        <exclude domain="database" path="intempt_consent_audit-wal" />
+        <exclude domain="database" path="intempt_consent_audit-shm" />
+    </device-transfer>
+</data-extraction-rules>

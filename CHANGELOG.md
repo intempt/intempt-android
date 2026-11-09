@@ -11,6 +11,22 @@ under Unreleased.
 
 ## [Unreleased]
 
+### Security
+
+- `HttpManagerService.post` no longer writes the request body (PII) to the debug log; it logs the size only (INT-3914).
+- Ships `intempt_backup_rules` and `intempt_data_extraction_rules` excluding the identity SharedPreferences and the `intempt_events` / `intempt_consent_audit` databases from backup and device transfer; see README "Backup" (INT-3927, INT-3889).
+
+### Fixed
+
+- Pending consents (INT-3904) are persisted, sent oldest first and retried with backoff. They are also retried when the app goes to the background, not only at init, on `flush()` or on a new decision. Statuses that can succeed later (transport errors, 401, 402, 403, 404, 408, 429, 5xx) are retried; any other non-2xx (other 4xx, 3xx) is dropped after three consecutive rejections instead of blocking later consents, and a consent still undelivered after 30 days is dropped. `Retry-After` (seconds or an HTTP-date) is capped at 10 minutes, and the retry list is the event queue's `HttpStatusPolicy`, not a second copy. A consent recorded during a backoff window is sent when the window closes. Delivery is at-least-once: the backend has no idempotency key, so a send whose answer was lost can arrive twice. Push tap targets for http(s) and custom schemes are opened with `CATEGORY_BROWSABLE`, and a custom-scheme deep link is restricted to the host app's package; `market:`, `tel:`, `mailto:`, `sms:`, `smsto:` and `geo:` links open as before.
+
+### Removed
+
+- **`ANDROID_ID` collection (INT-3890).** The SDK no longer reads `Settings.Secure.ANDROID_ID` at session
+  start. **Payload change:** the `androidId` field is no longer sent in the session-start event `data`.
+  The ingestion schema field is nullable, so no server change is needed; any downstream consumer that
+  read `androidId` from session events will now see it absent. There is no opt-in flag.
+
 ## [5.1.0] - 2026-10-30
 
 > **Behaviour change: check your error callback.** 401, 402, 403 and 404 now arrive as

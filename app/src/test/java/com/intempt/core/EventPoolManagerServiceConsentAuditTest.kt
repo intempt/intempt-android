@@ -11,8 +11,8 @@ import com.intempt.core.services.ConfigManagerService
 import com.intempt.core.services.HttpManagerService
 import com.intempt.core.services.IntemptEventManagerService
 import com.intempt.core.services.LoggerManagerService
+import com.intempt.core.services.PostOutcome
 import com.intempt.core.services.eventPool.EventPoolManagerService
-import io.ktor.client.statement.HttpResponse
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.json.JSONObject
@@ -82,7 +82,7 @@ class EventPoolManagerServiceConsentAuditTest {
     @Test
     fun `consent decision is recorded locally even when the network send fails`() =
         runTest {
-            whenever(http.post(any(), any<JSONObject>(), any())).thenThrow(RuntimeException("network down"))
+            whenever(http.postForStatus(any(), any<JSONObject>(), any())).thenThrow(RuntimeException("network down"))
 
             val service =
                 EventPoolManagerService(
@@ -121,7 +121,7 @@ class EventPoolManagerServiceConsentAuditTest {
     fun `a rejected consent send is logged as a failure, not as a success`() =
         runTest {
             // null, not an exception: this is what a 401, 404 or 500 produces.
-            whenever(http.post(any(), any<JSONObject>(), any())).thenReturn(null)
+            whenever(http.postForStatus(any(), any<JSONObject>(), any())).thenReturn(PostOutcome(500))
 
             val service =
                 EventPoolManagerService(
@@ -148,8 +148,7 @@ class EventPoolManagerServiceConsentAuditTest {
     @Test
     fun `consent decision is recorded locally even when the network send succeeds`() =
         runTest {
-            val response = mock(HttpResponse::class.java)
-            whenever(http.post(any(), any<JSONObject>(), any())).thenReturn(response)
+            whenever(http.postForStatus(any(), any<JSONObject>(), any())).thenReturn(PostOutcome(200))
 
             val service =
                 EventPoolManagerService(
@@ -173,8 +172,7 @@ class EventPoolManagerServiceConsentAuditTest {
     @Test
     fun `a null audit log does not break consent sending`() =
         runTest {
-            val response = mock(HttpResponse::class.java)
-            whenever(http.post(any(), any<JSONObject>(), any())).thenReturn(response)
+            whenever(http.postForStatus(any(), any<JSONObject>(), any())).thenReturn(PostOutcome(200))
 
             val service =
                 EventPoolManagerService(

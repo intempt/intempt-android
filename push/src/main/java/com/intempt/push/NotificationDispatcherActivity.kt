@@ -2,7 +2,6 @@
 
 package com.intempt.push
 
-import android.content.Intent
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
@@ -29,7 +28,7 @@ internal class NotificationDispatcherActivity : AppCompatActivity() {
         logger.debug("[FCM] NotificationDispatcherActivity started")
 
         val metadata = intent?.getParcelableExtra<PushNotificationMetadata>("metadata")
-        val targetIntent = intent?.getParcelableExtra<Intent>("intent_test")
+        val targetIntent = PushTargetGuard.resolveDispatchTarget(this, intent)
 
         if (metadata != null) {
             lifecycleScope.launch {
@@ -39,17 +38,11 @@ internal class NotificationDispatcherActivity : AppCompatActivity() {
             logger.error("[FCM_Dispatch] Metadata is null in dispatcher!")
         }
 
-        if (targetIntent != null) {
-            try {
-                startActivity(targetIntent)
-                logger.debug("[FCM] Target intent started from dispatcher")
-            } catch (e: Exception) {
-                logger.error("[FCM] Failed to start targetIntent from NotificationDispatcherActivity", e)
-                val fallbackIntent = packageManager.getLaunchIntentForPackage(packageName)
-                if (fallbackIntent != null) startActivity(fallbackIntent)
-            }
-        } else {
-            logger.error("[FCM_Dispatch] TargetIntent is null in dispatcher!")
+        try {
+            startActivity(targetIntent)
+            logger.debug("[FCM] Target intent started from dispatcher")
+        } catch (e: Exception) {
+            logger.error("[FCM] Failed to start targetIntent from NotificationDispatcherActivity", e)
             val fallbackIntent = packageManager.getLaunchIntentForPackage(packageName)
             if (fallbackIntent != null) startActivity(fallbackIntent)
         }
