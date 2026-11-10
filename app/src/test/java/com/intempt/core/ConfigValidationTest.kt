@@ -188,4 +188,25 @@ class ConfigValidationTest {
         assertEquals("one ip parameter, not two", 1, url.split("?ip=").size - 1)
         assertEquals("and one query separator", 1, url.count { it == '?' })
     }
+
+    /** INT-5178: the runtime apiUrl reaches every URL the config builds. */
+    @Test
+    fun `a runtime apiUrl is used for every endpoint`() {
+        val configured = config(IntemptRuntimeOptions(apiUrl = "http://127.0.0.1:8080/"))
+
+        assertEquals("http://127.0.0.1:8080", configured.apiUrl)
+        assertTrue(configured.eventsUrl.startsWith("http://127.0.0.1:8080/v1/"))
+        assertTrue(configured.consentUrl.startsWith("http://127.0.0.1:8080/v1/"))
+        assertTrue(configured.optimizationUrl.startsWith("http://127.0.0.1:8080/v1/"))
+        assertTrue(configured.pushNotificationWebhookUrl.startsWith("http://127.0.0.1:8080/webhooks/"))
+        assertTrue(configured.recommendationUrl("f").startsWith("http://127.0.0.1:8080/v1/"))
+    }
+
+    /** INT-5178: an unsafe apiUrl fails construction rather than reaching a request. */
+    @Test
+    fun `an unsafe runtime apiUrl fails loudly`() {
+        org.junit.Assert.assertThrows(IllegalArgumentException::class.java) {
+            config(IntemptRuntimeOptions(apiUrl = "http://api.example.com"))
+        }
+    }
 }

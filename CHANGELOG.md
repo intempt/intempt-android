@@ -11,6 +11,15 @@ under Unreleased.
 
 ## [Unreleased]
 
+### Added
+
+- `IntemptRuntimeOptions(apiUrl = ...)`: the API base URL can be set at runtime as well as in `intempt-config.json` (`options.apiUrl`); the runtime value wins (INT-5178). The constructor is `@JvmOverloads`, so `new IntemptRuntimeOptions()` and `new IntemptRuntimeOptions(Boolean)` still compile from Java; the data-class `copy(...)` gained a parameter. See README "Endpoint".
+- `certificatePins` (opt-in, off by default) now also applies to the HTTP client used for consent, optimization, feeds and the push webhook, not only to event delivery (INT-3945). See README "Certificate pinning".
+
+### Changed
+
+- `apiUrl` is validated at `initialize`: `https://`, or `http://` only to `localhost`, `127.0.0.1`, `[::1]` or `10.0.2.2`. Any other value disables the SDK (`initialize` returns null and logs why) instead of being used as-is. It never falls back to production (INT-5178).
+
 ### Security
 
 - `HttpManagerService.post` no longer writes the request body (PII) to the debug log; it logs the size only (INT-3914).

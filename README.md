@@ -128,6 +128,8 @@ Every `options` key is optional; the values above are the defaults.
 | `useIpAddressForGeolocation` | boolean | `true` | Whether Intempt may derive geo from the request IP — see [Geolocation](#geolocation) |
 | `itemsInQueue` | int | `5` | Queued events that trigger a flush |
 | `timeBuffer` | long | `5000` | **Milliseconds** between batch sends — not seconds |
+| `apiUrl` | string | `https://api.intempt.com` | API base URL for every request — see [Endpoint](#endpoint) |
+| `certificatePins` | string array | `[]` (off) | Opt-in TLS pins for every request — see [Certificate pinning](#certificate-pinning) |
 
 The API key ships inside your APK and is extractable from any installed build. Use a key scoped
 to ingestion only.
@@ -422,6 +424,45 @@ Session events carry `deviceType`, `carrier` and `platform` in `userAttributes`.
 carry `ipAddress`, `city`, `region` or `country` — earlier versions fetched those from a
 third-party service on every session start. If you read those fields, see
 [docs/MIGRATION.md](docs/MIGRATION.md).
+
+### Endpoint
+
+`apiUrl` sets the API base URL the SDK uses for every request: events, consent, optimization,
+feeds and the push webhook. Leave it unset for production (`https://api.intempt.com`). Set it in
+`intempt-config.json` (`"options": { "apiUrl": "https://api.staging.intempt.com" }`) or at runtime,
+where it wins over the asset file:
+
+```kotlin
+Intempt.initialize(
+    context, credentials, "default",
+    IntemptRuntimeOptions(apiUrl = "http://10.0.2.2:8080"),
+)
+```
+
+The value must be `https://`, or `http://` to a loopback host only: `localhost`, `127.0.0.1`,
+`[::1]`, or `10.0.2.2` (the emulator's address for your machine). Anything else, including a value
+that is not a URL, disables the SDK: `initialize` returns null and logs the reason. It never falls
+back to production. A trailing `/` is ignored. For `http://` on API 28+, your app must also allow
+cleartext to that host in its network security config.
+
+### Certificate pinning
+
+Off by default. To pin, list SHA-256 SPKI hashes in OkHttp's `sha256/BASE64` format:
+
+```json
+"options": {
+  "certificatePins": [
+    "sha256/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+    "sha256/BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB="
+  ]
+}
+```
+
+Pins apply to every request the SDK makes (the event queue and the HTTP client for consent,
+optimization, feeds and the push webhook), on top of normal platform certificate validation.
+A connection whose chain matches no pin fails. **You own rotation:** if the server key changes and
+no pin matches, the SDK stops sending until users update your app. Always include a backup pin, and
+note that pinning also breaks TLS-inspecting proxies.
 
 ### Backup
 

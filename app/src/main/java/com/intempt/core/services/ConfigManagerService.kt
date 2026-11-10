@@ -11,7 +11,6 @@ import com.intempt.core.types.AutocaptureOptions
 import com.intempt.core.types.AutomaticEventsOptions
 import com.intempt.core.types.ConfigKeys
 import com.intempt.core.types.ConfigResult
-import com.intempt.core.types.Constants
 import com.intempt.core.types.DefaultConfigs
 import com.intempt.core.types.IntemptConfigs
 import com.intempt.core.types.IntemptCredentials
@@ -116,7 +115,8 @@ class ConfigManagerService
 
         /**
          * The ingestion host. Defaults to production; overridable with `apiUrl` in
-         * assets/intempt-config.json so the SDK can be aimed at staging or at a local stub.
+         * assets/intempt-config.json or in [IntemptRuntimeOptions] (which wins) so the SDK can be
+         * aimed at staging or at a local stub. Validated by [ApiUrl].
          * Previously this was Constants.API_URL, a compile-time constant, which meant the
          * delivery leg could not be exercised without a real project and a real key.
          */
@@ -128,7 +128,8 @@ class ConfigManagerService
          * pinning and unchanged platform-default TLS trust validation. Set via
          * `certificatePins` in intempt-config.json; consumed by
          * [com.intempt.core.services.CertificatePinning] to build the [javax.net.ssl.SSLSocketFactory]
-         * wired into [com.intempt.core.queue.QueueConfig] for delivery requests.
+         * wired into [com.intempt.core.queue.QueueConfig] for delivery requests and into the
+         * [HttpManagerService] Ktor client for every other request.
          */
         val certificatePins: List<String>
 
@@ -206,7 +207,9 @@ class ConfigManagerService
             isUserOptIn = DefaultConfigs.IsUserOptIn.value
             isLoggingEnabled = options?.isLoggingEnabled ?: DefaultConfigs.IsLoggingEnabled.value
             isQueueEnabled = options?.isQueueEnabled ?: DefaultConfigs.IsQueueEnabled.value
-            apiUrl = options?.apiUrl?.takeIf { it.isNotBlank() } ?: Constants.API_URL
+            // INT-5178: runtime over asset over production, then validated. An unsafe value throws
+            // IllegalArgumentException here, which initialize turns into a disabled SDK.
+            apiUrl = ApiUrl.resolve(runtime = runtimeOptions?.apiUrl, asset = options?.apiUrl)
             certificatePins = options?.certificatePins ?: DefaultConfigs.CertificatePins.value
         }
 

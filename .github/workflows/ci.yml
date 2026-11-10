@@ -328,7 +328,14 @@ jobs:
           # declaring IntemptError's cases as `data` classes. Nobody copies an error with a
           # different status or destructures one, so they are plain classes and that is 55 methods
           # back. Check for that kind of waste before raising this again.
-          CEILING=2950
+          #
+          # Raised from 2950 for #79 (INT-5178, INT-3945): measured 2976 in CI against 2949 on
+          # staging. The +27 is mostly method references, not definitions: java.net.URI validation
+          # of apiUrl, the explicit Ktor Android engine with certificate pinning on every request,
+          # and the apiUrl runtime option (getter, component2, @JvmOverloads constructor). No
+          # generated waste of the data-class kind was found; trimming it would save ~5 at the
+          # cost of a validation check. Same rule: the measured number plus ~50.
+          CEILING=3025
           echo "SDK's own method count: $METHOD_COUNT (ceiling: $CEILING, baseline: ~2,409)"
           if [ "$METHOD_COUNT" -gt "$CEILING" ]; then
             echo "::error::SDK method count $METHOD_COUNT exceeds ceiling $CEILING. If this growth is intentional, raise CEILING in .github/workflows/ci.yml with a note on why."

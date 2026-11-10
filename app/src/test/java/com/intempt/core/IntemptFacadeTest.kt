@@ -228,6 +228,27 @@ class IntemptFacadeTest {
     }
 
     /**
+     * INT-5178: an apiUrl that is neither https nor http-to-loopback disables the SDK at
+     * initialize, through the same refusal every other bad config takes. It must not start against
+     * that host, and it must not quietly start against production instead.
+     */
+    @Test
+    fun `an unsafe runtime apiUrl refuses to initialize`() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+
+        val instance =
+            Intempt.initialize(
+                context,
+                IntemptCredentials("id.secret", "org", "proj", "src"),
+                "bad-api-url",
+                IntemptRuntimeOptions(apiUrl = "http://api.example.com"),
+            )
+
+        assertNull("an unsafe apiUrl must disable the SDK, not fall back", instance)
+        assertNull("a refused initialize must register nothing", Intempt.instance("bad-api-url"))
+    }
+
+    /**
      * The runtime options bag must survive every hop from the public overload to the config.
      *
      * The four tests that cover this option construct ConfigManagerService directly, so they
