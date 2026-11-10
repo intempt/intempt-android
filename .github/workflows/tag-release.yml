@@ -1,8 +1,8 @@
 name: Tag a release on merge to main
 
 # Reads VERSION from gradle.properties on every push to main. If v<VERSION> doesn't exist yet
-# and CHANGELOG.md documents it, creates and pushes that tag — which is what actually triggers
-# publish.yml (tag pushes only). A merge to main that doesn't bump VERSION is a no-op here: this
+# and CHANGELOG.md documents it, creates and pushes that tag. The tag does not publish by itself:
+# a person starts publish.yml from it (see RELEASING.md). A merge to main that doesn't bump VERSION is a no-op here: this
 # workflow never re-tags or moves an existing tag, so it can't accidentally re-trigger a release
 # or overwrite a deployment someone already dealt with on the Central Portal.
 on:
@@ -16,14 +16,12 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0   # need full tag history to check for an existing tag
-          # A tag pushed with the default GITHUB_TOKEN does NOT trigger other workflows (GitHub's
-          # loop-prevention rule) — publish.yml would never fire. RELEASE_TAG_PAT is a PAT with
-          # `contents: write` on this repo, used only for the push below, so the tag looks like
-          # it came from a real actor and publish.yml's `on: push: tags:` fires normally.
-          token: ${{ secrets.RELEASE_TAG_PAT }}
+          # The tag is pushed with the default GITHUB_TOKEN on purpose: GitHub does not start other
+          # workflows from a GITHUB_TOKEN push, so this tag does NOT publish. A person releases it by
+          # running publish.yml from this tag with confirm "release <version>" (see RELEASING.md).
 
       - name: Tag the release if VERSION is new
         run: |
@@ -45,4 +43,4 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git tag -a "$TAG" -m "Release $TAG"
           git push origin "$TAG"
-          echo "Pushed ${TAG} — publish.yml will pick it up."
+          echo "Pushed ${TAG}. To release it, run publish.yml from ${TAG} with confirm \"release ${VERSION}\"."

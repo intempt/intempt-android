@@ -1,8 +1,9 @@
 # Releasing (maintainers)
 
 Releases of `com.intempt.sdk:intempt-android` to Maven Central are **automated** via GitHub
-Actions (`.github/workflows/publish.yml`). A release is triggered by pushing a **git tag**,
-and the workflow **refuses to publish unless the tagged commit is on `main`** — so a release
+Actions (`.github/workflows/publish.yml`). A release is **started by a person**: either a person
+pushes a **git tag**, or a person runs the workflow by hand on the release tag and confirms it. The
+workflow **refuses to publish unless the tagged commit is on `main`** — so a release
 can never be cut from a feature branch or a stale local checkout.
 
 > Background: an earlier version (2.0.0) was published manually from a local checkout that
@@ -11,35 +12,40 @@ can never be cut from a feature branch or a stale local checkout.
 
 ## How it works
 
-- **Trigger:** pushing a tag matching `v*` (e.g. `v2.0.1`), or a manual run from the
-  Actions tab (`workflow_dispatch`). `tag-release.yml` (below) creates that tag push
-  automatically on a merge to `main`, but a real actor pushing the tag by hand works the same way.
+- **Trigger (the human release gate):** a person pushing a tag matching `v*` (e.g. `v2.0.1`), or a
+  person running it from the Actions tab (`workflow_dispatch`) **on the tag** `v<version>` with
+  `version` = `<version>` and `confirm` = `release <version>`. Any other confirm text, a run on a
+  branch instead of the tag, or a run started by a bot account fails before anything is built.
+  `tag-release.yml` (below) creates the tag on a merge to `main`, but that tag does **not** publish
+  by itself.
 - **Guard:** the job fails unless the tagged/dispatched commit is contained in `origin/main`.
 - **Build & sign:** builds the AAR and signs it in-memory using the release key.
-- **Staged upload:** uploads `:app` and `:push` as two separate `./gradlew` invocations (they can't
-  configure in the same Gradle build — see "Two artifacts" below) as *staged* deployments to the
-  Central Portal. **Nothing goes live automatically** — a human must click *Publish*.
+- **Upload and release:** uploads `:app` and `:push` as two separate `./gradlew` invocations (they can't
+  configure in the same Gradle build — see "Two artifacts" below) with `publishAndReleaseToMavenCentral`.
+  Each Central Portal deployment is released as soon as it validates; nobody has to click *Publish*.
+  Once a version is live on Maven Central it cannot be changed or removed.
 
 ## Auto-tagging on merge (`.github/workflows/tag-release.yml`)
 
 Runs on every push to `main`. Reads `VERSION` from `gradle.properties`; if `v<VERSION>` doesn't
 already exist as a tag **and** `CHANGELOG.md` has a matching `## [<VERSION>]` heading, it creates
-and pushes that tag — which is what actually fires `publish.yml`. A merge that doesn't bump
+and pushes that tag. A merge that doesn't bump
 `VERSION` is a no-op: the workflow never moves or re-creates an existing tag, so it can't
 accidentally re-trigger a release.
 
-**Requires one more repo secret**, beyond the four below: `RELEASE_TAG_PAT`, a Personal Access
-Token (`contents: write` on this repo) used only to push the tag. This is necessary because a tag
-pushed with the default `GITHUB_TOKEN` does **not** trigger other workflows (GitHub's built-in
-loop-prevention rule) — `publish.yml`'s `on: push: tags:` would silently never fire without it.
+The tag is pushed with the default `GITHUB_TOKEN` on purpose: GitHub does not start other workflows
+from a `GITHUB_TOKEN` push, so the auto-created tag never fires `publish.yml`. Releasing stays a
+deliberate human step, because `publish.yml` releases on Maven Central at once and a released
+version cannot be retracted.
 
-So cutting a release is now just: land the `VERSION` bump + `CHANGELOG.md` entry on `main` via a
-normal PR. `tag-release.yml` tags it; the tag push fires `publish.yml`; the rest is unchanged
-(staged upload, manual Publish click on the Central Portal).
+So cutting a release is: land the `VERSION` bump + `CHANGELOG.md` entry on `main` via a normal PR.
+`tag-release.yml` tags it. A person then runs `publish.yml` from that tag with `confirm` =
+`release <version>`, and the run uploads both modules and releases them on the Central Portal
+(no extra *Publish* click on the portal).
 
 ## One-time setup (already done)
 
-Five GitHub repository secrets power the two workflows (Settings → Secrets and variables → Actions):
+Four GitHub repository secrets power `publish.yml` (Settings → Secrets and variables → Actions):
 
 | Secret | What |
 | --- | --- |
@@ -47,7 +53,6 @@ Five GitHub repository secrets power the two workflows (Settings → Secrets and
 | `MAVEN_CENTRAL_PASSWORD` | Central Portal user-token password |
 | `SIGNING_KEY` | ASCII-armored GPG **private** key (whose public half is on a keyserver) |
 | `SIGNING_PASSWORD` | passphrase for that key |
-| `RELEASE_TAG_PAT` | PAT with `contents: write`, used by `tag-release.yml` to push a tag that actually triggers `publish.yml` |
 
 The version is read from `VERSION` in `gradle.properties` (overridable per-release by the tag).
 
@@ -69,11 +74,13 @@ The version is read from `VERSION` in `gradle.properties` (overridable per-relea
    that to `main` too. Use [semver](https://semver.org/): patch for fixes, minor for additive
    features, major for breaking changes.
 
-4. **Tagging happens automatically.** Once the `VERSION` bump + `CHANGELOG.md` entry land on
-   `main`, `tag-release.yml` tags that commit and pushes the tag within a minute or two — which
-   in turn triggers `publish.yml`. Confirm in **Actions** that "Tag a release on merge to main"
-   ran and pushed. If you'd rather tag by hand (e.g. `tag-release.yml` is disabled, or you need to
-   re-run a release without bumping `VERSION` again), do it the old way:
+4. **Tagging happens automatically; releasing does not.** Once the `VERSION` bump + `CHANGELOG.md`
+   entry land on `main`, `tag-release.yml` tags that commit within a minute or two. Confirm in
+   **Actions** that "Tag a release on merge to main" ran and pushed. Then start the release:
+   **Actions** → "Publish to Maven Central" → **Run workflow**, "Use workflow from" → **Tags** →
+   `v2.0.1`, `version` = `2.0.1`, `confirm` = `release 2.0.1`.
+   If you'd rather tag by hand (e.g. `tag-release.yml` is disabled), a tag you push yourself starts
+   the release directly:
 
    ```bash
    git checkout main
@@ -85,11 +92,12 @@ The version is read from `VERSION` in `gradle.properties` (overridable per-relea
 5. **Watch the run:** GitHub → **Actions** → "Publish to Maven Central". It will:
    - verify the commit is on `main`,
    - build + sign,
-   - upload a **staged** deployment.
+   - upload both deployments, release them automatically, and wait (up to 40 min per module)
+     until the Central Portal reports each version as published. A green run means both are live.
 
-6. **Publish on the portal:** go to [central.sonatype.com](https://central.sonatype.com) →
-   **Deployments**, review both `com.intempt.sdk:intempt-android:<version>` **and**
-   `com.intempt.sdk:intempt-push:<version>`, and click **Publish** on each.
+6. **Check the portal only if the run failed:** [central.sonatype.com](https://central.sonatype.com) →
+   **Deployments** shows validation errors for `com.intempt.sdk:intempt-android:<version>` and
+   `com.intempt.sdk:intempt-push:<version>`. A deployment that fails validation is not released.
 
 7. **Verify:** after it validates and syncs (~15–30 min) both versions appear at
    `https://repo1.maven.org/maven2/com/intempt/sdk/intempt-android/` and
@@ -114,7 +122,7 @@ independent versioning for `:push` today.
 > can't be registered from two subprojects in one build. `--configure-on-demand` alone does not
 > fix it while both modules' tasks are requested together. The fix is to publish them as **two
 > separate `./gradlew` processes**, each scoped to one module
-> (`:app:publishToMavenCentral` / `:push:publishToMavenCentral`, both with
+> (`:app:publishAndReleaseToMavenCentral` / `:push:publishAndReleaseToMavenCentral`, both with
 > `--configure-on-demand`) — verified locally via dry-run, and `publish.yml` now runs them as two
 > separate steps.
 
@@ -124,11 +132,29 @@ independent versioning for `:push` today.
   Merge to `main` first, then tag the merged commit.
 - **Tag name vs version** — the tag drives the published version (`v2.0.1` → `2.0.1`). Keep it
   in sync with `gradle.properties` `VERSION`.
-- **Re-running a failed release** — fix the cause, delete and re-push the tag
-  (`git push --delete origin v2.0.1` then re-tag), or use the manual `workflow_dispatch` run.
-- **Auto-release instead of staged** — change the Gradle task in `publish.yml` from
-  `publishToMavenCentral` to `publishAndReleaseToMavenCentral` (skips the manual Publish click;
-  irreversible once live — not recommended).
+- **Which publish.yml runs** — a manual run uses the copy of `publish.yml` stored at the ref it runs on,
+  i.e. at the release tag. A tag cut before this release gate reached `main` (for example `v5.1.0`)
+  still carries the old workflow: it has no `confirm` input and only stages the deployment, which then
+  needs the *Publish* click on central.sonatype.com. For such a version, release the staged deployment on
+  the portal by hand (or cut the next version); do not expect the gate or the automatic release.
+- **Re-running a failed release** — fix the cause, then run the manual `workflow_dispatch` from the
+  same tag with the same version and confirm text (or delete and re-push the tag: `git push --delete origin v2.0.1`, then re-tag). Each
+  publish step first asks the Central Portal (`.github/scripts/central-published.sh`) whether that
+  artifact/version is already published and skips it if so. A re-run never tries to re-release an
+  immutable version. If the run failed in the wait ("uploaded but is not published"), first open
+  the deployment on central.sonatype.com. Re-run only after it has settled: if it is still
+  publishing, the re-run uploads a duplicate that Central rejects. If it failed validation, fix the
+  cause and re-run.
+- **Partial release** — `:app` and `:push` go out as two Gradle runs, `:app` first. If the `:push`
+  step fails after `:app` was released, `intempt-android:<v>` is live and `intempt-push:<v>` is
+  missing. That is a usable state, because push depends on core and not the other way round. Fix the
+  cause and re-run as above: `:app` is skipped and only `:push` is uploaded and released. Do not bump
+  the version for this. If `:push` cannot be fixed at that version, release `<v+1>` for both.
+- **Auto-release** — `publish.yml` calls `publishAndReleaseToMavenCentral`. In plugin 0.28.0 that
+  task makes the Central Portal upload use `publishingType=AUTOMATIC`. Release is deliberately not
+  enabled in `gradle.properties`, so a local `./gradlew publishToMavenCentral` still only stages.
+  (The old `mavenCentralAutomaticPublishing=true` key was never read by 0.28.0, which is why v5.1.0
+  waited on the portal after a green run: INT-5897.)
 - **Signing key** — the public key must be discoverable on a keyserver
   (`keyserver.ubuntu.com` / `keys.openpgp.org`) or Central can't verify the signature.
 - **Local testing** — `./gradlew publishToMavenLocal -PVERSION=<v>-LOCAL -PSKIP_SIGNING=true`
