@@ -19,7 +19,9 @@ if [ "${1:-}" = "--wait" ]; then wait_mode=true; shift; fi
 artifact="$1"
 version="$2"
 timeout="${3:-2400}"
-case "$timeout" in ""|*[!0-9]*) usage ;; esac
+# 1-6 decimal digits; 10# keeps a leading zero (e.g. 0600) from being read as octal in $(( )).
+[[ "$timeout" =~ ^[0-9]{1,6}$ ]] || usage
+timeout=$((10#$timeout))
 group="com.intempt.sdk"
 
 user="${ORG_GRADLE_PROJECT_mavenCentralUsername:-}"

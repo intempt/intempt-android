@@ -1,6 +1,11 @@
 name: Publish to Maven Central
 
-# Triggered ONLY by pushing a tag like v2.0.1, or manually from the Actions tab.
+# Publishing releases the version on Maven Central at once (publishAndReleaseToMavenCentral), and a
+# released version can never be changed or removed. The human release gate is therefore the START of
+# this workflow, and it only starts from a person's action:
+#   - a v* tag pushed by a person (a tag pushed by a workflow with GITHUB_TOKEN never triggers it;
+#     tag-release.yml uses GITHUB_TOKEN on purpose), or
+#   - a manual run from the Actions tab on the release tag, with `confirm` set to "release <version>".
 # Normal pushes/PRs to main do NOT publish.
 # SAFETY: publishing is refused unless the tagged commit is contained in main,
 # so a release can never be cut from a feature branch / stale checkout.
@@ -11,7 +16,10 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version to publish (e.g. 2.0.1)'
+        description: 'Version to publish (e.g. 2.0.1). Run this from the tag v<version> ("Use workflow from" -> Tags).'
+        required: true
+      confirm:
+        description: 'Type "release <version>" (e.g. release 2.0.1) to publish AND release it on Maven Central. Irreversible.'
         required: true
 
 jobs:
@@ -25,6 +33,31 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0   # full history so we can verify the commit is on main
+
+      # The human gate. Runs before anything is built or uploaded.
+      - name: Require a release started by a person
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          TRIGGERING_ACTOR: ${{ github.triggering_actor }}
+          INPUT_VERSION: ${{ github.event.inputs.version }}
+          INPUT_CONFIRM: ${{ github.event.inputs.confirm }}
+        run: |
+          set -euo pipefail
+          case "$TRIGGERING_ACTOR" in
+            *'[bot]') echo "::error::Refusing to publish: started by $TRIGGERING_ACTOR. A release must be started by a person (see RELEASING.md)."; exit 1 ;;
+          esac
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            if ! [[ "$INPUT_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then
+              echo "::error::version must look like 2.0.1 (got '$INPUT_VERSION')."; exit 1
+            fi
+            if [ "$INPUT_CONFIRM" != "release $INPUT_VERSION" ]; then
+              echo "::error::confirm must be exactly 'release $INPUT_VERSION'. Nothing was published."; exit 1
+            fi
+            if [ "$GITHUB_REF" != "refs/tags/v$INPUT_VERSION" ]; then
+              echo "::error::Run this workflow from the tag v$INPUT_VERSION (got $GITHUB_REF), so the published commit is the tagged one."; exit 1
+            fi
+          fi
+          echo "Release started by $TRIGGERING_ACTOR via $EVENT_NAME."
 
       - name: Refuse to publish unless the commit is on main
         run: |
@@ -150,10 +183,8 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@da05d552573ad5aba039eaac05058a918a7bf631  # v2
         with:
+          # Both triggers run on the tag v<version> (a manual run is refused on any other ref).
           tag_name: ${{ github.ref_name }}
           name: "v${{ env.RELEASE_VERSION }}"
           body_path: release-notes.md
-          # workflow_dispatch has no tag to attach a release to; only create one for a real
-          # tag push.
           draft: false
-        if: github.event_name == 'push'
