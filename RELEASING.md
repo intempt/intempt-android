@@ -132,6 +132,11 @@ independent versioning for `:push` today.
   Merge to `main` first, then tag the merged commit.
 - **Tag name vs version** — the tag drives the published version (`v2.0.1` → `2.0.1`). Keep it
   in sync with `gradle.properties` `VERSION`.
+- **Which publish.yml runs** — a manual run uses the copy of `publish.yml` stored at the ref it runs on,
+  i.e. at the release tag. A tag cut before this release gate reached `main` (for example `v5.1.0`)
+  still carries the old workflow: it has no `confirm` input and only stages the deployment, which then
+  needs the *Publish* click on central.sonatype.com. For such a version, release the staged deployment on
+  the portal by hand (or cut the next version); do not expect the gate or the automatic release.
 - **Re-running a failed release** — fix the cause, then run the manual `workflow_dispatch` from the
   same tag with the same version and confirm text (or delete and re-push the tag: `git push --delete origin v2.0.1`, then re-tag). Each
   publish step first asks the Central Portal (`.github/scripts/central-published.sh`) whether that
