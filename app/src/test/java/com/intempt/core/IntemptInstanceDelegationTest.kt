@@ -11,12 +11,15 @@ import com.intempt.core.services.LoggerManagerService
 import com.intempt.core.types.ConsentAction
 import com.intempt.core.types.FlagContext
 import com.intempt.core.types.FlagDetail
+import com.intempt.core.types.FlagError
+import com.intempt.core.types.FlagErrorKind
 import com.intempt.core.types.FlagReason
 import com.intempt.core.types.IntemptValue
 import com.intempt.core.types.Product
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Test
 import org.mockito.Mockito.inOrder
 import org.mockito.Mockito.mock
@@ -270,6 +273,29 @@ class IntemptInstanceDelegationTest {
 
             assertNull(f.instance().variation("k", ctx, "fallback"))
         }
+
+    @Test
+    fun `variationDetail hands back the core detail itself, reason and error included`() =
+        runBlocking<Unit> {
+            val f = Fixture()
+            val ctx = FlagContext(profileId = "prof-1")
+            val detail = FlagDetail("d", FlagReason.ERROR, FlagError("k", FlagErrorKind.SERVER, 500))
+            `when`(f.capture.variationDetailInternal("k", ctx, "d")).thenReturn(detail)
+
+            assertSame(detail, f.instance().variationDetail("k", ctx, "d"))
+        }
+
+    @Test
+    fun `onFlagError is stored on and read from the capture component`() {
+        val f = Fixture()
+        val hook: (FlagError) -> Unit = {}
+        `when`(f.capture.onFlagError).thenReturn(hook)
+
+        f.instance().onFlagError = hook
+
+        verify(f.capture).onFlagError = hook
+        assertSame(hook, f.instance().onFlagError)
+    }
 
     @Test
     fun `allFlags reaches the core allFlags and hands back its map unchanged`() =

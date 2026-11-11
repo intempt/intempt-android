@@ -10,6 +10,9 @@ import com.intempt.core.types.AutomaticEventsOptions
 import com.intempt.core.types.ConsentAction
 import com.intempt.core.types.FeedFields
 import com.intempt.core.types.FlagContext
+import com.intempt.core.types.FlagDetail
+import com.intempt.core.types.FlagError
+import com.intempt.core.types.FlagReason
 import com.intempt.core.types.IntemptError
 import com.intempt.core.types.IntemptValue
 import com.intempt.core.types.Product
@@ -259,6 +262,28 @@ class IntemptInstance internal constructor(
         context: FlagContext = FlagContext(),
         defaultValue: Any?,
     ): Any? = core.capture.variationDetailInternal(key, context, defaultValue).value
+
+    /**
+     * [variation] with the reason (INT-7454). [FlagDetail.reason] is [FlagReason.ERROR], with
+     * [FlagDetail.error] set, when the default came back because the call failed; an answered read
+     * is [FlagReason.OFF] whether or not a value was served, because the platform sends no reason.
+     */
+    @JvmOverloads
+    suspend fun variationDetail(
+        key: String,
+        context: FlagContext = FlagContext(),
+        defaultValue: Any?,
+    ): FlagDetail = core.capture.variationDetailInternal(key, context, defaultValue)
+
+    /**
+     * Called with a [FlagError] each time a flag read returns its default because the call failed,
+     * on the thread that made the read. A hook that throws is caught and logged. Null clears it.
+     */
+    var onFlagError: ((FlagError) -> Unit)?
+        get() = core.capture.onFlagError
+        set(value) {
+            core.capture.onFlagError = value
+        }
 
     /** Every key assigned to this person, in one call. */
     @JvmOverloads

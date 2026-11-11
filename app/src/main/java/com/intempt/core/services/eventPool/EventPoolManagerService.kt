@@ -11,11 +11,14 @@ import com.intempt.core.services.HttpManagerService
 import com.intempt.core.services.IntemptEventManagerService
 import com.intempt.core.services.LoggerManagerService
 import com.intempt.core.services.PostOutcome
+import com.intempt.core.types.ChooseResult
 import com.intempt.core.types.DispatchEventProps
 import com.intempt.core.types.EventType
 import com.intempt.core.types.FlagContext
+import com.intempt.core.types.FlagErrorReporter
 import com.intempt.core.types.HandleEventTypeProps
 import com.intempt.core.types.IntemptEventProvider
+import com.intempt.core.types.chooseResultOf
 import io.ktor.client.statement.bodyAsText
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
@@ -35,7 +38,6 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import org.json.JSONObject
 import javax.inject.Inject
@@ -385,8 +387,13 @@ internal open class EventPoolManagerService
             }
         }
 
+        /** Per instance, so the once-only auth log and the `onFlagError` hook are per instance too. */
+        internal val flagErrors =
+            FlagErrorReporter({ config.sourceId }, { logger.error(it) }, { logger.debug(it) })
+
         /**
-         * Evaluate flags. Returns an empty list on any failure rather than throwing.
+         * Evaluate flags. Never throws on a service problem: a failure comes back as
+         * [ChooseResult.error] with no choices, after it has been reported to [flagErrors].
          *
          * This is the entire reason a default value is required at the public surface: a network
          * failure, a 5xx or a timeout must resolve to the value the caller chose. A flag SDK that
@@ -396,21 +403,14 @@ internal open class EventPoolManagerService
         suspend fun chooseFlags(
             context: FlagContext,
             names: List<String>?,
-        ): List<JsonObject> {
+        ): ChooseResult {
             val url = config.optimizationUrl
             val body = JSONObject(intemptEvent.generateChooseBody(context, names))
 
-            val response = http.postWithTimeout(url, body, HttpManagerService.CHOOSE_TIMEOUT_MS)
-            val text = response?.bodyAsText() ?: return emptyList()
-            return try {
-                Json.parseToJsonElement(text).jsonObject["choices"]
-                    ?.jsonArray
-                    ?.mapNotNull { it as? JsonObject }
-                    ?: emptyList()
-            } catch (e: Exception) {
-                logger.error("chooseFlags | unreadable response: ${e.message}")
-                emptyList()
-            }
+            val response = http.postChoose(url, body, HttpManagerService.CHOOSE_TIMEOUT_MS)
+            val result = chooseResultOf(names?.singleOrNull(), response.status, response.body, response.timedOut)
+            result.error?.let(flagErrors::report)
+            return result
         }
 
         suspend fun getFeedData(

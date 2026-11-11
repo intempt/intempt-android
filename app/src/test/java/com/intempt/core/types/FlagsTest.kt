@@ -212,6 +212,140 @@ class FlagsTest {
         assertEquals(FlagReason.TARGETED, flagReasonOf(obj("""{"name":"a","reason":"targeted"}""")))
     }
 
+    // ---- flag errors (INT-7454, CONTRACT-R2 §S3) --------------------------------------------
+
+    @Test
+    fun `statuses classify as node and php do`() {
+        assertEquals(FlagErrorKind.AUTH, flagErrorKindOf(401))
+        assertEquals(FlagErrorKind.AUTH, flagErrorKindOf(403))
+        assertEquals(FlagErrorKind.TIMEOUT, flagErrorKindOf(408))
+        assertEquals(FlagErrorKind.SERVER, flagErrorKindOf(429))
+        assertEquals(FlagErrorKind.SERVER, flagErrorKindOf(500))
+        assertEquals(FlagErrorKind.SERVER, flagErrorKindOf(503))
+        assertEquals(FlagErrorKind.BAD_REQUEST, flagErrorKindOf(499))
+        assertEquals(FlagErrorKind.BAD_REQUEST, flagErrorKindOf(400))
+        assertEquals(FlagErrorKind.BAD_REQUEST, flagErrorKindOf(404))
+        assertEquals(FlagErrorKind.BAD_REQUEST, flagErrorKindOf(402))
+    }
+
+    @Test
+    fun `every kind carries the contract's wire name`() {
+        assertEquals(
+            listOf("auth", "bad_request", "server", "timeout", "network", "parse"),
+            FlagErrorKind.entries.map { it.wireName },
+        )
+    }
+
+    @Test
+    fun `a 2xx with a choices array is answered and keeps only object choices`() {
+        val r = chooseResultOf("k", 200, """{"choices":[{"name":"k"},1]}""", timedOut = false)
+        assertNull(r.error)
+        assertEquals(listOf(obj("""{"name":"k"}""")), r.choices)
+        assertNull(chooseResultOf("k", 299, """{"choices":[]}""", timedOut = false).error)
+    }
+
+    @Test
+    fun `a 2xx whose body is not an object with a choices array is a parse error with its status`() {
+        for (body in listOf(null, "", "not json", "[]", "{}", """{"choices":"x"}""", """{"choices":{}}""")) {
+            val r = chooseResultOf("k", 200, body, timedOut = false)
+            assertEquals(body, FlagErrorKind.PARSE, r.error?.kind)
+            assertEquals(200, r.error?.status)
+            assertTrue(r.choices.isEmpty())
+        }
+    }
+
+    @Test
+    fun `a non-2xx is classified with its status and the key, and its body is not read`() {
+        val r = chooseResultOf("k", 300, """{"choices":[{"name":"k"}]}""", timedOut = false)
+        assertEquals(FlagErrorKind.BAD_REQUEST, r.error?.kind)
+        assertEquals(300, r.error?.status)
+        assertEquals("k", r.error?.key)
+        assertTrue(r.choices.isEmpty())
+        assertEquals(FlagErrorKind.BAD_REQUEST, chooseResultOf("k", 199, "{}", timedOut = false).error?.kind)
+    }
+
+    @Test
+    fun `no response is network, a timeout is timeout, both without a status`() {
+        val net = chooseResultOf(null, 0, null, timedOut = false)
+        assertEquals(FlagErrorKind.NETWORK, net.error?.kind)
+        assertNull(net.error?.status)
+        assertNull(net.error?.key)
+        val slow = chooseResultOf("k", 0, null, timedOut = true)
+        assertEquals(FlagErrorKind.TIMEOUT, slow.error?.kind)
+        assertNull(slow.error?.status)
+    }
+
+    @Test
+    fun `the detail is ERROR with the error, OFF for an answered miss, the value when served`() {
+        val failed = chooseResultOf("k", 500, null, timedOut = false)
+        val e = flagDetailOf(failed, "k", "d")
+        assertEquals("d", e.value)
+        assertEquals(FlagReason.ERROR, e.reason)
+        assertEquals(failed.error, e.error)
+
+        val miss = flagDetailOf(chooseResultOf("k", 200, """{"choices":[{"name":"x","body":1}]}""", false), "k", "d")
+        assertEquals("d", miss.value)
+        assertEquals(FlagReason.OFF, miss.reason)
+        assertNull(miss.error)
+
+        val hit = flagDetailOf(chooseResultOf("k", 200, """{"choices":[{"name":"k","body":7}]}""", false), "k", "d")
+        assertEquals(7L, hit.value)
+        assertNull(hit.error)
+
+        val nobody = flagDetailOf(chooseResultOf("k", 200, """{"choices":[{"name":"k"}]}""", false), "k", "d")
+        assertEquals("d", nobody.value)
+    }
+
+    @Test
+    fun `ERROR is never decoded from the wire`() {
+        assertEquals("error", FlagReason.ERROR.wireValue)
+        assertEquals(FlagReason.OFF, FlagReason.fromWire("error"))
+    }
+
+    @Test
+    fun `the reporter logs the first auth failure at error naming the source, the rest at debug`() {
+        val errors = mutableListOf<String>()
+        val debug = mutableListOf<String>()
+        val hooked = mutableListOf<FlagError>()
+        val r = FlagErrorReporter({ "src-1" }, { errors += it }, { debug += it })
+        r.hook = { hooked += it }
+
+        r.report(FlagError("k", FlagErrorKind.AUTH, 401))
+        r.report(FlagError("k", FlagErrorKind.AUTH, 403))
+        r.report(FlagError(null, FlagErrorKind.SERVER, 500))
+
+        assertEquals(1, errors.size)
+        assertTrue(errors.single(), errors.single().contains("src-1"))
+        assertTrue(errors.single(), errors.single().contains("401"))
+        assertEquals(2, debug.size)
+        assertTrue(debug[0], debug[0].contains("auth 403"))
+        assertTrue(debug[1], debug[1].contains("server 500") && debug[1].contains("all flags"))
+        assertEquals(listOf(401, 403, 500), hooked.map { it.status })
+    }
+
+    @Test
+    fun `a throwing hook is logged and does not escape`() {
+        val errors = mutableListOf<String>()
+        val r = FlagErrorReporter({ "s" }, { errors += it }, { })
+        r.hook = { throw IllegalStateException("boom") }
+
+        r.report(FlagError("k", FlagErrorKind.NETWORK, null))
+
+        assertEquals(1, errors.size)
+        assertTrue(errors.single(), errors.single().contains("onFlagError") && errors.single().contains("boom"))
+    }
+
+    @Test
+    fun `a flag error prints its key, wire kind and status`() {
+        assertEquals(
+            "FlagError(key=k, kind=timeout, status=408)",
+            FlagError("k", FlagErrorKind.TIMEOUT, 408).toString(),
+        )
+        val d = FlagDetail("v", FlagReason.OFF)
+        assertNull(d.error)
+        assertEquals("FlagDetail(value=v, reason=off, error=null)", d.toString())
+    }
+
     // ---- isValidFlagKey (INT-7455) ---------------------------------------------------------
 
     @Test

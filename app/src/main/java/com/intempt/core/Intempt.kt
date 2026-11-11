@@ -15,6 +15,9 @@ import com.intempt.core.types.AutomaticEventsOptions
 import com.intempt.core.types.ConsentAction
 import com.intempt.core.types.FeedFields
 import com.intempt.core.types.FlagContext
+import com.intempt.core.types.FlagDetail
+import com.intempt.core.types.FlagError
+import com.intempt.core.types.FlagReason
 import com.intempt.core.types.InstanceId
 import com.intempt.core.types.IntemptCredentials
 import com.intempt.core.types.IntemptError
@@ -677,6 +680,34 @@ object Intempt {
         val instance = main("variation") ?: return defaultValue
         return instance.variation(key, context, defaultValue)
     }
+
+    /**
+     * [variation] with the reason (INT-7454). [FlagDetail.reason] is [FlagReason.ERROR], with
+     * [FlagDetail.error] set, when the call failed; an answered read is [FlagReason.OFF] whether or
+     * not a value was served. Uninitialized: [defaultValue] with [FlagReason.ERROR] and no error,
+     * because no call was made.
+     */
+    @JvmStatic
+    @JvmOverloads
+    suspend fun variationDetail(
+        key: String,
+        context: FlagContext = FlagContext(),
+        defaultValue: Any?,
+    ): FlagDetail {
+        val instance = main("variationDetail") ?: return FlagDetail(defaultValue, FlagReason.ERROR)
+        return instance.variationDetail(key, context, defaultValue)
+    }
+
+    /**
+     * Called with a [FlagError] each time a flag read returns its default because the call failed.
+     * A hook that throws is caught and logged. Reads null when the SDK is not initialized.
+     */
+    @JvmStatic
+    var onFlagError: ((FlagError) -> Unit)?
+        get() = main("onFlagError")?.onFlagError
+        set(value) {
+            main("onFlagError")?.onFlagError = value
+        }
 
     /** Every key assigned to this person, in one call. Empty when the SDK is not initialized. */
     @JvmStatic

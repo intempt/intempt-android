@@ -14,6 +14,8 @@ import com.intempt.core.services.StorageManagerService
 import com.intempt.core.services.UtilsService
 import com.intempt.core.services.eventPool.EventPoolManagerService
 import com.intempt.core.types.FlagContext
+import com.intempt.core.types.FlagErrorKind
+import com.intempt.core.types.FlagReason
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -52,6 +54,7 @@ class ChooseTimeoutTest {
         runBlocking {
             val config = mock(ConfigManagerService::class.java)
             `when`(config.token()).thenReturn("dG9rZW4=")
+            `when`(config.sourceId).thenReturn("s")
             `when`(config.certificatePins).thenReturn(emptyList())
             `when`(config.optimizationUrl).thenReturn("http://127.0.0.1:${stalled.localPort}/choose")
             val events = mock(IntemptEventManagerService::class.java)
@@ -77,10 +80,13 @@ class ChooseTimeoutTest {
                 )
 
             val start = System.nanoTime()
-            val value = component.variationDetailInternal("checkout", FlagContext(), "fallback").value
+            val detail = component.variationDetailInternal("checkout", FlagContext(), "fallback")
             val elapsedMs = (System.nanoTime() - start) / 1_000_000
 
-            assertEquals("fallback", value)
+            assertEquals("fallback", detail.value)
+            // INT-7454: the fallback says why, and a stall is a timeout, not a network failure.
+            assertEquals(FlagReason.ERROR, detail.reason)
+            assertEquals(FlagErrorKind.TIMEOUT, detail.error?.kind)
             assertTrue("took $elapsedMs ms", elapsedMs in 1_500L until 5_000L)
         }
 

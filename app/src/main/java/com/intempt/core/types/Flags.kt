@@ -1,5 +1,7 @@
 package com.intempt.core.types
 
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
@@ -10,6 +12,7 @@ import kotlinx.serialization.json.double
 import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.long
 import kotlinx.serialization.json.longOrNull
+import java.util.concurrent.atomic.AtomicBoolean
 
 /*
  * Feature flags, experiments and personalizations, read by key.
@@ -38,10 +41,11 @@ import kotlinx.serialization.json.longOrNull
  *    filters on channel and status and never on mode.
  * 2. `defaultValue` is REQUIRED. It is what a caller receives on a network failure, a timeout, an
  *    unknown key or a malformed response.
- * 3. Assignment detail is NOT exposed. It would carry a [FlagReason] the platform does not send,
- *    so it could not tell a deliberate off state
- *    from a request the service never answered — which is exactly why this SDK exposed no
- *    assignment at all until the serving contract could distinguish the two.
+ * 3. Assignment detail IS exposed, as `variationDetail` (INT-7454, DECISIONS 7454 and
+ *    CONTRACT-R2 §S3; this rule used to forbid it). The platform still sends no reason, so an
+ *    answered read is [FlagReason.OFF] whether or not a value was served; what the detail adds is
+ *    [FlagReason.ERROR] plus a [FlagError] when the default came back because the call failed —
+ *    the one distinction the old rule said could not be made, and the SDK can make it alone.
  * 4. Evaluation is REMOTE only. There is no local rule engine and no flag store to poll.
  *
  * An Android SDK runs on a device and is still an `api`-channel consumer: there is no visual editor
@@ -57,18 +61,21 @@ import kotlinx.serialization.json.longOrNull
  * recorded upstream as known limitation 37 on `EXP-SERVE-001` (H, unimplemented).
  *
  * The wire vocabulary is **not agreed** either. [HOLDOUT]'s `"holdout"` is this SDK's guess; the
- * spec's own language for the same state is "held back". Nothing may depend on these strings until
- * `EXP-SERVE-001` ships and fixes the vocabulary — which is why [FlagDetail] and this enum are
- * `internal` and no public method returns them.
+ * spec's own language for the same state is "held back". Do not branch on those three until
+ * `EXP-SERVE-001` ships and fixes the vocabulary.
+ *
+ * Public since INT-7454 for [ERROR] and [OFF], the two this SDK produces: [ERROR] is decided on the
+ * device (the call failed) and is never decoded from a response.
  *
  * They are pinned by `FlagsTest` so that the day a reason does arrive, the decoding is already
  * under the mutation gate rather than being written for the first time under deadline.
  */
-internal enum class FlagReason(val wireValue: String) {
+enum class FlagReason(val wireValue: String) {
     TARGETED("targeted"),
     HOLDOUT("holdout"),
     NOT_TARGETED("not_targeted"),
     OFF("off"),
+    ERROR("error"),
     ;
 
     companion object {
@@ -77,7 +84,10 @@ internal enum class FlagReason(val wireValue: String) {
          * throwing. An unknown answer is still an answer the caller must not act on.
          */
         @JvmStatic
-        fun fromWire(value: String?): FlagReason = entries.firstOrNull { it.wireValue == value } ?: OFF
+        internal fun fromWire(value: String?): FlagReason {
+            val decoded = entries.firstOrNull { it.wireValue == value }
+            return if (decoded == null || decoded == ERROR) OFF else decoded
+        }
     }
 }
 
@@ -107,11 +117,139 @@ data class FlagContext
         val profileId: String? = null,
     )
 
-/** A value and why it was returned. INTERNAL — see the note on variationDetailInternal. */
-internal data class FlagDetail(
-    val value: Any?,
-    val reason: FlagReason,
+/**
+ * A value and why it was returned. [error] is set only when [reason] is [FlagReason.ERROR].
+ *
+ * Plain classes here and on [FlagError], not `data`: the CI method-count gate, see [IntemptError].
+ */
+class FlagDetail
+    @JvmOverloads
+    constructor(
+        val value: Any?,
+        val reason: FlagReason,
+        val error: FlagError? = null,
+    ) {
+        override fun toString(): String = "FlagDetail(value=$value, reason=${reason.wireValue}, error=$error)"
+    }
+
+/** CONTRACT-R2 §S3 kinds. 429 is [SERVER] and 408 is [TIMEOUT], as in the node and php SDKs. */
+enum class FlagErrorKind(val wireName: String) {
+    AUTH("auth"),
+    BAD_REQUEST("bad_request"),
+    SERVER("server"),
+    TIMEOUT("timeout"),
+    NETWORK("network"),
+    PARSE("parse"),
+}
+
+/**
+ * Why a flag read returned its default. [key] is null for `allFlags`; [status] is the HTTP status,
+ * null when no response arrived.
+ */
+class FlagError internal constructor(
+    val key: String?,
+    val kind: FlagErrorKind,
+    val status: Int?,
+) {
+    override fun toString(): String = "FlagError(key=$key, kind=${kind.wireName}, status=$status)"
+}
+
+private const val HTTP_UNAUTHORIZED = 401
+private const val HTTP_FORBIDDEN = 403
+private const val HTTP_REQUEST_TIMEOUT = 408
+private const val HTTP_TOO_MANY_REQUESTS = 429
+private const val HTTP_SERVER_ERROR = 500
+private const val HTTP_OK_FIRST = 200
+private const val HTTP_OK_LAST = 299
+private val HTTP_SUCCESS = HTTP_OK_FIRST..HTTP_OK_LAST
+
+internal fun flagErrorKindOf(status: Int): FlagErrorKind =
+    when {
+        status == HTTP_UNAUTHORIZED || status == HTTP_FORBIDDEN -> FlagErrorKind.AUTH
+        status == HTTP_REQUEST_TIMEOUT -> FlagErrorKind.TIMEOUT
+        status == HTTP_TOO_MANY_REQUESTS || status >= HTTP_SERVER_ERROR -> FlagErrorKind.SERVER
+        else -> FlagErrorKind.BAD_REQUEST
+    }
+
+/** A choose call's choices, or why there are none to read. */
+internal class ChooseResult(
+    val choices: List<JsonObject>,
+    val error: FlagError?,
 )
+
+/**
+ * Classifies one choose call. [status] 0 means no response arrived. A 2xx must be an object with a
+ * `choices` array: anything else is [FlagErrorKind.PARSE], where it used to read as "no flags".
+ */
+internal fun chooseResultOf(
+    key: String?,
+    status: Int,
+    body: String?,
+    timedOut: Boolean,
+): ChooseResult {
+    val choices = if (status in HTTP_SUCCESS) choicesOf(body) else null
+    val error =
+        when {
+            timedOut -> FlagError(key, FlagErrorKind.TIMEOUT, null)
+            status == 0 -> FlagError(key, FlagErrorKind.NETWORK, null)
+            status !in HTTP_SUCCESS -> FlagError(key, flagErrorKindOf(status), status)
+            choices == null -> FlagError(key, FlagErrorKind.PARSE, status)
+            else -> null
+        }
+    return ChooseResult(choices.orEmpty(), error)
+}
+
+private fun choicesOf(body: String?): List<JsonObject>? {
+    val root = body?.let { runCatching { Json.parseToJsonElement(it) }.getOrNull() } as? JsonObject
+    return (root?.get("choices") as? JsonArray)?.mapNotNull { it as? JsonObject }
+}
+
+/** The detail for [key]: the failure, an answered miss ([FlagReason.OFF]), or the served value. */
+internal fun flagDetailOf(
+    result: ChooseResult,
+    key: String,
+    defaultValue: Any?,
+): FlagDetail {
+    val choice = selectChoice(result.choices, key)
+    return when {
+        result.error != null -> FlagDetail(defaultValue, FlagReason.ERROR, result.error)
+        choice == null -> FlagDetail(defaultValue, FlagReason.OFF)
+        else -> FlagDetail(choice["body"]?.let { unwrapFlagValue(it) } ?: defaultValue, flagReasonOf(choice))
+    }
+}
+
+/**
+ * Delivers flag errors to the host's `onFlagError` and the log. One per SDK instance.
+ *
+ * A rejected key (401/403) is logged at error level ONCE per instance, naming the source and never
+ * the key material: every later read would fail the same way, and an error per read floods logcat.
+ * Everything else is debug, because the hook is the channel a caller acts on.
+ */
+internal class FlagErrorReporter(
+    private val sourceId: () -> String,
+    private val logError: (String) -> Unit,
+    private val logDebug: (String) -> Unit,
+) {
+    @Volatile
+    var hook: ((FlagError) -> Unit)? = null
+
+    private val authLogged = AtomicBoolean(false)
+
+    fun report(error: FlagError) {
+        val what = listOfNotNull(error.kind.wireName, error.status?.toString()).joinToString(" ")
+        val subject = error.key?.let { "key $it" } ?: "all flags"
+        val line = "flag evaluation failed ($what) for $subject; returned the default"
+        if (error.kind == FlagErrorKind.AUTH && authLogged.compareAndSet(false, true)) {
+            logError(
+                "$line. The API key for source ${sourceId()} was rejected; " +
+                    "check the credentials passed to initialize()",
+            )
+        } else {
+            logDebug(line)
+        }
+        hook?.let { h -> runCatching { h(error) }.onFailure { logError("onFlagError threw: ${it.message}") } }
+    }
+}
 
 /**
  * The choose-api request body, built from plain values.

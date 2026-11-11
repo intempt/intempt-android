@@ -145,6 +145,9 @@ pitest {
             "com.intempt.core.types.FlagReason*",
             "com.intempt.core.types.FlagContext*",
             "com.intempt.core.types.FlagDetail*",
+            // INT-7454: FlagError, FlagErrorKind, FlagErrorReporter and the choose classification.
+            "com.intempt.core.types.FlagError*",
+            "com.intempt.core.types.ChooseResult*",
             // Top-level functions in Flags.kt compile into this facade class.
             "com.intempt.core.types.FlagsKt*",
             "com.intempt.core.autocapture.composeHitTest.HitNodeKt*",

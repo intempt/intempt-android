@@ -6,6 +6,8 @@ import com.intempt.core.internal.InternalIntemptApi
 import com.intempt.core.internal.traced
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.android.Android
+import io.ktor.client.network.sockets.ConnectTimeoutException
+import io.ktor.client.plugins.HttpRequestTimeoutException
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.timeout
@@ -14,6 +16,7 @@ import io.ktor.client.request.header
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
+import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.contentType
@@ -63,6 +66,13 @@ private fun parseHttpDate(text: String): Long? =
 data class PostOutcome(val status: Int, val retryAfterMs: Long? = null) {
     val isSuccess: Boolean get() = status in HTTP_OK_FIRST..HTTP_OK_LAST
 }
+
+/** One choose call: [status] 0 when no response arrived, [timedOut] when that was a timeout. */
+@InternalIntemptApi
+class ChooseResponse(val status: Int, val body: String?, val timedOut: Boolean)
+
+private fun isTimeout(t: Throwable): Boolean =
+    t is HttpRequestTimeoutException || t is ConnectTimeoutException || t is java.net.SocketTimeoutException
 
 @Singleton
 @InternalIntemptApi
@@ -131,12 +141,37 @@ class HttpManagerService
             type: ContentType = ContentType.Application.Json,
         ): HttpResponse? = send(url, body, type, timeoutMs = null)
 
-        /** [post] bounded by [timeoutMs] for this request only, instead of the client-wide limits. */
-        suspend fun postWithTimeout(
+        /**
+         * A choose call bounded by [timeoutMs], reported rather than collapsed to null: a flag read
+         * has to say why it fell back (INT-7454). The body is read inside the same try, so a read
+         * that stalls after the headers is a timeout here instead of an exception out of `variation`.
+         */
+        suspend fun postChoose(
             url: String,
             body: JSONObject,
             timeoutMs: Long,
-        ): HttpResponse? = send(url, body, ContentType.Application.Json, timeoutMs)
+        ): ChooseResponse {
+            return try {
+                val response =
+                    client.post(url) {
+                        contentType(ContentType.Application.Json)
+                        setBody(body.toString())
+                        header(HttpHeaders.Authorization, "Basic ${config.token()}")
+                        timeout {
+                            requestTimeoutMillis = timeoutMs
+                            connectTimeoutMillis = timeoutMs
+                            socketTimeoutMillis = timeoutMs
+                        }
+                    }
+                logger.log("POST | URL: $url. Status: ${response.status.value}")
+                ChooseResponse(response.status.value, response.bodyAsText(), timedOut = false)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                logger.error("HttpService choose request error: ${e.message}")
+                ChooseResponse(0, null, timedOut = generateSequence<Throwable>(e) { it.cause }.any(::isTimeout))
+            }
+        }
 
         private suspend fun send(
             url: String,
