@@ -181,6 +181,24 @@ public final class com/intempt/core/IntemptInstance$Autocapture {
 	public final fun stop ()Z
 }
 
+public final class com/intempt/core/queue/DeliveryFailure {
+	public fun getEventCount ()I
+	public fun getEventIds ()Ljava/util/List;
+	public fun getKind ()Lcom/intempt/core/queue/DeliveryFailure$Kind;
+	public fun getRetryAfterSeconds ()I
+	public fun getStatus ()I
+	public fun isTerminal ()Z
+}
+
+public final class com/intempt/core/queue/DeliveryFailure$Kind : java/lang/Enum {
+	public static final field DROPPED Lcom/intempt/core/queue/DeliveryFailure$Kind;
+	public static final field TERMINAL Lcom/intempt/core/queue/DeliveryFailure$Kind;
+	public static final field TRANSPORT Lcom/intempt/core/queue/DeliveryFailure$Kind;
+	public fun getWireName ()Ljava/lang/String;
+	public static fun valueOf (Ljava/lang/String;)Lcom/intempt/core/queue/DeliveryFailure$Kind;
+	public static fun values ()[Lcom/intempt/core/queue/DeliveryFailure$Kind;
+}
+
 public class com/intempt/core/queue/DeliveryMessages {
 	protected final field mConfig Lcom/intempt/core/queue/QueueConfig;
 	protected final field mContext Landroid/content/Context;
@@ -206,7 +224,7 @@ public class com/intempt/core/queue/DeliveryMessages {
 }
 
 public abstract interface class com/intempt/core/queue/DeliveryMessages$DeliveryFailureListener {
-	public abstract fun onFailure (ILjava/lang/String;JZ)V
+	public abstract fun onFailure (Lcom/intempt/core/queue/DeliveryFailure;)V
 }
 
 public abstract interface class com/intempt/core/queue/DeliveryMessages$FlushCompletion {
@@ -299,6 +317,8 @@ public class com/intempt/core/queue/RemoteService$RequestResult {
 
 public class com/intempt/core/queue/RemoteService$ServiceUnavailableException : java/lang/Exception {
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;I)V
+	public fun getResponseCode ()I
 	public fun getRetryAfter ()I
 }
 
@@ -396,6 +416,17 @@ public final class com/intempt/core/types/IntemptCredentials {
 public abstract class com/intempt/core/types/IntemptError {
 	public abstract fun getMessage ()Ljava/lang/String;
 	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/intempt/core/types/IntemptError$DeliveryFailure : com/intempt/core/types/IntemptError {
+	public fun <init> (Ljava/lang/String;Ljava/lang/Integer;ILjava/util/List;Ljava/lang/Integer;Z)V
+	public final fun getEventCount ()I
+	public final fun getEventIds ()Ljava/util/List;
+	public final fun getKind ()Ljava/lang/String;
+	public fun getMessage ()Ljava/lang/String;
+	public final fun getRetryAfter ()Ljava/lang/Integer;
+	public final fun getStatus ()Ljava/lang/Integer;
+	public final fun getTerminal ()Z
 }
 
 public final class com/intempt/core/types/IntemptError$EncodingFailed : com/intempt/core/types/IntemptError {
