@@ -1,8 +1,9 @@
 package com.intempt.core.queue
 
 /**
- * Exposes [HttpStatusPolicy.isRetryable] (package-private Java) to the Kotlin services, so the
- * consent drain uses the same retry-vs-drop taxonomy as the event queue instead of a second list
- * (CLAUDE.md sections 5 and 6).
+ * Exposes [HttpStatusPolicy.isConsentRetryable] (package-private Java) to the Kotlin services. The
+ * consent drain keeps its own retry taxonomy since INT-7436 split it from the event queue's
+ * (plan2/android.md decision (c)); both still live in HttpStatusPolicy so the two are read side by
+ * side (CLAUDE.md sections 5 and 6).
  */
-internal fun isStatusRetryable(status: Int): Boolean = HttpStatusPolicy.isRetryable(status)
+internal fun isStatusRetryable(status: Int): Boolean = HttpStatusPolicy.isConsentRetryable(status)

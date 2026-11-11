@@ -60,9 +60,9 @@ internal class ConsentRetryPolicy(
 }
 
 /**
- * Fail safe (CLAUDE.md section 6): a consent status is kept and retried only when the event
- * queue's `HttpStatusPolicy.isRetryable` says a later attempt can plausibly succeed. This
- * delegates to it, so the two cannot drift. Anything it rejects (the other 4xx, 3xx, a status
+ * Fail safe (CLAUDE.md section 6): a consent status is kept and retried only when
+ * `HttpStatusPolicy.isConsentRetryable` says a later attempt can plausibly succeed. Consent no
+ * longer shares the event queue's send-once policy (INT-7436): a withdrawal must reach the server. Anything it rejects (the other 4xx, 3xx, a status
  * above 599) counts as a rejection of that record and is dropped after MAX_CONSENT_REJECTIONS
  * consecutive answers, so an unrecognised status loses one consent instead of blocking every
  * later one. A consent kept by this policy is still bounded: the drain drops it once it is older

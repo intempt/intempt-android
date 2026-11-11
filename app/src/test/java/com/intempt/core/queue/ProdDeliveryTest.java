@@ -208,13 +208,9 @@ public class ProdDeliveryTest {
             result = service.performRequest(trackUrl(), null, null, bad, body("jvm e2e bad key"), null);
         } catch (RemoteService.ClientErrorException e) {
             threwClientError = true;
-            // INT-5897: a rejected key is fixed server-side, so the batch is kept and retried.
+            // INT-7438 / INT-7436: a rejected key is never accepted on resend, so the batch drops.
             assertTrue(
-                    "a rejected key should be a status this SDK keeps and retries, got "
-                            + e.getResponseCode(),
-                    HttpStatusPolicy.isRetryable(e.getResponseCode()));
-            assertFalse(
-                    "a rejected key must not drop the batch, or events sent during the outage are lost",
+                    "a rejected key must drop the batch, got " + e.getResponseCode(),
                     HttpStatusPolicy.shouldDrop(e.getResponseCode()));
         }
 

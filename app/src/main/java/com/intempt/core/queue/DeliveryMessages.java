@@ -26,6 +26,8 @@ import android.os.Process;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.HashMap;
+import java.util.List;
+import java.util.ArrayList;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.net.MalformedURLException;
@@ -100,66 +102,57 @@ public class DeliveryMessages {
      */
     public interface DeliveryFailureListener {
         /**
-         * @param status HTTP status, or <= 0 when the request never got an answer
-         * @param description the exception or response message; never null
-         * @param retryAfterMillis the server's Retry-After in milliseconds, or 0 when it sent none
-         * @param terminal true when this batch will never succeed on retry
+         * Called once per batch, on its final outcome, never per attempt (CONTRACT-R2 S2,
+         * INT-7444). A {@link DeliveryFailure.Kind#TRANSPORT} batch is still queued and is reported
+         * once; if it is dropped later, that drop is reported too.
          */
-        void onFailure(int status, String description, long retryAfterMillis, boolean terminal);
+        void onFailure(DeliveryFailure failure);
     }
+
+    private volatile DeliveryFailureListener mDeliveryFailureListener;
 
     /**
      * Installs {@code listener}, invoked on the delivery worker thread.
      *
      * <p>This is the half of the error taxonomy that happens <b>after</b> an event was accepted
      * into the queue — the half where events are actually lost — as opposed to the refusals the
-     * capture components report at the call site.
+     * capture components report at the call site. It used to ride the per-attempt
+     * NetworkErrorListener, so a 500 that the in-call loop then delivered was still reported as a
+     * failure; it now fires from {@code sendData} where the batch's fate is decided.
      */
     public void setDeliveryFailureListener(final DeliveryFailureListener listener) {
+        mDeliveryFailureListener = listener;
+    }
+
+    private void reportFailure(DeliveryFailure.Kind kind, int status, List<String> eventIds, int retryAfterSeconds) {
+        final DeliveryFailureListener listener = mDeliveryFailureListener;
         if (listener == null) {
-            setNetworkErrorListener(null);
             return;
         }
-        setNetworkErrorListener(
-                new NetworkErrorListener() {
-                    @Override
-                    public void onNetworkError(
-                            String endpointUrl,
-                            String ipAddress,
-                            long durationMillis,
-                            long uncompressedBodySize,
-                            long compressedBodySize,
-                            int responseCode,
-                            String responseMessage,
-                            Exception exception) {
-                        String description = exception == null ? null : exception.getMessage();
-                        if (description == null || description.isEmpty()) {
-                            description = responseMessage;
-                        }
-                        if (description == null || description.isEmpty()) {
-                            description = "no response";
-                        }
+        try {
+            listener.onFailure(new DeliveryFailure(kind, status, eventIds, Math.max(0, retryAfterSeconds)));
+        } catch (RuntimeException e) {
+            QueueLog.e(LOGTAG, "DeliveryFailureListener threw; delivery continues", e);
+        }
+    }
 
-                        long retryAfterMillis = 0L;
-                        if (exception instanceof RemoteService.ServiceUnavailableException) {
-                            final int seconds =
-                                    ((RemoteService.ServiceUnavailableException) exception)
-                                            .getRetryAfter();
-                            if (seconds > 0) {
-                                // Seconds on the wire, milliseconds here — the unit the retry
-                                // scheduler already uses, so nothing comparing the two is off by a
-                                // factor of a thousand.
-                                retryAfterMillis = seconds * 1000L;
-                            }
-                        }
-
-                        listener.onFailure(
-                                responseCode,
-                                description,
-                                retryAfterMillis,
-                                responseCode > 0 && HttpStatusPolicy.shouldDrop(responseCode));
-                    }
-                });
+    /** The eventIds in an assembled request body, in order. */
+    private static List<String> eventIdsOf(JSONObject envelope) {
+        final List<String> ids = new ArrayList<>();
+        final org.json.JSONArray events =
+                envelope == null ? null : envelope.optJSONArray(TrackPayloadBuilder.TRACK_KEY);
+        for (int i = 0; events != null && i < events.length(); i++) {
+            final JSONObject event = events.optJSONObject(i);
+            final org.json.JSONArray payload = event == null ? null : event.optJSONArray("payload");
+            for (int j = 0; payload != null && j < payload.length(); j++) {
+                final JSONObject item = payload.optJSONObject(j);
+                final String id = item == null ? "" : item.optString("eventId", "");
+                if (!id.isEmpty()) {
+                    ids.add(id);
+                }
+            }
+        }
+        return ids;
     }
 
     /**
@@ -603,17 +596,6 @@ public class DeliveryMessages {
                 }
             } // handleMessage
 
-            /**
-             * A server's Retry-After (seconds) as a floor in milliseconds, capped at {@link
-             * DeliveryRetryPolicy#MAX_DELAY_MS}. The header is any int the server sends, so
-             * unclamped a hostile or buggy {@code Retry-After: 2000000000} broke the ten-minute
-             * cap, and the 503 branch multiplied in int, where it overflowed to a negative floor
-             * and retried after one minute instead.
-             */
-            private long retryAfterFloor(int retryAfterSeconds) {
-                return Math.min(retryAfterSeconds * 1000L, DeliveryRetryPolicy.MAX_DELAY_MS);
-            }
-
             protected long getTrackEngageRetryAfter() {
                 return mTrackEngageRetryAfter;
             }
@@ -662,13 +644,16 @@ public class DeliveryMessages {
                     }
                     final byte[] requestBody = envelope.toString().getBytes(StandardCharsets.UTF_8);
 
-                    boolean deleteEvents = true;
-                    // Modification: distinct from deleteEvents, which is also true when an
+                    // Modification: distinct from "the row is deleted", which is also true when an
                     // unrecoverable status makes us drop a batch. A dropped batch is not a
                     // delivered one, and reporting it as delivered through the flush completion
                     // would report total data loss as a successful flush — the same conflation
                     // that made "row left the queue" a useless test oracle.
                     boolean accepted = false;
+                    boolean keep = false;
+                    DeliveryFailure.Kind failureKind = null;
+                    int failureStatus = 0;
+                    int failureRetryAfter = 0;
                     RemoteService.RequestResult result;
                     try {
                         final SSLSocketFactory socketFactory = mConfig.getSSLSocketFactory();
@@ -705,12 +690,10 @@ public class DeliveryMessages {
                         String actualUrl = result.getRequestUrl(); // Get the actual URL that succeeded
 
                         if (null == response) {
-                            deleteEvents = false;
+                            failureKind = DeliveryFailure.Kind.DROPPED;
                             logAboutMessage(
                                     "Response was null, unexpected failure posting to " + actualUrl + ".");
                         } else {
-                            deleteEvents =
-                                    true; // Delete events on any successful post, regardless of 1 or 0 response
                             accepted = true;
                             String parsedResponse;
                             try {
@@ -734,60 +717,66 @@ public class DeliveryMessages {
                         }
                     } catch (final OutOfMemoryError e) {
                         QueueLog.e(LOGTAG, "Out of memory when posting to " + url + ".", e);
+                        failureKind = DeliveryFailure.Kind.DROPPED;
                     } catch (final MalformedURLException e) {
                         QueueLog.e(LOGTAG, "Cannot interpret " + url + " as a URL.", e);
+                        failureKind = DeliveryFailure.Kind.DROPPED;
                     } catch (final RemoteService.ServiceUnavailableException e) {
-                        logAboutMessage("Cannot post message to " + url + ".", e);
-                        deleteEvents = false;
-                        mTrackEngageRetryAfter = retryAfterFloor(e.getRetryAfter());
+                        // Final: HttpService already made the one 503 resend (INT-7436).
+                        logAboutMessage("Dropping batch after a final 5xx from " + url + ".", e);
+                        failureKind = DeliveryFailure.Kind.TERMINAL;
+                        failureStatus = e.getResponseCode();
+                        failureRetryAfter = e.getRetryAfter();
                     } catch (final RemoteService.ClientErrorException e) {
-                        // Must precede the IOException catch below: ClientErrorException
-                        // extends IOException, so without this branch every 4xx falls
-                        // through to deleteEvents = false and is retried forever. A
-                        // malformed body (400, 413, 422) never becomes valid, and because
-                        // the batch is never deleted it would block the queue head. A
-                        // rejected key, plan limit, missing route or backpressure (401,
-                        // 402, 403, 404, 429) is fixed server-side, so those batches are
-                        // kept and retried with backoff — see HttpStatusPolicy.
-                        final int status = e.getResponseCode();
-                        if (HttpStatusPolicy.shouldDrop(status)) {
-                            QueueLog.e(
-                                    LOGTAG,
-                                    "Unrecoverable status " + status + " posting to " + url
-                                            + "; dropping this batch so it cannot block the queue",
-                                    e);
-                            deleteEvents = true;
-                        } else {
-                            logAboutMessage("Retryable client error from " + url + ".", e);
-                            deleteEvents = false;
-                            // Same floor as the ServiceUnavailableException branch: a 429's
-                            // Retry-After must not be undercut by the exponential schedule.
-                            mTrackEngageRetryAfter = retryAfterFloor(e.getRetryAfter());
-                        }
+                        // Must precede the IOException catch: ClientErrorException extends it.
+                        QueueLog.e(
+                                LOGTAG,
+                                "Status " + e.getResponseCode() + " posting to " + url + "; dropping this batch",
+                                e);
+                        failureKind = DeliveryFailure.Kind.TERMINAL;
+                        failureStatus = e.getResponseCode();
+                        failureRetryAfter = e.getRetryAfter();
+                    } catch (final NotSentException e) {
+                        logAboutMessage("Batch never reached " + url + "; keeping it for the next flush.", e);
+                        keep = true;
+                        failureKind = DeliveryFailure.Kind.TRANSPORT;
                     } catch (final IOException e) {
-                        logAboutMessage("Cannot post message to " + url + ".", e);
-                        deleteEvents = false;
+                        // After the write: a read timeout, a reset or a truncated answer. The server
+                        // may hold the batch, so a resend risks duplicates (CONTRACT-R2 S1.4).
+                        logAboutMessage("Dropping batch after a failure past the write to " + url + ".", e);
+                        failureKind = DeliveryFailure.Kind.DROPPED;
                     }
 
-                    if (deleteEvents) {
-                        if (accepted) {
-                            delivered += countEvents(envelope);
+                    final List<String> eventIds = failureKind == null ? null : eventIdsOf(envelope);
+                    if (keep) {
+                        final String head = eventIds.isEmpty() ? lastId : eventIds.get(0);
+                        if (!head.equals(mTransportReportedHead)) {
+                            mTransportReportedHead = head;
+                            reportFailure(failureKind, 0, eventIds, 0);
                         }
-                        logAboutMessage("Not retrying this batch of events, deleting them from DB.");
-                        dbAdapter.cleanupEvents(lastId, table);
-                    } else {
+                        // The next flush, at the flush interval: no backoff (CONTRACT-R2 S1.1).
                         removeMessages(FLUSH_QUEUE, token);
-                        mTrackEngageRetryAfter =
-                                DeliveryRetryPolicy.nextRetryDelay(mFailedRetries, mTrackEngageRetryAfter);
-                        final Message flushMessage = Message.obtain();
-                        flushMessage.what = FLUSH_QUEUE;
-                        flushMessage.obj = token;
-                        sendMessageDelayed(flushMessage, mTrackEngageRetryAfter);
+                        final int flushInterval = mConfig.getFlushInterval();
+                        mTrackEngageRetryAfter = Math.max(0, flushInterval);
+                        if (flushInterval > 0) {
+                            final Message flushMessage = Message.obtain();
+                            flushMessage.what = FLUSH_QUEUE;
+                            flushMessage.obj = token;
+                            sendMessageDelayed(flushMessage, flushInterval);
+                        }
                         mFailedRetries++;
-                        logAboutMessage(
-                                "Retrying this batch of events in " + mTrackEngageRetryAfter + " ms");
                         break;
                     }
+
+                    if (failureKind != null) {
+                        reportFailure(failureKind, failureStatus, eventIds, failureRetryAfter);
+                    }
+                    if (accepted) {
+                        delivered += countEvents(envelope);
+                    } else {
+                        logAboutMessage("Not retrying this batch of events, deleting them from DB.");
+                    }
+                    dbAdapter.cleanupEvents(lastId, table);
 
                     eventsData = dbAdapter.generateDataString(table);
                     if (eventsData != null) {
@@ -845,6 +834,9 @@ public class DeliveryMessages {
             private EventDbAdapter mDbAdapter;
             private long mTrackEngageRetryAfter;
             private int mFailedRetries;
+            // First eventId of the kept batch already reported as TRANSPORT, so an offline
+            // device does not refire it on every flush (CONTRACT-R2 S2).
+            private String mTransportReportedHead;
             private long mLastExpirationSweepTime;
         } // AnalyticsMessageHandler
 

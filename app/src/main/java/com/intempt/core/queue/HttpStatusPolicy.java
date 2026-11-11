@@ -14,68 +14,42 @@
 package com.intempt.core.queue;
 
 /**
- * Decides whether a failed batch should be retried or dropped.
- *
- * <p>Mixpanel has no equivalent of this class. {@code HttpService} throws
- * {@link RemoteService.ClientErrorException} for any 4xx, and {@code DeliveryMessages.sendData}
- * consults this policy to decide whether that batch is deleted or kept and retried with
- * exponential backoff ({@link DeliveryRetryPolicy#nextRetryDelay}).
- *
- * <p>The split is between statuses that describe <b>the request</b> and statuses that describe
- * <b>the server or the integration</b>:
+ * Retry-versus-drop for a batch, after ruling R-retry as amended (CONTRACT-R2 S1, INT-7436).
  *
  * <ul>
- *   <li><b>Retried:</b> 403, 404, 408, 429, every 5xx, and no status at all (network failure).
- *       INT-5897 moved these off the drop path so a gateway that answered 403 or 404 during a
- *       deploy did not delete every batch the app tried to send. Whether they stay here is
- *       K1/INT-7436's question under ruling R-retry.
- *   <li><b>Dropped:</b> everything else at 300 or above — 400, 401, 402, 413, 422, redirects,
- *       unrecognised 4xx, and anything above 599. Re-posting the identical body cannot change the
- *       answer. 401 and 402 are here by ruling R-retry (Beso D9, INT-7438): the backend will never
- *       accept an event it answered 400, 401 or 402 for, so the batch is dropped on the first one.
- *       This reverses INT-5897 for those two, and with it the loss of events sent during a key
- *       rotation or while a project is over its analytics cap.
+ *   <li><b>Resent once:</b> 503 and 429. {@code HttpService} waits the Retry-After (clamped to
+ *       [1, 60] s, 1 s when absent) and sends one more time, in the same call.
+ *   <li><b>Dropped:</b> every status at 300 or above that is still the answer after that, since
+ *       a status reaches delivery only once the transport is done with it. Re-posting cannot
+ *       change a 4xx, and a 5xx resent later risks duplicating a batch the server took.
+ *   <li><b>Kept:</b> only a request that never reached the server ({@link NotSentException}).
+ *       That is decided from the exception, not from a status, so no status keeps a batch.
  * </ul>
  *
- * <p>A retried batch parks at the queue head, so the queue is bounded by the limits that already
- * apply to every row: {@link QueueConfig#getDataExpiration()} sweeps rows older than the
- * expiration window, and {@link QueueConfig#getMaximumDatabaseLimit()} caps the file on disk.
- * Backoff is capped at {@link DeliveryRetryPolicy#MAX_DELAY_MS}, so a misconfigured app costs one
- * request every ten minutes, not a hot loop.
+ * <p>The vendored taxonomy kept 403, 404, 408, 429 and every 5xx at the queue head with
+ * exponential backoff (INT-5897). It is gone for events. Consent kept it on purpose (a withdrawal
+ * must reach the server, plan2/android.md decision (c)), so it lives on as
+ * {@link #isConsentRetryable}, which the consent drain alone reads.
  */
 /* package */ final class HttpStatusPolicy {
 
-    /**
-     * True when the batch can never succeed as sent and must be removed from the queue.
-     */
+    /** True when the batch can never succeed as sent and must be removed from the queue. */
     /* package */ static boolean shouldDrop(int status) {
-        // Everything at 300 or above that is not explicitly retryable. The default stays
-        // drop-on-unknown: an unrecognised client error means the request itself was wrong, and
-        // a wrong request does not become right by being repeated. Keeping it would park it at
-        // the queue head until the age sweep removes it.
-        //
-        // 3xx is included: HttpService does not follow redirects, so a redirect can never
-        // succeed as sent either.
-        return status >= 300 && !isRetryable(status);
+        // 3xx included: HttpService does not follow redirects, so a redirect cannot succeed either.
+        return status >= 300;
+    }
+
+    /** The statuses the transport resends once, after the server's Retry-After. */
+    /* package */ static boolean isResentOnce(int status) {
+        return status == 503 || status == 429;
     }
 
     /**
-     * True for failures a later attempt can plausibly succeed at, without the SDK changing what it
-     * sends.
+     * The consent drain's taxonomy, frozen as it was before INT-7436: 403, 404, 408, 429, every
+     * 5xx up to 599, and no status at all are kept and retried under {@code ConsentRetryPolicy}'s
+     * strike count; anything else is a rejection.
      */
-    /* package */ static boolean isRetryable(int status) {
-        // 401 and 402 are absent on purpose: ruling R-retry (INT-7438), see the class javadoc.
-        // 403: a forbidden or not-yet-propagated credential, kept by INT-5897 pending K1.
-        // 404: a gateway route missing during a deploy, or a project/source not yet provisioned.
-        //      A config typo also lands here; it is bounded by the age sweep and costs one
-        //      request per backoff period, which is cheaper than discarding a customer's stream
-        //      every time a route flaps.
-        // 408: request timeout. Transient.
-        // 429: the gateway's backpressure signal. Requeue and back off (Retry-After honoured).
-        // 5xx: server fault, transient by definition. Bounded at 599, not open-ended: a status
-        //      above 599 is not valid HTTP and HttpService sends it down the ClientErrorException
-        //      path as permanent, so the two classifications agree.
-        // <=0: no usable status at all, ie a network failure or a timeout with no response.
+    /* package */ static boolean isConsentRetryable(int status) {
         return status == 403
                 || status == 404
                 || status == 408

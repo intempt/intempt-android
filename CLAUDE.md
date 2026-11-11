@@ -103,16 +103,21 @@ adversarial sweep of `400..451` found **46 statuses** taking that path — inclu
 **404**, which a typo in `org`, `project` or `sourceId` produces, silently costing
 a customer every event they would ever send.
 
-Default is now inverted: `>= 300` and not explicitly retryable means **drop**.
-Only `403`, `404`, `408`, `429`, `5xx` and `<= 0` retry.
+Since INT-7436 (CONTRACT-R2 S1, Beso 2026-11-11) the transport sends once. `HttpService`
+resends a `503` or `429` once, after its `Retry-After` clamped to [1, 60] s (1 s when absent),
+and fails over to the backup host only when the primary never received the request. Every status
+that reaches delivery after that drops, and so does a failure after the body was written (a read
+timeout may mean the server holds the batch). The one kept case is `NotSentException`: DNS,
+refused or timed-out connect, offline. It waits for the next flush at the flush interval, with no
+backoff. This reverses INT-5897 for `403`/`404`/`408`/`429`/`5xx`: events sent during an outage
+are lost on purpose, in exchange for no duplicates and a queue head that cannot park on a status.
 
-The other direction costs too (INT-5897): `401`/`402`/`404` were dropped after one
-attempt, so every event sent during an auth, plan-cap or routing outage was gone
-when the server recovered. `404` still retries for that reason; a stuck head is
-bounded by the age expiration and the database size limit. `401` and `402` drop
-again under ruling R-retry (INT-7438, Beso 2026-11-11): the backend will never
-accept that batch, and it applies to events and consent alike, since both read
-`isRetryable`.
+Consent does not follow this. A withdrawal must reach the server, so the consent drain reads its
+own frozen taxonomy, `HttpStatusPolicy.isConsentRetryable` (the pre-INT-7436 list), with
+`ConsentRetryPolicy`'s strikes.
+
+The only bound on a kept (never-sent) head is the age sweep, `QueueConfig.DATA_EXPIRATION_MS`
+(5 days): `MAXIMUM_DATABASE_LIMIT` is `Integer.MAX_VALUE`, so it bounds nothing.
 
 **Rule:** an unrecognised error must lose one batch, never block the queue. When
 you add a status, add it to the sweep test in `HostileInputTest`.

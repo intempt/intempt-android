@@ -83,7 +83,13 @@ public interface RemoteService {
 
     class ServiceUnavailableException extends Exception {
         public ServiceUnavailableException(String message, String strRetryAfter) {
+            this(message, strRetryAfter, 0);
+        }
+
+        /** @param responseCode the 5xx the server answered, so delivery can report it (INT-7444) */
+        public ServiceUnavailableException(String message, String strRetryAfter, int responseCode) {
             super(message);
+            mResponseCode = responseCode;
             int retry;
             try {
                 retry = Integer.parseInt(strRetryAfter);
@@ -97,7 +103,13 @@ public interface RemoteService {
             return mRetryAfter;
         }
 
+        /** The HTTP status, or 0 when the thrower did not record one. */
+        public int getResponseCode() {
+            return mResponseCode;
+        }
+
         private final int mRetryAfter;
+        private final int mResponseCode;
     }
     
     /**
