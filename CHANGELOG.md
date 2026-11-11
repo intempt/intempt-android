@@ -11,7 +11,7 @@ under Unreleased.
 
 ## [Unreleased]
 
-Ships as 5.2.0.
+Ships as 6.0.0 (MAJOR: the binary break under Changed).
 
 ### Added
 
