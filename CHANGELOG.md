@@ -11,7 +11,7 @@ under Unreleased.
 
 ## [Unreleased]
 
-## [5.2.0] - unreleased
+Ships as 5.2.0.
 
 ### Added
 
@@ -26,6 +26,8 @@ under Unreleased.
 - `apiUrl` is validated at `initialize`: `https://`, or `http://` only to `localhost`, `127.0.0.1`, `[::1]` or `10.0.2.2`. Any other value disables the SDK (`initialize` returns null and logs why) instead of being used as-is. It never falls back to production (INT-5178).
 - **Behaviour change:** `variation` (and `boolVariation` / `stringVariation` / `numberVariation`) now throws `IllegalArgumentException` for a key outside `^[a-zA-Z0-9_-]+$`, before any request. It used to send the key, get a 400 from the service and return `defaultValue`, which looked the same as a paused flag. A blank key already threw (INT-7455).
 - **Events rejected with 401 or 402 are dropped on the first answer, not retried (INT-7438, ruling R-retry).** This reverses INT-5897 for those two statuses: events sent while the key is rejected or the project is over its analytics cap are lost, not delivered after recovery. 401 and 402 reach the host error callback as `IntemptError.Terminal` again. 403, 404, 408, 429 and 5xx are still retried.
+- **Binary break for callers compiled against 5.1.0 that use default arguments.** `consent(...)` and `products(...)` (on `Intempt` and `IntemptInstance`) gained a parameter, so their synthetic `consent$default` / `products$default` JVM signatures changed. Source that calls them recompiles unchanged; a library or app binary built against 5.1.0 that omits arguments fails with `NoSuchMethodError` until it is rebuilt.
+- **`optOut()` and `reset()` now discard in call order.** The discard used to reach the delivery worker before a `flush()` called just before it and before events recorded just before it, so the flush ran on an emptied queue and those events were uploaded after the opt-out. Now the discard runs after them, an event recorded after a `reset()` is kept, and the push-token release `reset()` sends is not discarded with the profile it releases.
 
 ### Security
 
@@ -34,7 +36,7 @@ under Unreleased.
 
 ### Fixed
 
-- Pending consents (INT-3904) are persisted, sent oldest first and retried with backoff. They are also retried when the app goes to the background, not only at init, on `flush()` or on a new decision. Statuses that can succeed later (transport errors, 401, 402, 403, 404, 408, 429, 5xx) are retried; any other non-2xx (other 4xx, 3xx) is dropped after three consecutive rejections instead of blocking later consents, and a consent still undelivered after 30 days is dropped. `Retry-After` (seconds or an HTTP-date) is capped at 10 minutes, and the retry list is the event queue's `HttpStatusPolicy`, not a second copy. A consent recorded during a backoff window is sent when the window closes. Delivery is at-least-once: the backend has no idempotency key, so a send whose answer was lost can arrive twice. Push tap targets for http(s) and custom schemes are opened with `CATEGORY_BROWSABLE`, and a custom-scheme deep link is restricted to the host app's package; `market:`, `tel:`, `mailto:`, `sms:`, `smsto:` and `geo:` links open as before.
+- Pending consents (INT-3904) are persisted, sent oldest first and retried with backoff. They are also retried when the app goes to the background, not only at init, on `flush()` or on a new decision. Statuses that can succeed later (transport errors, 403, 404, 408, 429, 5xx) are retried; any other non-2xx (401, 402, other 4xx, 3xx) is dropped after three consecutive rejections instead of blocking later consents, and a consent still undelivered after 30 days is dropped. `Retry-After` (seconds or an HTTP-date) is capped at 10 minutes, and the retry list is the event queue's `HttpStatusPolicy`, not a second copy. A consent recorded during a backoff window is sent when the window closes. Delivery is at-least-once: the backend has no idempotency key, so a send whose answer was lost can arrive twice. Push tap targets for http(s) and custom schemes are opened with `CATEGORY_BROWSABLE`, and a custom-scheme deep link is restricted to the host app's package; `market:`, `tel:`, `mailto:`, `sms:`, `smsto:` and `geo:` links open as before.
 - `flush()` called right after `record()` (or any other capture call) now includes that event (INT-7447). The event reached the delivery queue through a background collector, and `flush()` overtook it, so the flush sent nothing and its completion reported 0. `flush()` now waits for events still being handed to the queue, for at most 2 seconds, without blocking the calling thread.
 
 ### Removed

@@ -188,9 +188,9 @@ public class ProdDeliveryTest {
     }
 
     /**
-     * A deliberately bad key must come back as a client error, not as a retryable failure.
-     * This is the difference between dropping one batch and wedging the queue permanently:
-     * HttpStatusPolicy can only drop what the transport reports as a client error.
+     * A deliberately bad key must come back as a client error the queue drops. Under ruling
+     * R-retry (INT-7438) a 401 is never accepted later, so keeping the batch would only park it
+     * at the queue head; HttpStatusPolicy can only drop what the transport reports as a client error.
      */
     @Test
     public void aRejectedKeyIsReportedAsAClientError() throws Exception {
@@ -208,13 +208,12 @@ public class ProdDeliveryTest {
             result = service.performRequest(trackUrl(), null, null, bad, body("jvm e2e bad key"), null);
         } catch (RemoteService.ClientErrorException e) {
             threwClientError = true;
-            // INT-5897: a rejected key is fixed server-side, so the batch is kept and retried.
-            assertTrue(
-                    "a rejected key should be a status this SDK keeps and retries, got "
-                            + e.getResponseCode(),
-                    HttpStatusPolicy.isRetryable(e.getResponseCode()));
+            // R-retry (INT-7438) reversed INT-5897 for 401/402: the batch is dropped, not retried.
             assertFalse(
-                    "a rejected key must not drop the batch, or events sent during the outage are lost",
+                    "a rejected key must not be retried, got " + e.getResponseCode(),
+                    HttpStatusPolicy.isRetryable(e.getResponseCode()));
+            assertTrue(
+                    "a rejected key must drop the batch on the first answer, got " + e.getResponseCode(),
                     HttpStatusPolicy.shouldDrop(e.getResponseCode()));
         }
 

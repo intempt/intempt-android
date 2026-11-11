@@ -117,7 +117,7 @@ unaffected and remain part of the SDK.
 |---|---|---|
 Queue durability | in-memory only | ✨ disk-backed (SQLiteOpenHelper), survives process death |
 Delete timing | cleared **before** POST | 🔧 only after confirmed 2xx |
-Retry | none | ✨ 401 / 402 / 403 / 404 + 408 + 429 + 5xx + offline; exponential backoff capped at 10 min |
+Retry | none | ✨ 403 / 404 + 408 + 429 + 5xx + offline; exponential backoff capped at 10 min. 401 / 402 drop the batch on the first answer (R-retry, INT-7438); a consent is dropped after three |
 `Retry-After` honored | no | ✨ yes |
 413 Payload Too Large | n/a | ✨ adaptive batch halving; drop single oversized event |
 Non-retryable statuses | all failures dropped | ✨ 400 / 413 / 422, 3xx and unlisted 4xx dropped, logged |

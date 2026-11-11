@@ -11,7 +11,8 @@
  *   - removed people, group, anonymous-profile and first-launch message types
  *   - removed Mixpanel default event properties and the session-replay event bridge
  *   - replaced form-urlencoded transport encoding with Intempt's JSON contract
- *   - replaced the HTTP error taxonomy so 401/402/403/404/408/429/5xx are retried rather than discarded
+ *   - replaced the HTTP error taxonomy so 403/404/408/429/5xx are retried rather than discarded,
+ *     and 401/402 are discarded on the first answer (ruling R-retry, INT-7438)
  */
 package com.intempt.core.queue;
 
@@ -746,9 +747,10 @@ public class DeliveryMessages {
                         // through to deleteEvents = false and is retried forever. A
                         // malformed body (400, 413, 422) never becomes valid, and because
                         // the batch is never deleted it would block the queue head. A
-                        // rejected key, plan limit, missing route or backpressure (401,
-                        // 402, 403, 404, 429) is fixed server-side, so those batches are
-                        // kept and retried with backoff — see HttpStatusPolicy.
+                        // missing route or backpressure (403, 404, 429) is fixed
+                        // server-side, so those batches are kept and retried with backoff.
+                        // A rejected key or plan limit (401, 402) is dropped on the first
+                        // answer by ruling R-retry (INT-7438) — see HttpStatusPolicy.
                         final int status = e.getResponseCode();
                         if (HttpStatusPolicy.shouldDrop(status)) {
                             QueueLog.e(
