@@ -28,6 +28,7 @@ under Unreleased.
 ### Fixed
 
 - Pending consents (INT-3904) are persisted, sent oldest first and retried with backoff. They are also retried when the app goes to the background, not only at init, on `flush()` or on a new decision. Statuses that can succeed later (transport errors, 401, 402, 403, 404, 408, 429, 5xx) are retried; any other non-2xx (other 4xx, 3xx) is dropped after three consecutive rejections instead of blocking later consents, and a consent still undelivered after 30 days is dropped. `Retry-After` (seconds or an HTTP-date) is capped at 10 minutes, and the retry list is the event queue's `HttpStatusPolicy`, not a second copy. A consent recorded during a backoff window is sent when the window closes. Delivery is at-least-once: the backend has no idempotency key, so a send whose answer was lost can arrive twice. Push tap targets for http(s) and custom schemes are opened with `CATEGORY_BROWSABLE`, and a custom-scheme deep link is restricted to the host app's package; `market:`, `tel:`, `mailto:`, `sms:`, `smsto:` and `geo:` links open as before.
+- `flush()` called right after `record()` (or any other capture call) now includes that event (INT-7447). The event reached the delivery queue through a background collector, and `flush()` overtook it, so the flush sent nothing and its completion reported 0. `flush()` now waits for events still being handed to the queue, for at most 2 seconds, without blocking the calling thread.
 
 ### Removed
 

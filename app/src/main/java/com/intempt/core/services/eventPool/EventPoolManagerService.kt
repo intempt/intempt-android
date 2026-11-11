@@ -20,14 +20,19 @@ import io.ktor.client.statement.bodyAsText
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
@@ -91,11 +96,21 @@ internal open class EventPoolManagerService
 
         val eventReceiver: SharedFlow<IntemptEvent> = _eventReceiver
 
+        // Events accepted by emitEvent that the pool's collector has not yet handed to
+        // DeliveryMessages. flush waits for this to reach 0 so a flush right after record()
+        // includes that event (INT-7447). Only the pool collector decrements: SessionTracker is a
+        // second subscriber on the same flow and must not.
+        private val pendingHandoffs = MutableStateFlow(0)
+
         private companion object {
             const val MILLIS_PER_SECOND = 1000
             const val MAX_CONSENT_REJECTIONS = 3
             const val CONSENT_MAX_AGE_DAYS = 30L
             private const val BACKOFF_DRAIN_SLACK_MS = 1_000L
+
+            // Bounds flush's wait for in-flight hand-offs: a collector that died or stalls must
+            // cost one late flush, never a flush that does not happen.
+            const val FLUSH_HANDOFF_WAIT_MS = 2_000L
             val CONSENT_MAX_AGE_MS = java.util.concurrent.TimeUnit.DAYS.toMillis(CONSENT_MAX_AGE_DAYS)
         }
 
@@ -268,7 +283,11 @@ internal open class EventPoolManagerService
             // in. Named for track because track is what drives it thousands of times a session;
             // identify/group/record and autocapture emits go through the same section, so read
             // the section's count alongside the workload that produced it.
+            // Counted before tryEmit, not after: the collector can run and decrement before
+            // tryEmit even returns.
+            pendingHandoffs.update { it + 1 }
             val isEmitted = traced("Intempt.trackEnqueue") { _eventReceiver.tryEmit(event) }
+            if (!isEmitted) pendingHandoffs.update { it - 1 }
             logger.log("EventPool | Event is emitted: $isEmitted")
             return isEmitted
         }
@@ -311,10 +330,16 @@ internal open class EventPoolManagerService
          */
         fun flush(completion: ((Int) -> Unit)? = null) {
             drainConsentsAsync()
-            if (completion == null) {
-                delivery.flush()
-            } else {
-                delivery.flush { delivered -> completion(delivered) }
+            // Launched rather than awaited, so a flush from the main thread never blocks on the
+            // collector. delivery.enqueueEvent and delivery.flush post to the same FIFO worker
+            // handler, so once the count is 0 every recorded event's enqueue is ahead of this.
+            coroutineScope.launch {
+                withTimeoutOrNull(FLUSH_HANDOFF_WAIT_MS) { pendingHandoffs.first { it <= 0 } }
+                if (completion == null) {
+                    delivery.flush()
+                } else {
+                    delivery.flush { delivered -> completion(delivered) }
+                }
             }
         }
 
@@ -405,24 +430,36 @@ internal open class EventPoolManagerService
 
         private fun startEventCollection() {
             logger.log("EventPoolManagerService | Started collecting events")
-            subscribe(Job()) { event ->
-                logger.log("IntemptCoreService | Received event of type: ${event.getEventType()}")
+            // UNDISPATCHED so the subscription exists before init returns. Otherwise events
+            // emitted before the collector starts survive only in the 10 replay slots; the rest
+            // are counted in pendingHandoffs and never handed off, and every flush would then
+            // wait the full FLUSH_HANDOFF_WAIT_MS. Not via subscribe(): SessionTracker shares it and
+            // must not get replay callbacks synchronously on its caller's thread.
+            eventReceiverJob =
+                CoroutineScope(dispatcher + Job()).launch(start = CoroutineStart.UNDISPATCHED) {
+                    eventReceiver.collect { event ->
+                        logger.log("IntemptCoreService | Received event of type: ${event.getEventType()}")
 
-                when (event.getEventType()) {
-                    EventType.Consent.value -> sendConsentEvent(event)
-                    // Hands off and returns. delivery.enqueueEvent only posts a Message to
-                    // the worker thread, so this collector never waits on disk or network.
-                    //
-                    // That matters more than it looks: _eventReceiver is a
-                    // MutableSharedFlow(replay = 10) emitted via tryEmit, which returns false
-                    // and drops the event when the buffer is full. There are two subscribers
-                    // (here and SessionTracker), so a collector that blocked on I/O would
-                    // cause silent drops upstream of the durable queue -- reintroducing the
-                    // exact loss this work exists to eliminate. Keep this callback
-                    // non-suspending and non-blocking.
-                    else -> delivery.enqueueEvent(JSONObject(event.toFormated()))
+                        try {
+                            when (event.getEventType()) {
+                                EventType.Consent.value -> sendConsentEvent(event)
+                                // Hands off and returns. delivery.enqueueEvent only posts a Message to
+                                // the worker thread, so this collector never waits on disk or network.
+                                //
+                                // That matters more than it looks: _eventReceiver is a
+                                // MutableSharedFlow(replay = 10) emitted via tryEmit, which returns false
+                                // and drops the event when the buffer is full. There are two subscribers
+                                // (here and SessionTracker), so a collector that blocked on I/O would
+                                // cause silent drops upstream of the durable queue -- reintroducing the
+                                // exact loss this work exists to eliminate. Keep this callback
+                                // non-suspending and non-blocking.
+                                else -> delivery.enqueueEvent(JSONObject(event.toFormated()))
+                            }
+                        } finally {
+                            pendingHandoffs.update { it - 1 }
+                        }
+                    }
                 }
-            }
         }
 
         /**
