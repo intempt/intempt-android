@@ -217,12 +217,11 @@ internal class CustomCaptureComponent
                 if (!valuesRepresentable(accountAttributes)) return@capture null
 
                 IntemptEvent(
-                    // "Group", not "Identify". This was copy-pasted from identify() above, so
-                    // every group() call made without an explicit eventTitle arrived at the
-                    // ingestion endpoint named "Identify" while carrying type "group" — the
-                    // name and the type disagreed, and any analysis grouping on the event name
-                    // silently folded account events in with user identification.
-                    name = eventTitle ?: "Group",
+                    // "Identify" with type "group": the cross-SDK contract's reserved name for
+                    // account linking (CONTRACT-R2 S6, INT-7448), which swift, node, python, php
+                    // and java already send. Android sent "Group" from 3.0.0; `type` is what
+                    // tells an account link from a user identify.
+                    name = eventTitle ?: "Identify",
                     type = EventType.Group.value,
                     payload =
                         intemptEvent.generateGroupEventPayload(

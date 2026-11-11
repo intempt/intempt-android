@@ -11,6 +11,10 @@ under Unreleased.
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking for analytics filters:** `group(accountId)` without an `eventTitle` now sends the event named `"Identify"` (type `"group"`), like every other Intempt SDK. Since 3.0.0 Android sent `"Group"`; reports, segments or metrics that filter on the name `"Group"` stop matching new Android data. Filter on type `group` to cover both (INT-7448).
+
 ## [5.2.0] - unreleased
 
 ### Added

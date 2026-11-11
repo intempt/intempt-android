@@ -348,8 +348,8 @@ class SdkOnDeviceTest {
                     row.optJSONArray("payload")?.optJSONObject(0)?.optString("accountId") == "androidtest-account"
             }
         assertEquals(
-            "a group event must not be named 'Identify'",
-            "Group",
+            "a titleless group event is named 'Identify' (INT-7448)",
+            "Identify",
             event.optString("name"),
         )
     }
