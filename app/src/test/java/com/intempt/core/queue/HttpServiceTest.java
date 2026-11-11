@@ -1,6 +1,7 @@
 package com.intempt.core.queue;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
@@ -349,6 +350,9 @@ public class HttpServiceTest {
             assertTrue(
                     "the failure must name the truncation rather than being a generic wrap, got: " + expected,
                     expected.getMessage() != null);
+            assertFalse(
+                    "a failure after the write must not read as never-sent, or it would be kept and resent",
+                    expected instanceof NotSentException);
         }
     }
 
