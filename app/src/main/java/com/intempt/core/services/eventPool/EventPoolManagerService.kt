@@ -375,7 +375,8 @@ internal open class EventPoolManagerService
             val url = config.optimizationUrl
             val body = JSONObject(intemptEvent.generateChooseBody(context, names))
 
-            val text = http.post(url, body)?.bodyAsText() ?: return emptyList()
+            val response = http.postWithTimeout(url, body, HttpManagerService.CHOOSE_TIMEOUT_MS)
+            val text = response?.bodyAsText() ?: return emptyList()
             return try {
                 Json.parseToJsonElement(text).jsonObject["choices"]
                     ?.jsonArray
