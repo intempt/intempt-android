@@ -19,6 +19,7 @@ under Unreleased.
 ### Changed
 
 - `apiUrl` is validated at `initialize`: `https://`, or `http://` only to `localhost`, `127.0.0.1`, `[::1]` or `10.0.2.2`. Any other value disables the SDK (`initialize` returns null and logs why) instead of being used as-is. It never falls back to production (INT-5178).
+- **Events rejected with 401 or 402 are dropped on the first answer, not retried (INT-7438, ruling R-retry).** This reverses INT-5897 for those two statuses: events sent while the key is rejected or the project is over its analytics cap are lost, not delivered after recovery. 401 and 402 reach the host error callback as `IntemptError.Terminal` again. 403, 404, 408, 429 and 5xx are still retried.
 
 ### Security
 
