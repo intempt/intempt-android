@@ -3,6 +3,7 @@ package com.intempt.core.types
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -209,5 +210,15 @@ class FlagsTest {
         assertEquals(FlagReason.OFF, flagReasonOf(obj("""{"name":"a","body":1}""")))
         assertEquals(FlagReason.OFF, flagReasonOf(obj("""{"name":"a","reason":{}}""")))
         assertEquals(FlagReason.TARGETED, flagReasonOf(obj("""{"name":"a","reason":"targeted"}""")))
+    }
+
+    // ---- isValidFlagKey (INT-7455) ---------------------------------------------------------
+
+    @Test
+    fun `flag keys are letters, digits, underscore and hyphen, at least one`() {
+        for (key in listOf("a", "ABC", "a_b-1", "-", "_", "0")) assertTrue(key, isValidFlagKey(key))
+        for (key in listOf("", " ", "a.b", "a b", "a/b", " a", "a ", "a\nb", "é")) {
+            assertFalse(key, isValidFlagKey(key))
+        }
     }
 }

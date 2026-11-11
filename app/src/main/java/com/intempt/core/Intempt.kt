@@ -646,9 +646,11 @@ object Intempt {
      * an uninitialized SDK. A flag SDK that throws when the service is unreachable takes the host
      * app down with it.
      *
-     * A **blank [key] throws** [IllegalArgumentException]. That is not the same class of problem:
-     * a service problem is absorbed, a programming error the caller can fix at the call site is
-     * not. Returning the default for a typo would make it indistinguishable from a paused flag.
+     * A **[key] that is blank or outside `^[a-zA-Z0-9_-]+$` throws** [IllegalArgumentException]
+     * (the second since INT-7455: the service answers such a key with a 400). That is not the same
+     * class of problem: a service problem is absorbed, a programming error the caller can fix at the
+     * call site is not. Returning the default for a typo would make it indistinguishable from a
+     * paused flag.
      *
      * A returned `null` means the flag's configured value is JSON `null`, not that the call failed
      * — the failure paths all return [defaultValue].

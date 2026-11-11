@@ -19,6 +19,7 @@ under Unreleased.
 ### Changed
 
 - `apiUrl` is validated at `initialize`: `https://`, or `http://` only to `localhost`, `127.0.0.1`, `[::1]` or `10.0.2.2`. Any other value disables the SDK (`initialize` returns null and logs why) instead of being used as-is. It never falls back to production (INT-5178).
+- **Behaviour change:** `variation` (and `boolVariation` / `stringVariation` / `numberVariation`) now throws `IllegalArgumentException` for a key outside `^[a-zA-Z0-9_-]+$`, before any request. It used to send the key, get a 400 from the service and return `defaultValue`, which looked the same as a paused flag. A blank key already threw (INT-7455).
 
 ### Security
 

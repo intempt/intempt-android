@@ -27,6 +27,7 @@ import com.intempt.core.types.ConsentAction
 import com.intempt.core.types.Constants
 import com.intempt.core.types.DefaultConfigs
 import com.intempt.core.types.EventType
+import com.intempt.core.types.FLAG_KEY_PATTERN
 import com.intempt.core.types.FlagContext
 import com.intempt.core.types.FlagDetail
 import com.intempt.core.types.FlagReason
@@ -36,6 +37,7 @@ import com.intempt.core.types.Product
 import com.intempt.core.types.StorageKeys
 import com.intempt.core.types.flagNameOf
 import com.intempt.core.types.flagReasonOf
+import com.intempt.core.types.isValidFlagKey
 import com.intempt.core.types.selectChoice
 import com.intempt.core.types.unwrapFlagValue
 import kotlinx.serialization.json.JsonObject
@@ -449,6 +451,7 @@ internal class CustomCaptureComponent
             // from an unreachable service — three causes, one value, and only one of them is the
             // caller's to fix.
             require(key.isNotBlank()) { "variation | key must not be blank" }
+            require(isValidFlagKey(key)) { "variation | key must match ${FLAG_KEY_PATTERN.pattern}: $key" }
 
             // One exit for both outcomes rather than an early return for the miss:
             // detekt's ReturnCount caps a function at two, and an absent choice is not
