@@ -11,6 +11,8 @@ under Unreleased.
 
 ## [Unreleased]
 
+## [5.2.0] - unreleased
+
 ### Added
 
 - `consent(...)` takes an optional trailing `userId`, sent in the consent body beside `profileId` and kept in the pending-consent record, so a retried consent still names the user (INT-7442).
@@ -20,6 +22,7 @@ under Unreleased.
 
 ### Changed
 
+- **`variation` / `allFlags` give up on choose-api after 2000 ms and return the default (INT-7445, INT-7457).** A flag lookup blocks the caller's screen, and the shared HTTP client's 30 s limits applied to it. Request, connect and socket timeouts are all set to 2000 ms for choose-api only; consent and feeds keep 30 s, and event delivery does not use this client.
 - `apiUrl` is validated at `initialize`: `https://`, or `http://` only to `localhost`, `127.0.0.1`, `[::1]` or `10.0.2.2`. Any other value disables the SDK (`initialize` returns null and logs why) instead of being used as-is. It never falls back to production (INT-5178).
 - **Behaviour change:** `variation` (and `boolVariation` / `stringVariation` / `numberVariation`) now throws `IllegalArgumentException` for a key outside `^[a-zA-Z0-9_-]+$`, before any request. It used to send the key, get a 400 from the service and return `defaultValue`, which looked the same as a paused flag. A blank key already threw (INT-7455).
 - **Events rejected with 401 or 402 are dropped on the first answer, not retried (INT-7438, ruling R-retry).** This reverses INT-5897 for those two statuses: events sent while the key is rejected or the project is over its analytics cap are lost, not delivered after recovery. 401 and 402 reach the host error callback as `IntemptError.Terminal` again. 403, 404, 408, 429 and 5xx are still retried.
