@@ -25,14 +25,16 @@ package com.intempt.core.queue;
  * <b>the server or the integration</b>:
  *
  * <ul>
- *   <li><b>Retried:</b> 401, 402, 403, 404, 408, 429, every 5xx, and no status at all (network
- *       failure). The body is valid; what failed is a credential, a plan limit, a route or the
- *       server's availability, and each of those is fixed on the platform side without the SDK
- *       resending anything different. INT-5897: these used to be dropped after one attempt, so a
- *       gateway that answered 401 or 404 during a deploy or a key rotation deleted every batch
- *       the app tried to send, and once the server recovered there was nothing left to flush.
- *   <li><b>Dropped:</b> everything else at 300 or above — 400, 413, 422, redirects, unrecognised
- *       4xx, and anything above 599. Re-posting the identical body cannot change the answer.
+ *   <li><b>Retried:</b> 403, 404, 408, 429, every 5xx, and no status at all (network failure).
+ *       INT-5897 moved these off the drop path so a gateway that answered 403 or 404 during a
+ *       deploy did not delete every batch the app tried to send. Whether they stay here is
+ *       K1/INT-7436's question under ruling R-retry.
+ *   <li><b>Dropped:</b> everything else at 300 or above — 400, 401, 402, 413, 422, redirects,
+ *       unrecognised 4xx, and anything above 599. Re-posting the identical body cannot change the
+ *       answer. 401 and 402 are here by ruling R-retry (Beso D9, INT-7438): the backend will never
+ *       accept an event it answered 400, 401 or 402 for, so the batch is dropped on the first one.
+ *       This reverses INT-5897 for those two, and with it the loss of events sent during a key
+ *       rotation or while a project is over its analytics cap.
  * </ul>
  *
  * <p>A retried batch parks at the queue head, so the queue is bounded by the limits that already
@@ -62,12 +64,8 @@ package com.intempt.core.queue;
      * sends.
      */
     /* package */ static boolean isRetryable(int status) {
-        // 401/403: a rejected or not-yet-propagated credential. The events are valid; the key is
-        //          fixed (rotated, re-enabled, propagated) on the platform side, and the batch
-        //          must still be there when it is. Dropping here was total silent loss for every
-        //          event sent during the outage.
-        // 402: analytics_limit_reached. Lifted when the plan is upgraded or the period rolls
-        //      over; the events are still valid then.
+        // 401 and 402 are absent on purpose: ruling R-retry (INT-7438), see the class javadoc.
+        // 403: a forbidden or not-yet-propagated credential, kept by INT-5897 pending K1.
         // 404: a gateway route missing during a deploy, or a project/source not yet provisioned.
         //      A config typo also lands here; it is bounded by the age sweep and costs one
         //      request per backoff period, which is cheaper than discarding a customer's stream
@@ -78,9 +76,7 @@ package com.intempt.core.queue;
         //      above 599 is not valid HTTP and HttpService sends it down the ClientErrorException
         //      path as permanent, so the two classifications agree.
         // <=0: no usable status at all, ie a network failure or a timeout with no response.
-        return status == 401
-                || status == 402
-                || status == 403
+        return status == 403
                 || status == 404
                 || status == 408
                 || status == 429

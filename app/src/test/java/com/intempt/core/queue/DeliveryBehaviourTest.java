@@ -402,14 +402,13 @@ public class DeliveryBehaviourTest {
     }
 
     /**
-     * INT-5897. A rejected key is fixed on the platform side (rotation, re-enable, propagation);
-     * the events are valid and must still be queued when it is. Dropping them after one attempt
-     * lost every event sent during the outage.
+     * Ruling R-retry (Beso D9, INT-7438): the backend will never accept an event it answered 401
+     * for, so the batch is dropped on the first one rather than parked at the queue head.
      */
     @Test
-    public void aRejectedKeyKeepsTheBatch() throws Exception {
+    public void aRejectedKeyDropsTheBatch() throws Exception {
         deliver(401, false, 2);
-        assertEquals("401 is recoverable server-side, so the batch must be kept", 2, rowCount());
+        assertEquals("401 is never accepted on resend, so the batch must be dropped", 0, rowCount());
     }
 
     /** A forbidden key is the same class of failure as a rejected one. */
@@ -419,11 +418,11 @@ public class DeliveryBehaviourTest {
         assertEquals("403 is recoverable server-side, so the batch must be kept", 2, rowCount());
     }
 
-    /** Over the analytics cap: lifted by an upgrade or a new period, so keep. */
+    /** Ruling R-retry (INT-7438): over the analytics cap, a resend is never accepted, so drop. */
     @Test
-    public void theAnalyticsCapKeepsTheBatch() throws Exception {
+    public void theAnalyticsCapDropsTheBatch() throws Exception {
         deliver(402, false, 2);
-        assertEquals("402 analytics_limit_reached must be retried, not dropped", 2, rowCount());
+        assertEquals("402 analytics_limit_reached must be dropped, not retried", 0, rowCount());
     }
 
     /** A gateway route missing during a deploy recovers server-side, so keep. */
@@ -434,15 +433,15 @@ public class DeliveryBehaviourTest {
     }
 
     /**
-     * INT-5897, end to end: the server answers 401 once, recovers, and the next flush delivers the
-     * very events the 401 was answered for. Before the fix the first attempt deleted them, so the
-     * recovered server received nothing.
+     * Ruling R-retry (Beso D9, INT-7438), end to end: the server answers 401 and would accept a
+     * resend, but the SDK must not make one. The first POST is the only POST; a later flush has
+     * nothing to send.
      *
-     * <p>The oracle is the second request's body, not the queue depth: an empty queue is also what
-     * a drop looks like.
+     * <p>The oracle is the POST count, not only the queue depth: a kept batch that is flushed
+     * again would also end with an empty queue once the 200 arrives.
      */
     @Test
-    public void eventsRejectedWith401AreDeliveredOnceTheServerRecovers() throws Exception {
+    public void eventsRejectedWith401AreNotResent() throws Exception {
         FakePoster poster = new FakePoster(401, 200);
         TestableDelivery delivery = deliveryWith(poster);
         delivery.enqueueEvent(event("recover 0"));
@@ -454,25 +453,11 @@ public class DeliveryBehaviourTest {
             Thread.sleep(25);
         }
         Thread.sleep(400);
-        assertEquals("the 401 must not have been followed by a second POST yet", 1, poster.calls.get());
-        assertEquals("the 401'd batch must still be queued", 2, rowCount());
+        assertEquals("the 401'd batch must be dropped on the first answer", 0, rowCount());
 
-        // The server is back. A flush must now send the same events.
         delivery.flush();
-        deadline = System.currentTimeMillis() + 10_000;
-        while (System.currentTimeMillis() < deadline && poster.calls.get() < 2) {
-            Thread.sleep(25);
-        }
         Thread.sleep(400);
-
-        assertEquals("the recovered server must receive a second POST", 2, poster.calls.get());
-        JSONArray resent =
-                new JSONObject(new String(poster.sentBodies.get(1), StandardCharsets.UTF_8))
-                        .getJSONArray(TrackPayloadBuilder.TRACK_KEY);
-        assertEquals("both events rejected by the 401 must be delivered", 2, resent.length());
-        assertEquals("recover 0", resent.getJSONObject(0).getString("name"));
-        assertEquals("recover 1", resent.getJSONObject(1).getString("name"));
-        assertEquals("delivered events must leave the queue", 0, rowCount());
+        assertEquals("a 401'd batch must never be POSTed a second time", 1, poster.calls.get());
     }
 
     /** 400 is a malformed request: the same body will be refused forever, so drop it. */

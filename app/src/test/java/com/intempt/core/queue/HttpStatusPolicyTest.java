@@ -12,10 +12,10 @@ import org.junit.Test;
  * <p>Inherited: {@code ClientErrorException extends IOException}, and
  * {@code DeliveryMessages.sendData} catches {@code IOException} with
  * {@code deleteEvents = false}, so every 4xx is requeued with backoff forever. For a request the
- * server will never accept (400, 413, 422) that wedges the queue head, so those are dropped. For a
- * failure the platform fixes on its side (401, 402, 403, 404, 408, 429, 5xx) the batch is kept:
- * INT-5897 was these being dropped after one attempt, so events sent during an auth or routing
- * outage were gone by the time the server recovered.
+ * server will never accept that wedges the queue head, so those are dropped: 400, 413, 422, and
+ * 401/402 under ruling R-retry (Beso D9, INT-7438), which says the backend will never accept an
+ * event it answered 400, 401 or 402 for. For 403, 404, 408, 429 and 5xx the batch is kept
+ * (INT-5897); that wider retry set is K1/INT-7436's question, not this class's.
  */
 public class HttpStatusPolicyTest {
 
@@ -42,23 +42,26 @@ public class HttpStatusPolicyTest {
     }
 
     @Test
-    public void rejectedCredentialsAreRetriedNotDropped() {
-        // INT-5897. A 401/403 is a key that is rotated, re-enabled or still propagating. The
-        // events are valid, so they must still be queued when the key works again. Dropping here
-        // deleted every batch sent during the outage after a single attempt.
-        assertTrue(HttpStatusPolicy.isRetryable(401));
+    public void aRejectedKeyIsDroppedNotRetried() {
+        // Ruling R-retry (Beso D9, INT-7438): a 401 means the backend will never accept the
+        // event, so the batch is dropped on the first one. This reverses INT-5897 for 401.
+        assertFalse(HttpStatusPolicy.isRetryable(401));
+        assertTrue(HttpStatusPolicy.shouldDrop(401));
+    }
+
+    @Test
+    public void aForbiddenKeyIsRetriedNotDropped() {
+        // INT-5897. R-retry names 400/401/402 only; whether 403 follows is K1/INT-7436's call.
         assertTrue(HttpStatusPolicy.isRetryable(403));
-        assertFalse(HttpStatusPolicy.shouldDrop(401));
         assertFalse(HttpStatusPolicy.shouldDrop(403));
     }
 
     @Test
-    public void analyticsCapRejectionIsRetriedNotDropped() {
-        // push-source-service answers 402 analytics_limit_reached while a project is over its
-        // cap. The cap is lifted by an upgrade or a new period, and the events are still valid
-        // then, so the batch is kept and retried with backoff rather than discarded.
-        assertTrue(HttpStatusPolicy.isRetryable(402));
-        assertFalse(HttpStatusPolicy.shouldDrop(402));
+    public void analyticsCapRejectionIsDroppedNotRetried() {
+        // Ruling R-retry (Beso D9, INT-7438): push-source-service's 402 analytics_limit_reached
+        // is never accepted on resend, so the batch is dropped on the first one.
+        assertFalse(HttpStatusPolicy.isRetryable(402));
+        assertTrue(HttpStatusPolicy.shouldDrop(402));
     }
 
     @Test
