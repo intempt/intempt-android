@@ -218,4 +218,22 @@ class ContractTypesTest {
         assertTrue("empty means the server picks, which is 'all'", FeedFields.DEFAULT.isNotEmpty())
         assertTrue("the default must stay compact", FeedFields.DEFAULT.size <= 5)
     }
+
+    /** INT-7444, CONTRACT-R2 S2: the per-batch failure carries the contract's fields verbatim. */
+    @Test
+    fun `a delivery failure carries the contract payload and says whether the batch is kept`() {
+        val dropped = IntemptError.DeliveryFailure("terminal", 413, 2, listOf("ev_a", "ev_b"), 30, true)
+        assertEquals("terminal", dropped.kind)
+        assertEquals(413, dropped.status)
+        assertEquals(2, dropped.eventCount)
+        assertEquals(listOf("ev_a", "ev_b"), dropped.eventIds)
+        assertEquals(30, dropped.retryAfter)
+        assertTrue(dropped.terminal)
+        assertEquals("Delivery failure (terminal): 2 event(s), HTTP 413, dropped.", dropped.message)
+
+        val kept = IntemptError.DeliveryFailure("transport", null, 1, listOf("ev_c"), null, false)
+        assertFalse(kept.terminal)
+        assertNull(kept.status)
+        assertEquals("Delivery failure (transport): 1 event(s), kept for the next flush.", kept.message)
+    }
 }
