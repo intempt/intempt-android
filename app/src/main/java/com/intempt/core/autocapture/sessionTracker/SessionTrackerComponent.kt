@@ -9,8 +9,7 @@ internal class SessionTrackerComponent
     constructor(
         private val srv: SessionTrackerService,
     ) {
-        suspend fun start() {
-            srv.subscribeToEventReceiver()
-            srv.onInit()
+        fun start() {
+            srv.enableSessionEvents()
         }
     }

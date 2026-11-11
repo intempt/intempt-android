@@ -3,8 +3,6 @@
 package com.intempt.core
 
 import android.content.Context
-import android.content.SharedPreferences
-import android.os.Looper
 import com.intempt.core.autocapture.sessionTracker.SessionTrackerComponent
 import com.intempt.core.autocapture.sessionTracker.SessionTrackerService
 import com.intempt.core.eventModels.IntemptEvent
@@ -17,31 +15,30 @@ import com.intempt.core.services.StorageManagerService
 import com.intempt.core.services.UtilsService
 import com.intempt.core.services.eventPool.EventPoolManagerService
 import com.intempt.core.types.Constants
+import com.intempt.core.types.DispatchEventProps
 import com.intempt.core.types.StorageKeys
-import junit.framework.TestCase.assertFalse
 import junit.framework.TestCase.assertTrue
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestCoroutineScheduler
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
-import kotlinx.coroutines.test.runTest
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.mockito.ArgumentMatchers.anyLong
 import org.mockito.ArgumentMatchers.anyString
-import org.mockito.Mockito.atLeastOnce
 import org.mockito.Mockito.mock
+import org.mockito.Mockito.never
 import org.mockito.Mockito.spy
+import org.mockito.Mockito.times
 import org.mockito.Mockito.verify
 import org.mockito.Mockito.verifyNoInteractions
 import org.mockito.Mockito.`when`
 import org.mockito.kotlin.any
-import org.mockito.kotlin.eq
+import org.mockito.kotlin.argumentCaptor
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
-import org.robolectric.Shadows
 import org.robolectric.annotation.Config
 import org.robolectric.shadows.ShadowLog
 
@@ -108,8 +105,6 @@ class SessionTrackerUnitTest {
                     logger,
                     storage,
                     eventPool,
-                    httpSrv,
-                    utils,
                     intemptEvent,
                 ),
             )
@@ -121,162 +116,85 @@ class SessionTrackerUnitTest {
             )
     }
 
-//    @Test
-    fun `onInit should start new session if session is expired`() =
-        runTest {
-            sessionTrackerComponent.start()
-            val expiredSessionTimestamp = System.currentTimeMillis() - (Constants.SESSION.SESSION_TIMEOUT + 1000)
-            val sessionId = "test_session_id"
+    /**
+     * Replaces the onInit / subscriber tests: there is one minting path now (INT-7446), so a
+     * rotation dispatches exactly one Session start, carrying the id the opening event carries.
+     * The no-third-party-call property of the old runSessionStart test is kept.
+     */
+    @Test
+    fun `with session events on a rotation dispatches one Session start ahead of the opening event`() {
+        sessionTrackerComponent.start()
 
-            `when`(
-                storage.getStorageItem<Long>(
-                    eq(StorageKeys.SessionPrefs.key),
-                    eq(StorageKeys.SessionTimestamp.key),
-                    anyLong(),
-                    any<SharedPreferences.(String, Long?) -> Long?>() ?: { _, _ -> expiredSessionTimestamp },
-                ),
-            ).thenReturn(expiredSessionTimestamp)
+        val first = intemptEvent.generateIdentifyEventPayload("user-7446")[0]
+        val second = intemptEvent.generateIdentifyEventPayload("user-7446")[0]
 
-            `when`(
-                storage.getStorageItem<String>(
-                    eq(StorageKeys.SessionPrefs.key),
-                    eq(StorageKeys.SessionId.key),
-                    anyString(),
-                    any<SharedPreferences.(String, String?) -> String?>() ?: { _, _ -> sessionId },
-                ),
-            ).thenReturn(sessionId)
-
-            verify(storage, atLeastOnce()).setStorageItem(
-                eq(StorageKeys.SessionPrefs.key),
-                eq(StorageKeys.SessionTimestamp.key),
-                anyLong(),
-                any<SharedPreferences.Editor.(String, Long) -> Unit>(),
-            )
-            verify(storage, atLeastOnce()).setStorageItem(
-                eq(StorageKeys.SessionPrefs.key),
-                eq(StorageKeys.SessionId.key),
-                anyString(),
-                any<SharedPreferences.Editor.(String, String) -> Unit>(),
-            )
-        }
+        val captor = argumentCaptor<DispatchEventProps>()
+        verify(eventPool, times(1)).dispatchEvent(captor.capture(), anyString())
+        assertEquals(Constants.SESSION.EVENT_TYPE, captor.firstValue.type)
+        assertEquals(first.sessionId, captor.firstValue.event!![0].sessionId)
+        assertEquals(first.sessionId, second.sessionId)
+        verifyNoInteractions(httpSrv)
+    }
 
     @Test
-    fun `onInit should not start new session if session is active`() =
-        runTest {
-            val activeSessionTimestamp = System.currentTimeMillis() + 1000
+    fun `with session events off the id is minted and no Session start is dispatched`() {
+        val event = intemptEvent.generateIdentifyEventPayload("user-7446")[0]
 
-            `when`(sessionTrackerService.getSessionTime()).thenReturn(activeSessionTimestamp)
+        assertTrue(event.sessionId.isNotEmpty())
+        verify(eventPool, never()).dispatchEvent(any(), anyString())
+    }
 
-            sessionTrackerComponent.start()
-
-            val allLogs = ShadowLog.getLogs().map { it.msg.trim() }
-
-            assertTrue(allLogs.any { it.contains("Session is active".trim()) })
-            assertFalse(allLogs.any { it.contains("Store session id".trim()) })
-        }
+    // INT-7446, CONTRACT-R2 S5: the session id is identity. It exists before any event is built,
+    // whatever the sessions switch says, and rotates on the first event after 30 min idle.
 
     @Test
-    fun `subscribe to event receiver should collect events`() =
-        runTest {
-            sessionTrackerService.subscribeToEventReceiver()
-            val mockEvent = mock(IntemptEvent::class.java)
-            `when`(mockEvent.getEventType()).thenReturn("test_event")
+    fun `an event built on a fresh install carries a session id with session events off`() {
+        val event = intemptEvent.generateIdentifyEventPayload("user-7446")[0]
 
-            eventFlow.emit(mockEvent)
-            verify(eventPool, atLeastOnce()).eventReceiver
+        assertTrue("sessionId must not be empty, was '${event.sessionId}'", event.sessionId.isNotEmpty())
+    }
 
-            Shadows.shadowOf(Looper.getMainLooper()).runToEndOfTasks()
-            val allLogs = ShadowLog.getLogs().map { it.msg.trim() }
-
-//        assertTrue(allLogs.any { it.contains("eventReceiver $mockEvent".trim()) })
-//        assertTrue(allLogs.any { it.contains("getEventType test_event".trim()) })
+    @Test
+    fun `the first event after 30 minutes idle carries a new session id`() {
+        storage.setStorageItem(StorageKeys.SessionPrefs.key, StorageKeys.SessionId.key, "ses_old") { k, v ->
+            putString(k, v)
+        }
+        val idleSince = System.currentTimeMillis() - (Constants.SESSION.SESSION_TIMEOUT + 1000)
+        storage.setStorageItem(StorageKeys.SessionPrefs.key, StorageKeys.SessionTimestamp.key, idleSince) { k, v ->
+            putLong(k, v)
         }
 
-//    @Test
-    fun `validateSession should start new session if event occurs after timeout`() =
-        runTest {
-            val expiredSessionTimestamp = System.currentTimeMillis() - (Constants.SESSION.SESSION_TIMEOUT + 1000)
+        val event = intemptEvent.generateIdentifyEventPayload("user-7446")[0]
 
-            `when`(
-                storage.getStorageItem<Long>(
-                    eq(StorageKeys.SessionPrefs.key),
-                    eq(StorageKeys.SessionTimestamp.key),
-                    anyLong(),
-                    any<SharedPreferences.(String, Long?) -> Long?>() ?: { _, _ -> expiredSessionTimestamp },
-                ),
-            ).thenReturn(expiredSessionTimestamp)
+        assertTrue(event.sessionId.isNotEmpty())
+        assertNotEquals("ses_old", event.sessionId)
+        assertEquals(event.sessionId, storage.getSessionId())
+    }
 
-            val mockEvent = mock(IntemptEvent::class.java)
-            `when`(mockEvent.getEventTimestamp()).thenReturn(System.currentTimeMillis())
-
-            sessionTrackerService.subscribeToEventReceiver()
-            sessionTrackerService.onInit()
-
-            eventFlow.emit(mockEvent)
-
-            verify(eventPool, atLeastOnce()).eventReceiver
-
-            verify(storage, atLeastOnce()).setStorageItem(
-                eq(StorageKeys.SessionPrefs.key),
-                eq(StorageKeys.SessionId.key),
-                anyString(),
-                any(),
-            )
-            verify(storage, atLeastOnce()).setStorageItem(
-                eq(StorageKeys.SessionPrefs.key),
-                eq(StorageKeys.SessionTimestamp.key),
-                anyLong(),
-                any(),
-            )
+    @Test
+    fun `an event inside the idle window keeps the session id`() {
+        storage.setStorageItem(StorageKeys.SessionPrefs.key, StorageKeys.SessionId.key, "ses_live") { k, v ->
+            putString(k, v)
+        }
+        val recent = System.currentTimeMillis() - 1000
+        storage.setStorageItem(StorageKeys.SessionPrefs.key, StorageKeys.SessionTimestamp.key, recent) { k, v ->
+            putLong(k, v)
         }
 
-//    @Test
-    fun `runSessionStart dispatches a session event and makes no third-party call`() =
-        runTest {
-            val expiredSessionTimestamp = System.currentTimeMillis() - (Constants.SESSION.SESSION_TIMEOUT + 1000)
-            val testDispatcher = StandardTestDispatcher(testScheduler)
+        assertEquals("ses_live", intemptEvent.generateIdentifyEventPayload("user-7446")[0].sessionId)
+    }
 
-            sessionTrackerService =
-                spy(
-                    SessionTrackerService(
-                        context,
-                        logger,
-                        storage,
-                        eventPool,
-                        httpSrv,
-                        utils,
-                        intemptEvent,
-                        dispatcher = testDispatcher,
-                    ),
-                )
+    @Test
+    fun `the idle timeout is exclusive to the millisecond`() {
+        val start = 1_000_000L
+        storage.ensureSession(start)
+        val id = storage.getSessionId()
 
-            sessionTrackerComponent =
-                spy(
-                    SessionTrackerComponent(
-                        sessionTrackerService,
-                    ),
-                )
+        assertEquals(false, storage.ensureSession(start + Constants.SESSION.SESSION_TIMEOUT))
+        assertEquals(id, storage.getSessionId())
 
-            `when`(sessionTrackerService.getSessionTime()).thenReturn(expiredSessionTimestamp)
-
-            sessionTrackerComponent.start()
-
-            testScheduler.advanceUntilIdle()
-
-            // getLocationInfo() no longer exists. It called ipapi.co on every session start, sent
-            // the device's IP to a third party outside consent gating, and attached IP plus geo to
-            // the payload. Geo is server-derived now, from the request the platform already
-            // receives — see the ?ip= parameter on ConfigManagerService.eventsUrl.
-            //
-            // Asserted as absence rather than deleted: the point of this test is now that a session
-            // start dispatches its event WITHOUT any outbound lookup, so re-introducing one has a
-            // failing test attached.
-            // The event still reaches the pool...
-            verify(eventPool, atLeastOnce()).dispatchEvent(any(), anyString())
-
-            // ...and nothing is fetched to build it. `httpSrv` is the transport the ipapi.co call
-            // used; no interaction with it means no outbound lookup happened. That is the property
-            // this test now protects, so re-introducing a per-session third-party call fails here.
-            verifyNoInteractions(httpSrv)
-        }
+        val activity = start + Constants.SESSION.SESSION_TIMEOUT
+        assertEquals(true, storage.ensureSession(activity + Constants.SESSION.SESSION_TIMEOUT + 1))
+        assertNotEquals(id, storage.getSessionId())
+    }
 }

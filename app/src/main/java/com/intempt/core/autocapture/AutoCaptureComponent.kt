@@ -69,18 +69,20 @@ internal class AutoCaptureComponent
             // Unconditional, and SYNCHRONOUS: every event the SDK sends carries a profileId, so
             // this cannot be gated behind any of the options below — and it cannot ride the
             // coroutine either, because initialize() returns as soon as this method does, and
-            // the public contract is that getProfileId() answers from that moment. The session /
-            // install trackers below stay async; they dispatch events, nobody reads them back.
+            // the public contract is that getProfileId() answers from that moment. The session id
+            // follows the same rule, and is minted even with sessions off: the switch only
+            // suppresses the Session start event (INT-7446, CONTRACT-R2 S5). The hook goes in
+            // before the mint so the Session start for this launch is enqueued ahead of any event.
             storage.ensureProfileId()
+            val options = config.automaticEventsOptions
+            if (options.sessions) {
+                session.start()
+            } else {
+                logger.log("Automatic session events are off")
+            }
+            storage.ensureSession()
 
             coroutineScope.launch {
-                val options = config.automaticEventsOptions
-
-                if (options.sessions) {
-                    session.start()
-                } else {
-                    logger.log("Automatic session events are off")
-                }
 
                 // Unconditional. `versionChanges` still decides the version-change event inside,
                 // but the same call registers the FCM device token, and push cannot depend on an

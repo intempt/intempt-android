@@ -14,6 +14,7 @@ under Unreleased.
 ### Changed
 
 - **Breaking for analytics filters:** `group(accountId)` without an `eventTitle` now sends the event named `"Identify"` (type `"group"`), like every other Intempt SDK. Since 3.0.0 Android sent `"Group"`; reports, segments or metrics that filter on the name `"Group"` stop matching new Android data. Filter on type `group` to cover both (INT-7448).
+- The session id is minted on the caller's thread before `initialize()` returns, and rotated on the first event after 30 minutes idle, under one lock. The first event after init no longer carries `sessionId: ""` or the previous session's id, and one rotation sends one "Session start", enqueued ahead of the event that opened it. With `AutomaticEventsOptions(sessions = false)` the id is still minted and rotated; only the Session start event is suppressed (INT-7446). The 30-minute window now counts from the last event, not from the session's start.
 
 ## [5.2.0] - unreleased
 
