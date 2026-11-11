@@ -415,6 +415,9 @@ object Intempt {
      * Records a consent decision for [action], valid until [validUntil] (epoch millis), with
      * optional [email]/[message]/[category] context.
      *
+     * [userId] attaches the decision to a known user as well as to this device's profile. The SDK
+     * does not remember the id passed to `identify`, so pass it here when the user is known.
+     *
      * Three behaviours here are contractual rather than incidental:
      *
      * - **It transmits even when opted out.** A withdrawal has to reach the server, and the
@@ -435,7 +438,8 @@ object Intempt {
         email: String? = null,
         message: String? = null,
         category: String? = null,
-    ): Boolean = main("consent")?.consent(action, validUntil, email, message, category) ?: false
+        userId: String? = null,
+    ): Boolean = main("consent")?.consent(action, validUntil, email, message, category, userId) ?: false
 
     // ------------------------------------------------------------- identity and lifecycle
 
@@ -617,6 +621,9 @@ object Intempt {
      * Up to [count] product recommendations from feed [feedId], scoped to [productId] when given,
      * returning only [fields]. Null when the SDK is not initialized or the request fails.
      *
+     * With [userId] the feed answers for that known user; without it, for this device's anonymous
+     * profile. The SDK does not remember the id passed to `identify`, so pass it here.
+     *
      * Named `products` rather than `recommendation` as of 3.0. Same capability, same
      * `/feeds/{feedId}/data` call — the contract picked one name for it across every SDK, because a
      * bridge cannot stay thin while the same request is spelled two ways.
@@ -632,7 +639,8 @@ object Intempt {
         count: Int = 10,
         fields: List<String> = FeedFields.DEFAULT,
         productId: String? = null,
-    ): JsonObject? = main("products")?.products(feedId, count, fields, productId)
+        userId: String? = null,
+    ): JsonObject? = main("products")?.products(feedId, count, fields, productId, userId)
 
     /**
      * The value assigned for [key], or [defaultValue] when the service did not answer.

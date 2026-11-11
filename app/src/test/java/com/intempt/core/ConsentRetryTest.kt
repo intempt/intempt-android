@@ -75,6 +75,7 @@ class ConsentRetryTest {
     private fun consent(
         action: String,
         timestamp: Long = 1_000L,
+        userId: String? = null,
     ) = IntemptEvent(
         name = "consent",
         type = "consent",
@@ -89,6 +90,7 @@ class ConsentRetryTest {
                     sourceId = "src-1",
                     validUntil = 9_999_999L,
                     timestamp = timestamp,
+                    userId = userId,
                 ),
             ),
     )
@@ -136,6 +138,25 @@ class ConsentRetryTest {
             service(ConsentAuditLog(context)).drainConsents()
 
             assertEquals(listOf("opt_out", "opt_out"), sentActions(times = 2))
+        }
+
+    // INT-7442: the pending record is the formatted body, so a resend after a restart must still
+    // name the user the decision belongs to.
+    @Test
+    fun `a pending consent keeps its userId across a restart`() =
+        runTest {
+            stubPosts(503)
+            service().apply {
+                emitEvent(consent("accept", userId = "u1"))
+                testScheduler.advanceUntilIdle()
+            }
+            stubPosts(200)
+
+            service(ConsentAuditLog(context)).drainConsents()
+
+            val captor = argumentCaptor<JSONObject>()
+            verify(http, times(2)).postForStatus(any(), captor.capture(), any())
+            assertEquals(listOf("u1", "u1"), captor.allValues.map { it.getString("userId") })
         }
 
     // (b)

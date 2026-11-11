@@ -93,7 +93,8 @@ class IntemptInstance internal constructor(
         email: String? = null,
         message: String? = null,
         category: String? = null,
-    ): Boolean = core.capture.consent(action, validUntil, email, message, category)
+        userId: String? = null,
+    ): Boolean = core.capture.consent(action, validUntil, email, message, category, userId)
 
     // ------------------------------------------------------------- identity and lifecycle
 
@@ -243,7 +244,8 @@ class IntemptInstance internal constructor(
         count: Int = 10,
         fields: List<String> = FeedFields.DEFAULT,
         productId: String? = null,
-    ): JsonObject? = core.capture.products(feedId, count, fields, productId)
+        userId: String? = null,
+    ): JsonObject? = core.capture.products(feedId, count, fields, productId, userId)
 
     /**
      * The value assigned for [key], or [defaultValue] when the service did not answer.

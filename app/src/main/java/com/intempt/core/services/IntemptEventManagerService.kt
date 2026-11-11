@@ -345,11 +345,17 @@ internal open class IntemptEventManagerService
             quantity: Int,
             fields: List<String>,
             productId: String?,
+            userId: String? = null,
         ): Map<String, Any?> {
             val map = mutableMapOf<String, Any>()
 
-            map["id"] = storage.getProfileId()
-            map["type"] = "profile"
+            if (userId.isNullOrBlank()) {
+                map["id"] = storage.getProfileId()
+                map["type"] = "profile"
+            } else {
+                map["id"] = userId
+                map["type"] = "user"
+            }
             map["sourceId"] = config.sourceId
             map["limit"] = quantity
             map["fields"] = fields
@@ -405,6 +411,7 @@ internal open class IntemptEventManagerService
             category: String? = null,
             validUntil: Long,
             sourceId: String,
+            userId: String? = null,
         ): Array<IntemptEventProvider> {
             val eventProps = getBaseEventProps()
             return arrayOf(
@@ -419,6 +426,7 @@ internal open class IntemptEventManagerService
                     category = category,
                     sourceId = sourceId,
                     validUntil = validUntil,
+                    userId = userId,
                 ),
             )
         }

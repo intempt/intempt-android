@@ -299,6 +299,7 @@ internal class CustomCaptureComponent
             email: String? = null,
             message: String? = null,
             category: String? = null,
+            userId: String? = null,
         ): Boolean {
             val accepted =
                 utils.withTryCatch("consent fails") {
@@ -316,6 +317,7 @@ internal class CustomCaptureComponent
                                     category,
                                     validUntil,
                                     config.sourceId,
+                                    userId = userId,
                                 ),
                         )
 
@@ -480,8 +482,9 @@ internal class CustomCaptureComponent
             count: Int,
             fields: List<String>,
             productId: String?,
+            userId: String? = null,
         ): JsonObject? {
-            return eventPool.getFeedData(feedId, count, fields, productId)
+            return eventPool.getFeedData(feedId, count, fields, productId, userId)
         }
 
         private fun productEvent(

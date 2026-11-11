@@ -393,9 +393,10 @@ internal open class EventPoolManagerService
             quantity: Int,
             fields: List<String>,
             productId: String?,
+            userId: String? = null,
         ): JsonObject? {
             val url = config.recommendationUrl(id)
-            val body = JSONObject(intemptEvent.generateRecommendationBody(quantity, fields, productId))
+            val body = JSONObject(intemptEvent.generateRecommendationBody(quantity, fields, productId, userId))
 
             return http.post(url, body)?.bodyAsText().let {
                 val jsonResponse = it?.let { it1 -> Json.parseToJsonElement(it1).jsonObject }

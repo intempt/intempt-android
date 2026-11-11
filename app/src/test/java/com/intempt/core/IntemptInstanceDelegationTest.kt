@@ -104,6 +104,19 @@ class IntemptInstanceDelegationTest {
     }
 
     @Test
+    fun `consent and products pass the caller's userId through`(): Unit =
+        runBlocking {
+            val f = Fixture()
+            val i = f.instance()
+
+            i.consent(ConsentAction.REJECT, 5L, "e@x", "m", "c", "u1")
+            verify(f.capture).consent(ConsentAction.REJECT, 5L, "e@x", "m", "c", "u1")
+
+            i.products("7", 3, listOf("name"), "p1", "u1")
+            verify(f.capture).products("7", 3, listOf("name"), "p1", "u1")
+        }
+
+    @Test
     fun `identity and session readers reach the core rather than returning a local default`() {
         val f = Fixture()
         `when`(f.capture.getProfileId()).thenReturn("pid-1")

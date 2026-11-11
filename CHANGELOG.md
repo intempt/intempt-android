@@ -13,6 +13,8 @@ under Unreleased.
 
 ### Added
 
+- `consent(...)` takes an optional trailing `userId`, sent in the consent body beside `profileId` and kept in the pending-consent record, so a retried consent still names the user (INT-7442).
+- `products(...)` takes an optional trailing `userId`; when given, the feed is asked for `{id: userId, type: "user"}` instead of the anonymous profile (INT-7443). The SDK does not remember the id passed to `identify`; pass it to both calls. Source-compatible for Kotlin and Java (`@JvmOverloads`); the Kotlin `$default` bridges changed, so code compiled against 5.1.0 must be recompiled.
 - `IntemptRuntimeOptions(apiUrl = ...)`: the API base URL can be set at runtime as well as in `intempt-config.json` (`options.apiUrl`); the runtime value wins (INT-5178). The constructor is `@JvmOverloads`, so `new IntemptRuntimeOptions()` and `new IntemptRuntimeOptions(Boolean)` still compile from Java; the data-class `copy(...)` gained a parameter. See README "Endpoint".
 - `certificatePins` (opt-in, off by default) now also applies to the HTTP client used for consent, optimization, feeds and the push webhook, not only to event delivery (INT-3945). See README "Certificate pinning".
 
