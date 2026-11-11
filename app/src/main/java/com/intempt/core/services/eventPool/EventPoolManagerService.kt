@@ -19,6 +19,7 @@ import com.intempt.core.types.FlagErrorReporter
 import com.intempt.core.types.HandleEventTypeProps
 import com.intempt.core.types.IntemptEventProvider
 import com.intempt.core.types.chooseResultOf
+import com.intempt.core.types.withExposure
 import io.ktor.client.statement.bodyAsText
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
@@ -403,9 +404,10 @@ internal open class EventPoolManagerService
         suspend fun chooseFlags(
             context: FlagContext,
             names: List<String>?,
+            recordExposure: Boolean,
         ): ChooseResult {
             val url = config.optimizationUrl
-            val body = JSONObject(intemptEvent.generateChooseBody(context, names))
+            val body = JSONObject(withExposure(intemptEvent.generateChooseBody(context, names), recordExposure))
 
             val response = http.postChoose(url, body, HttpManagerService.CHOOSE_TIMEOUT_MS)
             val result = chooseResultOf(names?.singleOrNull(), response.status, response.body, response.timedOut)

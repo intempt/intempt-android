@@ -346,6 +346,16 @@ class FlagsTest {
         assertEquals("FlagDetail(value=v, reason=off, error=null)", d.toString())
     }
 
+    // ---- exposure (INT-7456, CONTRACT-R2 §S4) -----------------------------------------------
+
+    @Test
+    fun `a recording read leaves the exposure field out, an evaluate-only read sends false`() {
+        val body = mapOf<String, Any?>("device" to "mobile")
+        assertEquals(body, withExposure(body, recordExposure = true))
+        assertFalse(withExposure(body, recordExposure = true).containsKey("exposure"))
+        assertEquals(mapOf("device" to "mobile", "exposure" to false), withExposure(body, recordExposure = false))
+    }
+
     // ---- isValidFlagKey (INT-7455) ---------------------------------------------------------
 
     @Test

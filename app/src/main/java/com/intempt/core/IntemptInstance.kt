@@ -264,6 +264,19 @@ class IntemptInstance internal constructor(
     ): Any? = core.capture.variationDetailInternal(key, context, defaultValue).value
 
     /**
+     * As above; `disableExposure = true` evaluates without recording an exposure, for a pre-render or
+     * prefetch read the person may never see (INT-7456). A separate overload so the existing JVM
+     * signature stays as it was.
+     */
+    @JvmOverloads
+    suspend fun variation(
+        key: String,
+        context: FlagContext = FlagContext(),
+        defaultValue: Any?,
+        disableExposure: Boolean,
+    ): Any? = core.capture.variationDetailInternal(key, context, defaultValue, !disableExposure).value
+
+    /**
      * [variation] with the reason (INT-7454). [FlagDetail.reason] is [FlagReason.ERROR], with
      * [FlagDetail.error] set, when the default came back because the call failed; an answered read
      * is [FlagReason.OFF] whether or not a value was served, because the platform sends no reason.
@@ -276,6 +289,19 @@ class IntemptInstance internal constructor(
     ): FlagDetail = core.capture.variationDetailInternal(key, context, defaultValue)
 
     /**
+     * As above; `disableExposure = true` evaluates without recording an exposure, for a pre-render or
+     * prefetch read the person may never see (INT-7456). A separate overload so the existing JVM
+     * signature stays as it was.
+     */
+    @JvmOverloads
+    suspend fun variationDetail(
+        key: String,
+        context: FlagContext = FlagContext(),
+        defaultValue: Any?,
+        disableExposure: Boolean,
+    ): FlagDetail = core.capture.variationDetailInternal(key, context, defaultValue, !disableExposure)
+
+    /**
      * Called with a [FlagError] each time a flag read returns its default because the call failed,
      * on the thread that made the read. A hook that throws is caught and logged. Null clears it.
      */
@@ -285,7 +311,7 @@ class IntemptInstance internal constructor(
             core.capture.onFlagError = value
         }
 
-    /** Every key assigned to this person, in one call. */
+    /** Every key assigned to this person, in one call. Records no exposure (INT-7456). */
     @JvmOverloads
     suspend fun allFlags(context: FlagContext = FlagContext()): Map<String, Any?> = core.capture.allFlags(context)
 

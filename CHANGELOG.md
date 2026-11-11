@@ -14,9 +14,11 @@ under Unreleased.
 ### Added
 
 - **Flag errors (INT-7454).** `variationDetail(key, context, defaultValue)` on `Intempt` and `IntemptInstance` returns `FlagDetail(value, reason, error)`. `FlagReason` is public and gains `ERROR`: the default came back because the call failed, and `error` says why as a `FlagError(key, kind, status)` with `kind` one of `auth`, `bad_request`, `server`, `timeout`, `network`, `parse` (401/403 → auth, 408 → timeout, 429 and 5xx → server, other statuses → bad_request). An answered read with no choice for the key stays `OFF`. `onFlagError` (property on both) is called once per failed read, `allFlags` included with `key = null`; a hook that throws is caught and logged. A rejected API key is logged at error level once per instance, naming the source and never the key; later ones at debug.
+- **Evaluation is separate from exposure (INT-7456).** `variation`, `variationDetail`, `boolVariation`, `stringVariation` and `numberVariation` have a new overload with `disableExposure: Boolean`; `true` sends `exposure: false` to choose-api, which evaluates without recording an exposure (for pre-render or prefetch reads). A default read leaves the field out, so the service records exactly as before.
 
 ### Changed
 
+- **`allFlags` no longer records an exposure for every key it returns (INT-7456).** It sends `exposure: false`; a single-key read records. Takes effect once audience-service honours the field; until then the service ignores it and records as before.
 - A choose-api 2xx whose body is not an object with a `choices` array is now reported as a `parse` error (it read as "no flags" before). The returned values are unchanged: the default, or an empty `allFlags` map (INT-7454).
 
 - **Breaking for analytics filters:** `group(accountId)` without an `eventTitle` now sends the event named `"Identify"` (type `"group"`), like every other Intempt SDK. Since 3.0.0 Android sent `"Group"`; reports, segments or metrics that filter on the name `"Group"` stop matching new Android data. Filter on type `group` to cover both (INT-7448).

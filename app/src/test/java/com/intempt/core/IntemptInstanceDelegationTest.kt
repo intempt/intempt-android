@@ -286,6 +286,20 @@ class IntemptInstanceDelegationTest {
         }
 
     @Test
+    fun `disableExposure reaches the core as a read that records nothing, on both read methods`() =
+        runBlocking<Unit> {
+            val f = Fixture()
+            val ctx = FlagContext()
+            `when`(f.capture.variationDetailInternal("k", ctx, "d", false)).thenReturn(FlagDetail("v", FlagReason.OFF))
+            `when`(f.capture.variationDetailInternal("k", ctx, "d", true)).thenReturn(FlagDetail("r", FlagReason.OFF))
+
+            assertEquals("v", f.instance().variation("k", ctx, "d", disableExposure = true))
+            assertEquals("v", f.instance().variationDetail("k", ctx, "d", disableExposure = true).value)
+            assertEquals("r", f.instance().variation("k", ctx, "d", disableExposure = false))
+            assertEquals("r", f.instance().variationDetail("k", ctx, "d", disableExposure = false).value)
+        }
+
+    @Test
     fun `onFlagError is stored on and read from the capture component`() {
         val f = Fixture()
         val hook: (FlagError) -> Unit = {}

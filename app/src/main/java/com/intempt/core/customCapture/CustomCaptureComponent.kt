@@ -446,6 +446,7 @@ internal class CustomCaptureComponent
             key: String,
             context: FlagContext,
             defaultValue: Any?,
+            recordExposure: Boolean = true,
         ): FlagDetail {
             // `docs/CONVENTIONS.md`: a validation mistake THROWS, a service problem does not.
             // A blank key is a programming error the caller can fix at the call site. Returning
@@ -455,11 +456,12 @@ internal class CustomCaptureComponent
             require(key.isNotBlank()) { "variation | key must not be blank" }
             require(isValidFlagKey(key)) { "variation | key must match ${FLAG_KEY_PATTERN.pattern}: $key" }
 
-            return flagDetailOf(eventPool.chooseFlags(context, listOf(key)), key, defaultValue)
+            return flagDetailOf(eventPool.chooseFlags(context, listOf(key), recordExposure), key, defaultValue)
         }
 
+        /** Evaluates without recording an exposure: reading every key is not seeing every variant (INT-7456). */
         suspend fun allFlags(context: FlagContext): Map<String, Any?> =
-            eventPool.chooseFlags(context, null).choices.mapNotNull { choice ->
+            eventPool.chooseFlags(context, null, recordExposure = false).choices.mapNotNull { choice ->
                 val name = flagNameOf(choice)
                 if (name.isNullOrBlank()) null else name to choice["body"]?.let { unwrapFlagValue(it) }
             }.toMap()

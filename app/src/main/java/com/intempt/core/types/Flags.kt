@@ -294,6 +294,16 @@ internal fun buildChooseBody(
 }
 
 /**
+ * CONTRACT-R2 §S4 (INT-7456): `exposure: false` asks choose-api to evaluate without recording an
+ * exposure. Recording leaves the field OUT rather than sending `true`, so a backend that predates
+ * the field, and an SDK that predates it, behave exactly as before.
+ */
+internal fun withExposure(
+    body: Map<String, Any?>,
+    recordExposure: Boolean,
+): Map<String, Any?> = if (recordExposure) body else body + ("exposure" to false)
+
+/**
  * The `name` of a choice, or null when the response did not carry a usable one.
  *
  * Reads through `as?` rather than `jsonPrimitive`, which **throws** on a non-primitive. A response
