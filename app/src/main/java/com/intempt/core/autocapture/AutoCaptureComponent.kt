@@ -83,7 +83,6 @@ internal class AutoCaptureComponent
             storage.ensureSession()
 
             coroutineScope.launch {
-
                 // Unconditional. `versionChanges` still decides the version-change event inside,
                 // but the same call registers the FCM device token, and push cannot depend on an
                 // event-volume switch a host app turned off for billing reasons.
