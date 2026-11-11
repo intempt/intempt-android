@@ -308,7 +308,9 @@ class FlagsTest {
         val debug = mutableListOf<String>()
         val hooked = mutableListOf<FlagError>()
         val r = FlagErrorReporter({ "src-1" }, { errors += it }, { debug += it })
-        r.hook = { hooked += it }
+        val hook: (FlagError) -> Unit = { hooked += it }
+        r.hook = hook
+        assertTrue(r.hook === hook)
 
         r.report(FlagError("k", FlagErrorKind.AUTH, 401))
         r.report(FlagError("k", FlagErrorKind.AUTH, 403))
@@ -318,7 +320,9 @@ class FlagsTest {
         assertTrue(errors.single(), errors.single().contains("src-1"))
         assertTrue(errors.single(), errors.single().contains("401"))
         assertEquals(2, debug.size)
-        assertTrue(debug[0], debug[0].contains("auth 403"))
+        assertTrue(errors.single(), errors.single().contains("for key k;"))
+        assertTrue(debug[0], debug[0].contains("auth 403") && debug[0].contains("for key k;"))
+        assertFalse(debug[1], debug[1].contains("key"))
         assertTrue(debug[1], debug[1].contains("server 500") && debug[1].contains("all flags"))
         assertEquals(listOf(401, 403, 500), hooked.map { it.status })
     }
