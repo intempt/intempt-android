@@ -335,7 +335,15 @@ jobs:
           # and the apiUrl runtime option (getter, component2, @JvmOverloads constructor). No
           # generated waste of the data-class kind was found; trimming it would save ~5 at the
           # cost of a validation check. Same rule: the measured number plus ~50.
-          CEILING=3025
+          #
+          # Raised from 3025 for #81 (INT-7438 ordered delivery, R-retry): CI measured 3054 against
+          # 2976 on staging, +78. Most of it is OrderedDeliveryLane (op queue, bounded-wait timer)
+          # and the coroutine lambdas that route flush/discard/enqueueDurably through it. 18 generated
+          # members were already cut before raising: @JvmField on the lane's Op fields and on
+          # members read from lambdas (no getters/setters/access$), and two internal defaults that
+          # no caller used. Local d8 reads 12 below CI consistently (2964/3042 vs 2976/3054); local
+          # after the cut is 3024, so CI ~3036. Same rule: the measured number plus ~50.
+          CEILING=3086
           echo "SDK's own method count: $METHOD_COUNT (ceiling: $CEILING, baseline: ~2,409)"
           if [ "$METHOD_COUNT" -gt "$CEILING" ]; then
             echo "::error::SDK method count $METHOD_COUNT exceeds ceiling $CEILING. If this growth is intentional, raise CEILING in .github/workflows/ci.yml with a note on why."

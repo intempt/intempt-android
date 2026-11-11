@@ -26,21 +26,29 @@ internal class OrderedDeliveryLane(
     private val scope: CoroutineScope,
     private val logger: LoggerManagerService,
     // A collector that died or stalls must cost one late op, never one that does not happen.
-    private val waitBoundMs: Long,
+    @JvmField internal val waitBoundMs: Long,
 ) {
+    // @JvmField + internal, not private: a private member read from a lambda costs a synthetic
+    // accessor, and a property costs a getter/setter, against the method-count gate (ci.yml CEILING).
     private val acceptedCount = AtomicLong(0)
-    private val lock = Any()
+
+    @JvmField internal val lock = Any()
+
     private var handedOffCount = 0L
-    private val ops = ArrayDeque<Op>()
+
+    @JvmField internal val ops = ArrayDeque<Op>()
 
     class Op internal constructor(
-        internal val target: Long,
-        internal var action: (() -> Unit)?,
+        @JvmField internal val target: Long,
+        @JvmField internal var action: (() -> Unit)?,
     ) {
-        internal var expired = false
-        internal var done = false
-        internal var abandoned = false
-        internal var timer: Job? = null
+        @JvmField internal var expired = false
+
+        @JvmField internal var done = false
+
+        @JvmField internal var abandoned = false
+
+        @JvmField internal var timer: Job? = null
     }
 
     /** An emit the flow accepted. A refused emit is never counted, so nothing waits for it. */
@@ -106,7 +114,7 @@ internal class OrderedDeliveryLane(
     }
 
     // Caller holds the lock. Every action only posts a Message to the delivery worker.
-    private fun runDue() {
+    internal fun runDue() {
         while (true) {
             val head = ops.firstOrNull() ?: return
             val action = head.action

@@ -345,7 +345,7 @@ internal open class IntemptEventManagerService
             quantity: Int,
             fields: List<String>,
             productId: String?,
-            userId: String? = null,
+            userId: String?,
         ): Map<String, Any?> {
             val map = mutableMapOf<String, Any>()
 

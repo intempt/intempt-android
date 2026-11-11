@@ -93,7 +93,8 @@ internal open class EventPoolManagerService
         val eventReceiver: SharedFlow<IntemptEvent> = _eventReceiver
 
         // Ordering of flush/discard/enqueueDurably against recorded events: see OrderedDeliveryLane.
-        private val lane = OrderedDeliveryLane(coroutineScope, logger, FLUSH_HANDOFF_WAIT_MS)
+        // @JvmField internal, not private: saves the synthetic accessor (method-count gate, ci.yml CEILING).
+        @JvmField internal val lane = OrderedDeliveryLane(coroutineScope, logger, FLUSH_HANDOFF_WAIT_MS)
 
         private companion object {
             const val MILLIS_PER_SECOND = 1000
@@ -419,7 +420,7 @@ internal open class EventPoolManagerService
             quantity: Int,
             fields: List<String>,
             productId: String?,
-            userId: String? = null,
+            userId: String?,
         ): JsonObject? {
             val url = config.recommendationUrl(id)
             val body = JSONObject(intemptEvent.generateRecommendationBody(quantity, fields, productId, userId))
