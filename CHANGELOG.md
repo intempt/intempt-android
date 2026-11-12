@@ -11,6 +11,8 @@ under Unreleased.
 
 ## [Unreleased]
 
+## [6.0.0] - 2026-11-12
+
 Ships as 6.0.0 (MAJOR: the binary break under Changed).
 
 ### Added
