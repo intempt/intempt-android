@@ -586,13 +586,18 @@ class SdkOnDeviceTest {
         // tests pass on a laptop (this test is skipped without e2e fixtures, so no flood) and on
         // the faster API 34 emulator. Draining the queue completely hands the next test a quiet
         // SDK. It is also a strictly stronger assertion than the one it replaces.
+        // 150s: the rows left after the burst are under BULK_UPLOAD_LIMIT, so they wait for the
+        // flush timer (QueueConfig.FLUSH_INTERVAL_MS, 60s), and one transient failure on the live
+        // endpoint adds DeliveryRetryPolicy.BASE_DELAY_MS (60s) before the retry. 90s did not
+        // cover that: job 130750624261 timed out with all 45 tagged rows gone and only
+        // lifecycle rows left. Two consecutive failures (a further 120s) are still red here.
         val drained =
-            awaitCondition(timeoutMs = 90_000) {
+            awaitCondition(timeoutMs = 150_000) {
                 rows().isEmpty()
             }
 
         assertTrue(
-            "events were still in the queue after 90s, so the POST to the ingestion endpoint " +
+            "events were still in the queue after 150s, so the POST to the ingestion endpoint " +
                 "never succeeded. Remaining: " + rows().map { it.optString("name") }.take(5),
             drained,
         )
