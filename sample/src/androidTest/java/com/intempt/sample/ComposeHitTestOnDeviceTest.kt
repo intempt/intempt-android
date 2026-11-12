@@ -67,6 +67,7 @@ class ComposeHitTestOnDeviceTest {
 
     @Test
     fun tapOnComposeTestTagSurfacesTheTagAsTargetId() {
+        OfflineDelivery.installUnlessProdTests()
         ActivityScenario.launch(ComposeDemoActivity::class.java).use { scenario ->
             var bounds: android.graphics.Rect? = null
             val deadline = SystemClock.uptimeMillis() + TIMEOUT_MS

@@ -56,6 +56,7 @@ class SdkOnDeviceTest {
         @JvmStatic
         @BeforeClass
         fun launchOnce() {
+            OfflineDelivery.installUnlessProdTests()
             ActivityScenario.launch(MainActivity::class.java)
             // "View screen" and not "Session start". A session start is only emitted for a
             // *new* session, and the app's data survives between runs on a device, so a

@@ -44,6 +44,7 @@ class SdkProdObjectsTest {
 
     @Before
     fun launch() {
+        OfflineDelivery.installUnlessProdTests()
         ActivityScenario.launch(MainActivity::class.java)
         assertTrue("the SDK must be running before these tests mean anything", Intempt.isInitialized)
     }
