@@ -559,6 +559,13 @@ class SdkOnDeviceTest {
      */
     @Test
     fun deliveredEventsAreRemovedFromTheQueue() {
+        // Opt-in by CLAUDE.md §14: draining needs the live ingestion endpoint to accept the POST,
+        // and an assertion on someone else's availability must not block a merge. Skipped, the
+        // 45-event flood below also stops racing the tests that run after it.
+        Assume.assumeTrue(
+            "opt-in: depends on the live ingestion endpoint. Run with -Pintempt.prodTests=true",
+            BuildConfig.INTEMPT_PROD_TESTS,
+        )
         val configured = hasRealCredentials()
         Assume.assumeTrue(
             "no real ingestion credentials in this build; set intempt.apiKey in local.properties",
