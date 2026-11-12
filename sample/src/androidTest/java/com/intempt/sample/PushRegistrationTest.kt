@@ -95,6 +95,7 @@ class PushRegistrationTest {
     fun theTokenReachesTheEventPayload() {
         assumeTrue("push not configured in this build", BuildConfig.PUSH_ENABLED)
         assumeTrue("the SDK must be initialized", com.intempt.core.Intempt.isInitialized)
+        OfflineDelivery.installUnlessProdTests()
 
         val deadline = System.currentTimeMillis() + 30_000
         var found = false

@@ -335,7 +335,15 @@ jobs:
           # and the apiUrl runtime option (getter, component2, @JvmOverloads constructor). No
           # generated waste of the data-class kind was found; trimming it would save ~5 at the
           # cost of a validation check. Same rule: the measured number plus ~50.
-          CEILING=3025
+          #
+          # Raised from 3025 for #81 (INT-7438 ordered delivery, R-retry): CI measured 3054 against
+          # 2976 on staging, +78. Most of it is OrderedDeliveryLane (op queue, bounded-wait timer)
+          # and the coroutine lambdas that route flush/discard/enqueueDurably through it. 18 generated
+          # members were already cut before raising: @JvmField on the lane's Op fields and on
+          # members read from lambdas (no getters/setters/access$), and two internal defaults that
+          # no caller used. Local d8 reads 12 below CI consistently (2964/3042 vs 2976/3054); local
+          # after the cut is 3024, so CI ~3036. Same rule: the measured number plus ~50.
+          CEILING=3086
           echo "SDK's own method count: $METHOD_COUNT (ceiling: $CEILING, baseline: ~2,409)"
           if [ "$METHOD_COUNT" -gt "$CEILING" ]; then
             echo "::error::SDK method count $METHOD_COUNT exceeds ceiling $CEILING. If this growth is intentional, raise CEILING in .github/workflows/ci.yml with a note on why."
@@ -649,3 +657,51 @@ jobs:
         with:
           name: prod-e2e-report
           path: app/build/reports/tests/
+
+  # The on-device half of prod-e2e. The gating instrumented-tests job runs the sample suites with
+  # delivery stubbed offline (OfflineDelivery.kt), so the opt-in tests that need real ingestion
+  # run only here, under -Pintempt.prodTests=true, and only those two: with the stub off, the
+  # rest of the suite races live delivery again. Non-gating by CLAUDE.md §14.
+  prod-e2e-on-device:
+    name: Prod delivery on device (non-gating)
+    runs-on: intempt-android-github-runner
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3  # v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407  # v3
+        with:
+          packages: platform-tools
+      - uses: gradle/actions/setup-gradle@48b5f213c81028ace310571dc5ec0fbbca0b2947  # v4
+
+      - name: Check KVM
+        run: |
+          set -euo pipefail
+          sudo chmod 666 /dev/kvm
+          [ -r /dev/kvm ] && [ -w /dev/kvm ] || { echo "::error::/dev/kvm is not usable on this runner"; exit 1; }
+
+      - name: Emulator runtime libraries
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends \
+            libpulse0 libnss3 libxcomposite1 libxcursor1 libxdamage1 libxi6 libxtst6 libxrandr2 \
+            libxkbfile1 libxkbcommon-x11-0 libgl1 libegl1 libasound2t64 libdbus-1-3 >/dev/null
+
+      - name: Opt-in on-device tests against api.intempt.com
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d  # v2
+        with:
+          api-level: 34
+          arch: x86_64
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: ./gradlew :sample:connectedDebugAndroidTest -Pintempt.prodTests=true -Pandroid.testInstrumentationRunnerArguments.class=com.intempt.sample.SdkOnDeviceTest#deliveredEventsAreRemovedFromTheQueue,com.intempt.sample.SdkProdObjectsTest#productsReturnFromTheFeed --stacktrace
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
+        with:
+          name: prod-e2e-on-device-report
+          path: sample/build/reports/androidTests/

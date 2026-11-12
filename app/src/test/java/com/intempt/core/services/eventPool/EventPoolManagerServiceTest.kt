@@ -23,6 +23,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -173,7 +174,11 @@ class EventPoolManagerServiceTest {
     /** The payload build (PackageManager, `BuildConfig`) must not run on the caller's thread. */
     @Test
     fun `enqueueDurably builds the payload on the pool's dispatcher, not the caller's thread`() {
-        val executor = Executors.newSingleThreadExecutor { r -> Thread(r, "pool-test") }
+        // Compare the Thread object, not its name: coroutine debug mode (on whenever JVM
+        // assertions are, as under Gradle) renames the running thread "pool-test @coroutine#N".
+        var poolThread: Thread? = null
+        val executor =
+            Executors.newSingleThreadExecutor { r -> Thread(r, "pool-test").also { poolThread = it } }
         try {
             val service = pool(executor.asCoroutineDispatcher())
             var builtOn: Thread? = null
@@ -187,7 +192,7 @@ class EventPoolManagerServiceTest {
 
             assertNotNull(builtOn)
             assertNotEquals(Thread.currentThread(), builtOn)
-            assertEquals("pool-test", builtOn?.name)
+            assertSame(poolThread, builtOn)
             val queued = argumentCaptor<JSONObject>()
             verify(delivery).enqueueEvent(queued.capture())
             assertEquals("installUpgrade", queued.firstValue.getString("type"))

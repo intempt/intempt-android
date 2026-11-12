@@ -188,9 +188,9 @@ public class ProdDeliveryTest {
     }
 
     /**
-     * A deliberately bad key must come back as a client error, not as a retryable failure.
-     * This is the difference between dropping one batch and wedging the queue permanently:
-     * HttpStatusPolicy can only drop what the transport reports as a client error.
+     * A deliberately bad key must come back as a client error the queue drops. Under ruling
+     * R-retry (INT-7438) a 401 is never accepted later, so keeping the batch would only park it
+     * at the queue head; HttpStatusPolicy can only drop what the transport reports as a client error.
      */
     @Test
     public void aRejectedKeyIsReportedAsAClientError() throws Exception {
