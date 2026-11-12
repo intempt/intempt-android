@@ -18,7 +18,8 @@ public final class com/intempt/core/Intempt {
 	public static final fun consent (Lcom/intempt/core/types/ConsentAction;JLjava/lang/String;)Z
 	public static final fun consent (Lcom/intempt/core/types/ConsentAction;JLjava/lang/String;Ljava/lang/String;)Z
 	public static final fun consent (Lcom/intempt/core/types/ConsentAction;JLjava/lang/String;Ljava/lang/String;Ljava/lang/String;)Z
-	public static synthetic fun consent$default (Lcom/intempt/core/types/ConsentAction;JLjava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Z
+	public static final fun consent (Lcom/intempt/core/types/ConsentAction;JLjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Z
+	public static synthetic fun consent$default (Lcom/intempt/core/types/ConsentAction;JLjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Z
 	public static final fun doNotCaptureText (Landroid/view/View;)V
 	public static final fun flush ()V
 	public static final fun flush (Lkotlin/jvm/functions/Function1;)V
@@ -55,11 +56,12 @@ public final class com/intempt/core/Intempt {
 	public static final fun productAdd (Ljava/lang/String;I)Z
 	public static final fun productOrdered (Ljava/util/List;)Z
 	public static final fun productView (Ljava/lang/String;)Z
+	public static final fun products (Ljava/lang/String;ILjava/util/List;Ljava/lang/String;Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static final fun products (Ljava/lang/String;ILjava/util/List;Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static final fun products (Ljava/lang/String;ILjava/util/List;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static final fun products (Ljava/lang/String;ILkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static final fun products (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
-	public static synthetic fun products$default (Ljava/lang/String;ILjava/util/List;Ljava/lang/String;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static synthetic fun products$default (Ljava/lang/String;ILjava/util/List;Ljava/lang/String;Ljava/lang/String;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public static final fun record (Ljava/lang/String;)Z
 	public static final fun record (Ljava/lang/String;Ljava/lang/String;)Z
 	public static final fun record (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Z
@@ -111,7 +113,8 @@ public final class com/intempt/core/IntemptInstance {
 	public final fun consent (Lcom/intempt/core/types/ConsentAction;JLjava/lang/String;)Z
 	public final fun consent (Lcom/intempt/core/types/ConsentAction;JLjava/lang/String;Ljava/lang/String;)Z
 	public final fun consent (Lcom/intempt/core/types/ConsentAction;JLjava/lang/String;Ljava/lang/String;Ljava/lang/String;)Z
-	public static synthetic fun consent$default (Lcom/intempt/core/IntemptInstance;Lcom/intempt/core/types/ConsentAction;JLjava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Z
+	public final fun consent (Lcom/intempt/core/types/ConsentAction;JLjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Z
+	public static synthetic fun consent$default (Lcom/intempt/core/IntemptInstance;Lcom/intempt/core/types/ConsentAction;JLjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Z
 	public final fun doNotCaptureText (Landroid/view/View;)V
 	public final fun flush ()V
 	public final fun flush (Lkotlin/jvm/functions/Function1;)V
@@ -140,11 +143,12 @@ public final class com/intempt/core/IntemptInstance {
 	public final fun productAdd (Ljava/lang/String;I)Z
 	public final fun productOrdered (Ljava/util/List;)Z
 	public final fun productView (Ljava/lang/String;)Z
+	public final fun products (Ljava/lang/String;ILjava/util/List;Ljava/lang/String;Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun products (Ljava/lang/String;ILjava/util/List;Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun products (Ljava/lang/String;ILjava/util/List;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun products (Ljava/lang/String;ILkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun products (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
-	public static synthetic fun products$default (Lcom/intempt/core/IntemptInstance;Ljava/lang/String;ILjava/util/List;Ljava/lang/String;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static synthetic fun products$default (Lcom/intempt/core/IntemptInstance;Ljava/lang/String;ILjava/util/List;Ljava/lang/String;Ljava/lang/String;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public final fun record (Ljava/lang/String;)Z
 	public final fun record (Ljava/lang/String;Ljava/lang/String;)Z
 	public final fun record (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Z

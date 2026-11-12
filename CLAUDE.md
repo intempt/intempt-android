@@ -104,12 +104,15 @@ adversarial sweep of `400..451` found **46 statuses** taking that path — inclu
 a customer every event they would ever send.
 
 Default is now inverted: `>= 300` and not explicitly retryable means **drop**.
-Only `401`, `402`, `403`, `404`, `408`, `429`, `5xx` and `<= 0` retry.
+Only `403`, `404`, `408`, `429`, `5xx` and `<= 0` retry.
 
 The other direction costs too (INT-5897): `401`/`402`/`404` were dropped after one
 attempt, so every event sent during an auth, plan-cap or routing outage was gone
-when the server recovered. Those are fixed server-side, so they retry; a stuck
-head is bounded by the age expiration and the database size limit.
+when the server recovered. `404` still retries for that reason; a stuck head is
+bounded by the age expiration and the database size limit. `401` and `402` drop
+again under ruling R-retry (INT-7438, Beso 2026-11-11): the backend will never
+accept that batch, and it applies to events and consent alike, since both read
+`isRetryable`.
 
 **Rule:** an unrecognised error must lose one batch, never block the queue. When
 you add a status, add it to the sweep test in `HostileInputTest`.
@@ -195,7 +198,11 @@ claimed survives.
 
 `ProdDeliveryTest` and `recommendationReturnsFromTheFeed` hit live
 `api.intempt.com`. They are opt-in behind `-Pintempt.prodTests=true` and run in a
-separate `prod-e2e` job with `continue-on-error: true`.
+separate `prod-e2e` job with `continue-on-error: true`. The on-device opt-in tests
+(`deliveredEventsAreRemovedFromTheQueue`, `productsReturnFromTheFeed`) run the same way in
+`prod-e2e-on-device`; the gating `instrumented-tests` job stubs delivery offline
+(`sample/src/androidTest/.../OfflineDelivery.kt`), so its queue assertions never race a
+live POST.
 
 A transient network fault failed a pull request about unrelated code once
 already. An assertion that depends on someone else's availability or ingestion

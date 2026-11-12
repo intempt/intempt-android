@@ -8,6 +8,7 @@ import io.ktor.client.HttpClient
 import io.ktor.client.engine.android.Android
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.plugins.timeout
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.post
@@ -128,6 +129,20 @@ class HttpManagerService
             url: String,
             body: JSONObject,
             type: ContentType = ContentType.Application.Json,
+        ): HttpResponse? = send(url, body, type, timeoutMs = null)
+
+        /** [post] bounded by [timeoutMs] for this request only, instead of the client-wide limits. */
+        suspend fun postWithTimeout(
+            url: String,
+            body: JSONObject,
+            timeoutMs: Long,
+        ): HttpResponse? = send(url, body, ContentType.Application.Json, timeoutMs)
+
+        private suspend fun send(
+            url: String,
+            body: JSONObject,
+            type: ContentType,
+            timeoutMs: Long?,
         ): HttpResponse? {
             return try {
                 val authHeader = "Basic ${config.token()}"
@@ -155,6 +170,15 @@ class HttpManagerService
                         contentType(type)
                         setBody(body.toString())
                         header(HttpHeaders.Authorization, authHeader)
+                        // All three, not only the request timeout: the Android engine blocks in
+                        // HttpURLConnection.read, which only its socket (read) timeout interrupts.
+                        timeoutMs?.let { ms ->
+                            timeout {
+                                requestTimeoutMillis = ms
+                                connectTimeoutMillis = ms
+                                socketTimeoutMillis = ms
+                            }
+                        }
                     }
                 if (response.status.value in 200..299) {
                     logger.log("POST | URL: $url. Status: ${response.status.value}")
@@ -211,5 +235,9 @@ class HttpManagerService
             const val REQUEST_TIMEOUT_MS = 30_000L
             const val CONNECT_TIMEOUT_MS = 10_000L
             const val SOCKET_TIMEOUT_MS = 30_000L
+
+            // INT-7445/7457 (Beso, D3): a flag lookup blocks the caller's screen, so it gets its own
+            // short bound; consent and feeds keep the client-wide limits above.
+            const val CHOOSE_TIMEOUT_MS = 2_000L
         }
     }

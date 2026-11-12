@@ -56,6 +56,7 @@ class SdkOnDeviceTest {
         @JvmStatic
         @BeforeClass
         fun launchOnce() {
+            OfflineDelivery.installUnlessProdTests()
             ActivityScenario.launch(MainActivity::class.java)
             // "View screen" and not "Session start". A session start is only emitted for a
             // *new* session, and the app's data survives between runs on a device, so a
@@ -559,6 +560,13 @@ class SdkOnDeviceTest {
      */
     @Test
     fun deliveredEventsAreRemovedFromTheQueue() {
+        // Opt-in by CLAUDE.md §14: draining needs the live ingestion endpoint to accept the POST,
+        // and an assertion on someone else's availability must not block a merge. Skipped, the
+        // 45-event flood below also stops racing the tests that run after it.
+        Assume.assumeTrue(
+            "opt-in: depends on the live ingestion endpoint. Run with -Pintempt.prodTests=true",
+            BuildConfig.INTEMPT_PROD_TESTS,
+        )
         val configured = hasRealCredentials()
         Assume.assumeTrue(
             "no real ingestion credentials in this build; set intempt.apiKey in local.properties",
@@ -586,13 +594,18 @@ class SdkOnDeviceTest {
         // tests pass on a laptop (this test is skipped without e2e fixtures, so no flood) and on
         // the faster API 34 emulator. Draining the queue completely hands the next test a quiet
         // SDK. It is also a strictly stronger assertion than the one it replaces.
+        // 150s: the rows left after the burst are under BULK_UPLOAD_LIMIT, so they wait for the
+        // flush timer (QueueConfig.FLUSH_INTERVAL_MS, 60s), and one transient failure on the live
+        // endpoint adds DeliveryRetryPolicy.BASE_DELAY_MS (60s) before the retry. 90s did not
+        // cover that: job 130750624261 timed out with all 45 tagged rows gone and only
+        // lifecycle rows left. Two consecutive failures (a further 120s) are still red here.
         val drained =
-            awaitCondition(timeoutMs = 90_000) {
+            awaitCondition(timeoutMs = 150_000) {
                 rows().isEmpty()
             }
 
         assertTrue(
-            "events were still in the queue after 90s, so the POST to the ingestion endpoint " +
+            "events were still in the queue after 150s, so the POST to the ingestion endpoint " +
                 "never succeeded. Remaining: " + rows().map { it.optString("name") }.take(5),
             drained,
         )

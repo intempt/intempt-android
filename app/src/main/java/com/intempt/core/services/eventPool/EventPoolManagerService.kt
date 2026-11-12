@@ -20,6 +20,7 @@ import io.ktor.client.statement.bodyAsText
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -91,11 +92,19 @@ internal open class EventPoolManagerService
 
         val eventReceiver: SharedFlow<IntemptEvent> = _eventReceiver
 
+        // Ordering of flush/discard/enqueueDurably against recorded events: see OrderedDeliveryLane.
+        // @JvmField internal, not private: saves the synthetic accessor (method-count gate, ci.yml CEILING).
+        @JvmField internal val lane = OrderedDeliveryLane(coroutineScope, logger, FLUSH_HANDOFF_WAIT_MS)
+
         private companion object {
             const val MILLIS_PER_SECOND = 1000
             const val MAX_CONSENT_REJECTIONS = 3
             const val CONSENT_MAX_AGE_DAYS = 30L
             private const val BACKOFF_DRAIN_SLACK_MS = 1_000L
+
+            // Bounds flush's wait for in-flight hand-offs: a collector that died or stalls must
+            // cost one late flush, never a flush that does not happen.
+            const val FLUSH_HANDOFF_WAIT_MS = 2_000L
             val CONSENT_MAX_AGE_MS = java.util.concurrent.TimeUnit.DAYS.toMillis(CONSENT_MAX_AGE_DAYS)
         }
 
@@ -116,8 +125,8 @@ internal open class EventPoolManagerService
          * is marked delivered and never sent again. The backend has no idempotency key, so a send
          * whose answer was lost (timeout, status 0) is retried and can arrive twice: delivery is
          * at-least-once, and a duplicate consent row is the accepted cost of never losing one.
-         * Statuses the event queue treats as retryable (transport errors, 401, 402, 403, 404, 408,
-         * 429, 5xx) keep the record; any other non-2xx status is a rejection and the record is
+         * Statuses the event queue treats as retryable (transport errors, 403, 404, 408, 429, 5xx)
+         * keep the record; any other non-2xx status, 401 and 402 included (R-retry), is a rejection and the record is
          * dropped after [MAX_CONSENT_REJECTIONS] consecutive ones (see [isConsentRetryable]), so
          * one bad record cannot block every later consent.
          */
@@ -128,7 +137,7 @@ internal open class EventPoolManagerService
                 while (!consentRetry.requestNotAllowed) {
                     val pending = audit.oldestPending() ?: return
                     if (consentClock() - pending.createdAt > CONSENT_MAX_AGE_MS) {
-                        // Kept-forever statuses (401/402/403/404...) must not park the queue head for ever.
+                        // Kept-forever statuses (403/404/5xx...) must not park the queue head for ever.
                         audit.markDropped(pending.id)
                         logger.error(
                             "sendConsentEvent | consent ${pending.id} dropped: undelivered for over " +
@@ -268,7 +277,11 @@ internal open class EventPoolManagerService
             // in. Named for track because track is what drives it thousands of times a session;
             // identify/group/record and autocapture emits go through the same section, so read
             // the section's count alongside the workload that produced it.
+            // Counted before tryEmit, not after: the collector can run and decrement before
+            // tryEmit even returns.
+            // A refused emit is never counted, so no op waits for a hand-off that cannot come.
             val isEmitted = traced("Intempt.trackEnqueue") { _eventReceiver.tryEmit(event) }
+            if (isEmitted) lane.accepted()
             logger.log("EventPool | Event is emitted: $isEmitted")
             return isEmitted
         }
@@ -287,21 +300,33 @@ internal open class EventPoolManagerService
          * left. Whatever [build] needs from the profile being left it must capture before this call.
          *
          * A failure is logged as an error naming the event, since nothing retries it.
+         *
+         * Its place among the ordered ops is taken at call time and filled once [build] returns, so
+         * the release reset() hands over after its discard lands after that discard instead of
+         * being emptied with the profile it releases.
          */
         fun enqueueDurably(
             name: String,
             type: String,
             build: () -> Array<IntemptEventProvider>,
-        ): Job =
-            coroutineScope.launch {
-                try {
-                    val event = IntemptEvent(name = name, type = type, payload = build())
-                    delivery.enqueueEvent(JSONObject(event.toFormated()))
-                    logger.log("EventPool | '$name' written to the durable queue")
-                } catch (e: Exception) {
-                    logger.error("EventPool | '$name' was NOT queued and will not be sent: ${e.message}")
+        ): Job {
+            val slot = lane.reserve()
+            return coroutineScope.launch {
+                val event =
+                    try {
+                        JSONObject(IntemptEvent(name = name, type = type, payload = build()).toFormated())
+                    } catch (e: Exception) {
+                        logger.error("EventPool | '$name' was NOT queued and will not be sent: ${e.message}")
+                        null
+                    }
+                lane.fill(slot) {
+                    if (event != null) {
+                        delivery.enqueueEvent(event)
+                        logger.log("EventPool | '$name' written to the durable queue")
+                    }
                 }
             }
+        }
 
         /**
          * Sends whatever is queued now, instead of waiting for the timer or the size trigger.
@@ -311,10 +336,12 @@ internal open class EventPoolManagerService
          */
         fun flush(completion: ((Int) -> Unit)? = null) {
             drainConsentsAsync()
-            if (completion == null) {
-                delivery.flush()
-            } else {
-                delivery.flush { delivered -> completion(delivered) }
+            lane.afterRecordedEvents {
+                if (completion == null) {
+                    delivery.flush()
+                } else {
+                    delivery.flush { delivered -> completion(delivered) }
+                }
             }
         }
 
@@ -341,7 +368,7 @@ internal open class EventPoolManagerService
          */
         fun discardQueuedEvents() {
             logger.log("EventPool | Discarding queued events")
-            delivery.emptyQueue()
+            lane.afterRecordedEvents { delivery.emptyQueue() }
         }
 
         fun subscribe(
@@ -375,7 +402,8 @@ internal open class EventPoolManagerService
             val url = config.optimizationUrl
             val body = JSONObject(intemptEvent.generateChooseBody(context, names))
 
-            val text = http.post(url, body)?.bodyAsText() ?: return emptyList()
+            val response = http.postWithTimeout(url, body, HttpManagerService.CHOOSE_TIMEOUT_MS)
+            val text = response?.bodyAsText() ?: return emptyList()
             return try {
                 Json.parseToJsonElement(text).jsonObject["choices"]
                     ?.jsonArray
@@ -392,9 +420,10 @@ internal open class EventPoolManagerService
             quantity: Int,
             fields: List<String>,
             productId: String?,
+            userId: String?,
         ): JsonObject? {
             val url = config.recommendationUrl(id)
-            val body = JSONObject(intemptEvent.generateRecommendationBody(quantity, fields, productId))
+            val body = JSONObject(intemptEvent.generateRecommendationBody(quantity, fields, productId, userId))
 
             return http.post(url, body)?.bodyAsText().let {
                 val jsonResponse = it?.let { it1 -> Json.parseToJsonElement(it1).jsonObject }
@@ -405,24 +434,41 @@ internal open class EventPoolManagerService
 
         private fun startEventCollection() {
             logger.log("EventPoolManagerService | Started collecting events")
-            subscribe(Job()) { event ->
-                logger.log("IntemptCoreService | Received event of type: ${event.getEventType()}")
+            // UNDISPATCHED so the subscription exists before init returns. Otherwise events
+            // emitted before the collector starts survive only in the 10 replay slots; the rest
+            // are counted in `accepted` and never handed off, and every flush or discard would
+            // then wait the full FLUSH_HANDOFF_WAIT_MS. Not via subscribe(): SessionTracker shares it and
+            // must not get replay callbacks synchronously on its caller's thread.
+            eventReceiverJob =
+                CoroutineScope(dispatcher + Job()).launch(start = CoroutineStart.UNDISPATCHED) {
+                    eventReceiver.collect { event ->
+                        logger.log("IntemptCoreService | Received event of type: ${event.getEventType()}")
 
-                when (event.getEventType()) {
-                    EventType.Consent.value -> sendConsentEvent(event)
-                    // Hands off and returns. delivery.enqueueEvent only posts a Message to
-                    // the worker thread, so this collector never waits on disk or network.
-                    //
-                    // That matters more than it looks: _eventReceiver is a
-                    // MutableSharedFlow(replay = 10) emitted via tryEmit, which returns false
-                    // and drops the event when the buffer is full. There are two subscribers
-                    // (here and SessionTracker), so a collector that blocked on I/O would
-                    // cause silent drops upstream of the durable queue -- reintroducing the
-                    // exact loss this work exists to eliminate. Keep this callback
-                    // non-suspending and non-blocking.
-                    else -> delivery.enqueueEvent(JSONObject(event.toFormated()))
+                        try {
+                            when (event.getEventType()) {
+                                // Never gated on opt-in: consent(REJECT) emits the withdrawal and
+                                // then opts out, so a gate here would drop the withdrawal itself.
+                                EventType.Consent.value -> sendConsentEvent(event)
+                                // Hands off and returns. delivery.enqueueEvent only posts a Message to
+                                // the worker thread, so this collector never waits on disk or network.
+                                //
+                                // That matters more than it looks: _eventReceiver is a
+                                // MutableSharedFlow(replay = 10) emitted via tryEmit, which returns false
+                                // and drops the event when the buffer is full. There are two subscribers
+                                // (here and SessionTracker), so a collector that blocked on I/O would
+                                // cause silent drops upstream of the durable queue -- reintroducing the
+                                // exact loss this work exists to eliminate. Keep this callback
+                                // non-suspending and non-blocking.
+                                else -> {
+                                    val formatted = JSONObject(event.toFormated())
+                                    lane.handOff { delivery.enqueueEvent(formatted) }
+                                }
+                            }
+                        } finally {
+                            lane.handedOff()
+                        }
+                    }
                 }
-            }
         }
 
         /**

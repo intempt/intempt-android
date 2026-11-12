@@ -75,6 +75,7 @@ class ConsentRetryTest {
     private fun consent(
         action: String,
         timestamp: Long = 1_000L,
+        userId: String? = null,
     ) = IntemptEvent(
         name = "consent",
         type = "consent",
@@ -89,6 +90,7 @@ class ConsentRetryTest {
                     sourceId = "src-1",
                     validUntil = 9_999_999L,
                     timestamp = timestamp,
+                    userId = userId,
                 ),
             ),
     )
@@ -136,6 +138,25 @@ class ConsentRetryTest {
             service(ConsentAuditLog(context)).drainConsents()
 
             assertEquals(listOf("opt_out", "opt_out"), sentActions(times = 2))
+        }
+
+    // INT-7442: the pending record is the formatted body, so a resend after a restart must still
+    // name the user the decision belongs to.
+    @Test
+    fun `a pending consent keeps its userId across a restart`() =
+        runTest {
+            stubPosts(503)
+            service().apply {
+                emitEvent(consent("accept", userId = "u1"))
+                testScheduler.advanceUntilIdle()
+            }
+            stubPosts(200)
+
+            service(ConsentAuditLog(context)).drainConsents()
+
+            val captor = argumentCaptor<JSONObject>()
+            verify(http, times(2)).postForStatus(any(), captor.capture(), any())
+            assertEquals(listOf("u1", "u1"), captor.allValues.map { it.getString("userId") })
         }
 
     // (b)
@@ -214,19 +235,19 @@ class ConsentRetryTest {
         }
 
     @Test
-    fun `retryable statuses are exactly transport errors, 401, 402, 403, 404, 408, 429 and 5xx`() {
-        for (status in listOf(0, 401, 402, 403, 404, 408, 429, 500, 503, 599)) {
+    fun `retryable statuses are exactly transport errors, 403, 404, 408, 429 and 5xx`() {
+        for (status in listOf(0, 403, 404, 408, 429, 500, 503, 599)) {
             assertEquals("status $status", true, isConsentRetryable(status))
         }
-        for (status in listOf(300, 302, 400, 409, 410, 413, 415, 422, 600)) {
+        for (status in listOf(300, 302, 400, 401, 402, 409, 410, 413, 415, 422, 600)) {
             assertEquals("status $status", false, isConsentRetryable(status))
         }
     }
 
     @Test
-    fun `a consent older than the maximum age is dropped even while the server answers 401`() =
+    fun `a consent older than the maximum age is dropped even while the server answers 403`() =
         runTest {
-            stubPosts(401)
+            stubPosts(403)
             val svc = service()
             svc.emitEvent(consent("opt_in"))
             testScheduler.advanceUntilIdle() // the immediate attempt
@@ -267,9 +288,27 @@ class ConsentRetryTest {
     }
 
     @Test
-    fun `401 402 403 404 408 429 and 5xx are kept and retried until the age limit`() =
+    fun `401 and 402 take the non-retryable path, dropped after three strikes like 400`() =
         runTest {
-            for (status in listOf(401, 402, 403, 404, 500, 503, 408, 429)) {
+            for (status in listOf(401, 402)) {
+                context.getDatabasePath(dbName).delete()
+                http = mock(HttpManagerService::class.java)
+                stubPosts(status)
+                val svc = service()
+                svc.emitEvent(consent("opt_in"))
+                testScheduler.advanceUntilIdle()
+                repeat(5) {
+                    clock += 1_000_000L
+                    svc.drainConsents()
+                }
+                assertEquals("status $status", 3, sentActions(times = 3).size)
+            }
+        }
+
+    @Test
+    fun `403 404 408 429 and 5xx are kept and retried until the age limit`() =
+        runTest {
+            for (status in listOf(403, 404, 500, 503, 408, 429)) {
                 context.getDatabasePath(dbName).delete()
                 http = mock(HttpManagerService::class.java)
                 stubPosts(status)

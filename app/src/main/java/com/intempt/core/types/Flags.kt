@@ -197,3 +197,13 @@ internal fun unwrapFlagValue(element: JsonElement): Any? =
             }
         else -> element
     }
+
+/**
+ * The serving side's name rule (`ExperienceApiChooseRequest` in `audience-service`). A key outside it
+ * is answered 400, which `variation` would turn into the default — indistinguishable from a paused
+ * flag — so INT-7455 rejects it before the request. `+`, not the server's `*`: a blank key is
+ * already a caller error here.
+ */
+internal val FLAG_KEY_PATTERN = Regex("^[a-zA-Z0-9_-]+$")
+
+internal fun isValidFlagKey(key: String): Boolean = FLAG_KEY_PATTERN.matches(key)

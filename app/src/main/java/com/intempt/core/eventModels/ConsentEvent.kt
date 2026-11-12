@@ -14,6 +14,7 @@ internal open class ConsentEvent(
     private val category: String? = null,
     private val sourceId: String,
     private val validUntil: Long,
+    private val userId: String? = null,
 ) : IntemptEventProvider {
     override fun getEventTime(): Long {
         return timestamp
@@ -32,6 +33,7 @@ internal open class ConsentEvent(
         email?.let { map["email"] = it }
         message?.let { map["message"] = it }
         category?.let { map["category"] = it }
+        userId?.takeIf { it.isNotBlank() }?.let { map["userId"] = it }
 
         return map
     }
