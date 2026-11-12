@@ -198,7 +198,11 @@ claimed survives.
 
 `ProdDeliveryTest` and `recommendationReturnsFromTheFeed` hit live
 `api.intempt.com`. They are opt-in behind `-Pintempt.prodTests=true` and run in a
-separate `prod-e2e` job with `continue-on-error: true`.
+separate `prod-e2e` job with `continue-on-error: true`. The on-device opt-in tests
+(`deliveredEventsAreRemovedFromTheQueue`, `productsReturnFromTheFeed`) run the same way in
+`prod-e2e-on-device`; the gating `instrumented-tests` job stubs delivery offline
+(`sample/src/androidTest/.../OfflineDelivery.kt`), so its queue assertions never race a
+live POST.
 
 A transient network fault failed a pull request about unrelated code once
 already. An assertion that depends on someone else's availability or ingestion
