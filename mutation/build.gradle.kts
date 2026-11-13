@@ -90,6 +90,9 @@ sourceSets {
             include("com/intempt/core/autocapture/composeHitTest/HitNode.kt")
             // R3: consent's send-once decisions, so the consent change is under this gate too.
             include("com/intempt/core/queue/QueueStatusBridge.kt")
+            // Visible to kotlinc only so it can resolve the Java the bridge calls; javac compiles them.
+            include("com/intempt/core/queue/HttpStatusPolicy.java")
+            include("com/intempt/core/queue/DeliveryFailure.java")
         }
     }
     test {
