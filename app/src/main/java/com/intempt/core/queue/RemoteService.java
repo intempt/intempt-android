@@ -9,6 +9,7 @@
  * Modifications (c) 2026 Intempt Technologies, licensed under the Apache License 2.0:
  *   - package moved to com.intempt.core.queue
  *   - ClientErrorException carries the status and the server's Retry-After
+ *   - ServiceUnavailableException carries the status (INT-7444)
  */
 package com.intempt.core.queue;
 

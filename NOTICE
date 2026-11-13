@@ -34,12 +34,15 @@ required by section 4(b) of the License. In summary:
   - Mixpanel's default event properties and the session-replay event bridge
     removed
   - form-urlencoded transport encoding replaced with Intempt's JSON contract
-  - HTTP error taxonomy changed so that unrecoverable 4xx responses are dropped
-    rather than retried indefinitely
+  - send-once delivery replaces the HTTP error taxonomy, the in-call retry loop
+    and the exponential backoff: a 503 or 429 is resent once after its
+    Retry-After, every other failure drops the batch, and only a batch that
+    never reached the server is kept for the next flush
+  - delivery failures are reported once per batch, not once per attempt
 
-The following behaviour is inherited unchanged, and deliberately so: the
-exponential backoff schedule and its ten-minute ceiling, delete-only-after-
-confirmed-delivery, the flush-suppression guard while a retry is pending, the
+The following behaviour is inherited unchanged, and deliberately so:
+delete-only-after-confirmed-delivery, the flush-suppression guard while a
+never-sent batch is kept, the
 disk-space backpressure calculation, the per-row malformed-record skip, the
 batch size limit, SQLite corruption recovery on writes and its deliberate
 absence on reads, the created_at index, the data-expiration sweep, the
@@ -61,6 +64,6 @@ tuning constants taken from Mixpanel's source:
   app/src/main/java/com/intempt/core/queue/QueueLog.java
       stands in for MPLog, which was not vendored
   app/src/main/java/com/intempt/core/queue/HttpStatusPolicy.java
-      the one deliberate departure from Mixpanel's retry taxonomy
+      the send-once status policy that replaces Mixpanel's retry taxonomy
   app/src/main/java/com/intempt/core/queue/TrackPayloadBuilder.java
       assembles Intempt's ingestion envelope around the vendored batch format

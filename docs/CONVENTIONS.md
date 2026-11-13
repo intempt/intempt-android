@@ -26,6 +26,10 @@ dated supersession of the 2026-08-15 decision must be recorded in `SDK-API-CONTR
 this surface merges — otherwise the seven SDKs diverge in exactly the way that section exists to
 prevent. By this file's own tie-break rule, until then this file is the bug.
 
+**Superseded in part by ruling R1 (Beso 2026-11-13):** `variationDetail`, `FlagDetail`,
+`FlagReason`, `disableExposure` and `onFlagError` are public in every SDK, and the instance flag
+surface matches the singleton's. The rest of this section stands.
+
 ## The rules that come from the contract
 
 - **A caller asks for a KEY, never a mode.** The platform resolves whether a key is an experiment, a
@@ -38,10 +42,11 @@ prevent. By this file's own tie-break rule, until then this file is the bug.
 - **A wrong-typed value falls back; it is never coerced.** A flag configured as a string and read as
   a boolean returns the caller's default, not `true`. Coercion makes a misconfiguration look like a
   deliberate value.
-- **`variationDetail` is NOT exposed.** It would carry a reason, and the serving response does not
-  send one — so it could only report "off" for a person who was in fact targeted and served, which
-  is the single thing such a method exists to tell you. It stays internal until the platform sends a
-  reason. Do not re-add it, and do not document it on a docs page either.
+- **`variationDetail` is public, in every SDK** (ruling R1, Beso 2026-11-13), together with
+  `FlagDetail`, `FlagReason`, the `disableExposure` overloads and `onFlagError`. Know what its
+  reason can say: `ERROR`, with a `FlagError`, means the call failed and the default came back. An
+  answered read is `OFF` whether or not a value was served, because the serving response sends no
+  reason, so it cannot tell a targeted person from an untargeted one until `EXP-SERVE-001` ships.
 - **Evaluation is REMOTE only.** No local rule engine, no flag store to poll, and no hashing utility:
   the server buckets, so no second implementation can disagree with it. `check-no-local-bucketing.mjs`
   enforces this in CI and a new bucketing helper fails the build.
@@ -103,9 +108,8 @@ The platform owns this, and the spec already says so:
 - Known limitation **39** — *"No off value exists. A paused or stopped experience drops out of the
   response entirely."* Governed by `EXP-SERVE-005` (H).
 
-The one method that would carry the signal, `variationDetail`, is deliberately internal precisely
-because the reason it would report is one the platform does not send. It becomes public when
-`EXP-SERVE-001` ships — not before.
+`variationDetail` is public (R1), but until `EXP-SERVE-001` ships the platform sends no reason, so
+every answered read reports `OFF`. Only `ERROR` carries information beyond the value.
 
 ## Assignment identity — `FlagContext.userId` breaks stability, it does not preserve it
 
@@ -123,13 +127,12 @@ routed with D4 rather than answered here.
 Caveat kept rather than buried: the *primary* assignment key is `entityId` from
 `segmentation.getId()`; only the `anonymousKey` path is verified from the source above.
 
-## Surface parity — the typed helpers are singleton-only, on purpose for now
+## Surface parity — the instance carries the same flag surface as the singleton
 
-`Intempt` carries all six flag methods; `IntemptInstance` carries only `variation` and `allFlags`,
-so a multi-instance host gets the untyped surface. This is a real inconsistency and it is **left
-open deliberately**: the flag surface is not in the contract yet (see the status table above), and
-widening the public ABI before `intempt-swift` #8 lands adds to the divergence that section exists
-to prevent. Close it in the same change that records the contract, not before.
+Ruling R1 (Beso 2026-11-13): `IntemptInstance` carries every flag member `Intempt` does —
+`variation`, `variationDetail`, `boolVariation`, `stringVariation`, `numberVariation` (each with a
+`disableExposure` overload), `allFlags` and `onFlagError`. A flag method added to one goes on the
+other in the same change; `IntemptInstanceDelegationTest` pins the instance wiring.
 
 ## Android specifics
 
