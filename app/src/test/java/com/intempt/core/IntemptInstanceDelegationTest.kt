@@ -299,6 +299,46 @@ class IntemptInstanceDelegationTest {
             assertEquals("r", f.instance().variationDetail("k", ctx, "d", disableExposure = false).value)
         }
 
+    // R1 (Beso 2026-11-13): the instance carries the same flag surface as the singleton, typed
+    // helpers included.
+    @Test
+    fun `typed helpers on the instance return a served value of their type and fall back otherwise`() =
+        runBlocking {
+            val f = Fixture()
+            val ctx = FlagContext()
+            `when`(f.capture.variationDetailInternal("b", ctx, false, true)).thenReturn(FlagDetail(true, FlagReason.OFF))
+            `when`(f.capture.variationDetailInternal("s", ctx, "d", true)).thenReturn(FlagDetail("on", FlagReason.OFF))
+            `when`(f.capture.variationDetailInternal("n", ctx, 1.0, true)).thenReturn(FlagDetail(3L, FlagReason.OFF))
+            `when`(f.capture.variationDetailInternal("wrong", ctx, "d", true)).thenReturn(FlagDetail(5L, FlagReason.OFF))
+            `when`(f.capture.variationDetailInternal("wrong", ctx, false, true)).thenReturn(FlagDetail("true", FlagReason.OFF))
+            `when`(f.capture.variationDetailInternal("wrong", ctx, 1.0, true)).thenReturn(FlagDetail(true, FlagReason.OFF))
+            val i = f.instance()
+
+            assertEquals(true, i.boolVariation("b", ctx, false))
+            assertEquals("on", i.stringVariation("s", ctx, "d"))
+            assertEquals(3.0, i.numberVariation("n", ctx, 1.0), 0.0)
+            assertEquals("d", i.stringVariation("wrong", ctx, "d"))
+            assertEquals(false, i.boolVariation("wrong", ctx, false))
+            assertEquals(1.0, i.numberVariation("wrong", ctx, 1.0), 0.0)
+        }
+
+    @Test
+    fun `typed helpers on the instance pass disableExposure through as the inverse of recordExposure`() =
+        runBlocking {
+            val f = Fixture()
+            val ctx = FlagContext()
+            `when`(f.capture.variationDetailInternal("b", ctx, false, false)).thenReturn(FlagDetail(true, FlagReason.OFF))
+            `when`(f.capture.variationDetailInternal("s", ctx, "d", false)).thenReturn(FlagDetail("on", FlagReason.OFF))
+            `when`(f.capture.variationDetailInternal("n", ctx, 1.0, false)).thenReturn(FlagDetail(2.5, FlagReason.OFF))
+            `when`(f.capture.variationDetailInternal("b", ctx, false, true)).thenReturn(FlagDetail(false, FlagReason.OFF))
+            val i = f.instance()
+
+            assertEquals(true, i.boolVariation("b", ctx, false, disableExposure = true))
+            assertEquals("on", i.stringVariation("s", ctx, "d", disableExposure = true))
+            assertEquals(2.5, i.numberVariation("n", ctx, 1.0, disableExposure = true), 0.0)
+            assertEquals(false, i.boolVariation("b", ctx, false, disableExposure = false))
+        }
+
     @Test
     fun `onFlagError is stored on and read from the capture component`() {
         val f = Fixture()

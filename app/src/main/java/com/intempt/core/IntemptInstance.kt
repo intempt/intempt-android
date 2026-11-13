@@ -315,6 +315,56 @@ class IntemptInstance internal constructor(
     @JvmOverloads
     suspend fun allFlags(context: FlagContext = FlagContext()): Map<String, Any?> = core.capture.allFlags(context)
 
+    /** A boolean flag. A served value of another type falls back to [defaultValue]; it is never coerced. */
+    @JvmOverloads
+    suspend fun boolVariation(
+        key: String,
+        context: FlagContext = FlagContext(),
+        defaultValue: Boolean,
+    ): Boolean = variation(key, context, defaultValue) as? Boolean ?: defaultValue
+
+    /** [boolVariation]; `disableExposure = true` evaluates without recording an exposure (INT-7456). */
+    @JvmOverloads
+    suspend fun boolVariation(
+        key: String,
+        context: FlagContext = FlagContext(),
+        defaultValue: Boolean,
+        disableExposure: Boolean,
+    ): Boolean = variation(key, context, defaultValue, disableExposure) as? Boolean ?: defaultValue
+
+    @JvmOverloads
+    suspend fun stringVariation(
+        key: String,
+        context: FlagContext = FlagContext(),
+        defaultValue: String,
+    ): String = variation(key, context, defaultValue) as? String ?: defaultValue
+
+    /** [stringVariation]; `disableExposure = true` evaluates without recording an exposure (INT-7456). */
+    @JvmOverloads
+    suspend fun stringVariation(
+        key: String,
+        context: FlagContext = FlagContext(),
+        defaultValue: String,
+        disableExposure: Boolean,
+    ): String = variation(key, context, defaultValue, disableExposure) as? String ?: defaultValue
+
+    /** A numeric flag. A Boolean is not a Number in Kotlin, so `true` cannot arrive as 1. */
+    @JvmOverloads
+    suspend fun numberVariation(
+        key: String,
+        context: FlagContext = FlagContext(),
+        defaultValue: Double,
+    ): Double = (variation(key, context, defaultValue) as? Number)?.toDouble() ?: defaultValue
+
+    /** [numberVariation]; `disableExposure = true` evaluates without recording an exposure (INT-7456). */
+    @JvmOverloads
+    suspend fun numberVariation(
+        key: String,
+        context: FlagContext = FlagContext(),
+        defaultValue: Double,
+        disableExposure: Boolean,
+    ): Double = (variation(key, context, defaultValue, disableExposure) as? Number)?.toDouble() ?: defaultValue
+
     /** Excludes [view] from autocapture so its text is never recorded. Android-only. */
     fun doNotCaptureText(view: View) = core.capture.doNotCaptureText(view)
 
