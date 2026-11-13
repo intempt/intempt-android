@@ -11,8 +11,14 @@
  *   - removed people, group, anonymous-profile and first-launch message types
  *   - removed Mixpanel default event properties and the session-replay event bridge
  *   - replaced form-urlencoded transport encoding with Intempt's JSON contract
- *   - replaced the HTTP error taxonomy so 403/404/408/429/5xx are retried rather than discarded,
- *     and 401/402 are discarded on the first answer (ruling R-retry, INT-7438)
+ *   - send-once delivery (CONTRACT-R2 S1, INT-7436): every answered failure and every failure
+ *     after the write drops the batch; only a batch that never reached the server is kept, for
+ *     the next flush at the flush interval, with the exponential retry backoff removed
+ *   - the failure listener reports a DeliveryFailure once per batch, with its eventIds, instead
+ *     of once per attempt (CONTRACT-R2 S2, INT-7444)
+ *   - the size-triggered flush is held only while a never-reached batch is kept (R4)
+ *   - re-runs the age sweep periodically, revives a dead worker, reads the flush interval per
+ *     decision and treats 0 as "timer off", and reports delivered counts to flush completions
  */
 package com.intempt.core.queue;
 
@@ -625,6 +631,7 @@ public class DeliveryMessages {
                     queueCount = Integer.valueOf(eventsData[2]);
                 }
 
+                boolean kept = false;
                 while (eventsData != null && queueCount > 0) {
                     final String lastId = eventsData[0];
                     final String rawMessage = eventsData[1];
@@ -766,12 +773,14 @@ public class DeliveryMessages {
                             sendMessageDelayed(flushMessage, flushInterval);
                         }
                         mFailedRetries++;
+                        kept = true;
                         break;
                     }
 
                     if (failureKind != null) {
                         reportFailure(failureKind, failureStatus, eventIds, failureRetryAfter);
                     }
+
                     if (accepted) {
                         delivered += countEvents(envelope);
                     } else {
@@ -785,6 +794,12 @@ public class DeliveryMessages {
                     }
                 }
 
+                if (!kept) {
+                    // Nothing is waiting any more (sent, dropped or swept by age), so release the
+                    // size-trigger hold in shouldFlushOnBulkLimit. Left set, with the timer off the
+                    // queue moved only on an explicit flush that succeeded (R4).
+                    mFailedRetries = 0;
+                }
                 return delivered;
             }
 

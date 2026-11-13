@@ -91,10 +91,10 @@ public class DeliveryBehaviourTest {
         final List<Map<String, String>> sentHeaders = new CopyOnWriteArrayList<>();
         final List<byte[]> sentBodies = new CopyOnWriteArrayList<>();
         final AtomicInteger calls = new AtomicInteger();
-
-        private final int[] statuses;
         private final boolean throwIo;
-        private final Exception scripted;
+        // Volatile and settable so one poster can go from never-reached to answering mid-test.
+        volatile Exception scripted;
+        volatile int[] statuses;
 
         FakePoster(int status, boolean throwIo) {
             this.statuses = new int[] {status};
@@ -755,5 +755,76 @@ public class DeliveryBehaviourTest {
         deliverWith(poster, 2, delivery);
 
         assertEquals("the batch is still dropped", 0, rowCount());
+    }
+
+    // R4 (Beso 2026-11-13), impact:F1: with the timer off, a kept batch waits for the next explicit
+    // flush; nothing else may send it, and nothing may spin.
+
+    private void awaitCalls(FakePoster poster, int calls) throws Exception {
+        final long deadline = System.currentTimeMillis() + 10_000;
+        while (System.currentTimeMillis() < deadline && poster.calls.get() < calls) {
+            Thread.sleep(25);
+        }
+        Thread.sleep(200);
+    }
+
+    @Test
+    public void withTheTimerOffAKeptBatchGoesOutOnTheNextExplicitFlushAndNotBefore() throws Exception {
+        config.setFlushInterval(0);
+        final FakePoster poster = new FakePoster(new NotSentException(new java.net.ConnectException("refused")));
+        final TestableDelivery delivery = deliveryWith(poster);
+
+        deliverWith(poster, 2, delivery);
+        assertEquals("kept", 2, rowCount());
+        delivery.enqueueEvent(event("while kept"));
+        Thread.sleep(500);
+        assertEquals("an enqueue must not start a send while a batch is kept, and nothing may spin", 1, poster.calls.get());
+
+        poster.scripted = null;
+        poster.statuses = new int[] {200};
+        delivery.flush();
+        awaitCalls(poster, 2);
+
+        assertEquals("the explicit flush sends the kept batch", 0, rowCount());
+        assertEquals(3, totalEventsPosted(poster) - 2);
+    }
+
+    @Test
+    public void onceAKeptBatchIsDroppedTheSizeTriggerWorksAgain() throws Exception {
+        config.setFlushInterval(0);
+        final QueueConfig smallBatches =
+                new QueueConfig("https://example.invalid/track", "Basic dGVzdDp0ZXN0") {
+                    @Override
+                    public int getBulkUploadLimit() {
+                        return 2;
+                    }
+                };
+        smallBatches.setFlushInterval(0);
+        currentConfig = smallBatches;
+        config = smallBatches;
+        final FakePoster poster = new FakePoster(new NotSentException(new java.net.ConnectException("refused")));
+        currentPoster = poster;
+        currentDb = db;
+        final TestableDelivery delivery = new TestableDelivery(context);
+
+        deliverWith(poster, 1, delivery);
+        assertEquals("kept", 1, rowCount());
+
+        poster.scripted = null;
+        poster.statuses = new int[] {400};
+        delivery.flush();
+        awaitCalls(poster, 2);
+        assertEquals("the 400 drops the kept batch", 0, rowCount());
+
+        poster.statuses = new int[] {200};
+        delivery.enqueueEvent(event("a"));
+        delivery.enqueueEvent(event("b"));
+        awaitCalls(poster, 3);
+
+        assertEquals(
+                "nothing is kept any more, so reaching the bulk limit must send without an explicit flush",
+                3,
+                poster.calls.get());
+        assertEquals(0, rowCount());
     }
 }
