@@ -7,15 +7,19 @@ import com.intempt.core.internal.traced
 import com.intempt.core.queue.ConsentAuditLog
 import com.intempt.core.queue.DeliveryMessages
 import com.intempt.core.services.ConfigManagerService
+import com.intempt.core.services.ErrorReporter
 import com.intempt.core.services.HttpManagerService
 import com.intempt.core.services.IntemptEventManagerService
 import com.intempt.core.services.LoggerManagerService
-import com.intempt.core.services.PostOutcome
+import com.intempt.core.types.ChooseResult
 import com.intempt.core.types.DispatchEventProps
 import com.intempt.core.types.EventType
 import com.intempt.core.types.FlagContext
+import com.intempt.core.types.FlagErrorReporter
 import com.intempt.core.types.HandleEventTypeProps
 import com.intempt.core.types.IntemptEventProvider
+import com.intempt.core.types.chooseResultOf
+import com.intempt.core.types.withExposure
 import io.ktor.client.statement.bodyAsText
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
@@ -27,11 +31,8 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import org.json.JSONObject
 import javax.inject.Inject
@@ -60,10 +61,6 @@ internal open class EventPoolManagerService
         // on the real IO pool — the injection was decorative. That is why work kept
         // outliving tests and kotlinx.coroutines.test kept blaming whichever test ran next.
         private val coroutineScope = CoroutineScope(SupervisorJob() + dispatcher)
-
-        // Retained: sendConsentEvent still stamps this. Consent posts immediately and has
-        // never been queued, so it does not move to the durable queue.
-        private var lastDispatchTime: Long = System.currentTimeMillis()
 
         // EventHandlers no longer takes a dispatcher: its one dispatcher-sensitive call
         // (fetching the FCM token) moved behind PushBridge.registerTokenIfPresent(), which
@@ -98,105 +95,29 @@ internal open class EventPoolManagerService
 
         private companion object {
             const val MILLIS_PER_SECOND = 1000
-            const val MAX_CONSENT_REJECTIONS = 3
-            const val CONSENT_MAX_AGE_DAYS = 30L
-            private const val BACKOFF_DRAIN_SLACK_MS = 1_000L
 
             // Bounds flush's wait for in-flight hand-offs: a collector that died or stalls must
             // cost one late flush, never a flush that does not happen.
             const val FLUSH_HANDOFF_WAIT_MS = 2_000L
-            val CONSENT_MAX_AGE_MS = java.util.concurrent.TimeUnit.DAYS.toMillis(CONSENT_MAX_AGE_DAYS)
         }
-
-        // Backoff for resending pending consents; replaced in tests to control the clock.
-        internal var consentRetry = ConsentRetryPolicy()
 
         // Clock for the consent age limit; replaced in tests.
         internal var consentClock: () -> Long = System::currentTimeMillis
-        private val consentDrainLock = Mutex()
 
-        // Consecutive non-retryable answers (see isConsentRetryable) for the head consent, in memory only.
-        private var rejectedId = -1L
-        private var rejectedCount = 0
+        internal val consents = ConsentSender(config, logger, http, consentAudit) { consentClock() }
 
-        /**
-         * Sends pending consents oldest first, one request at a time (INT-3904). Stops at the first
-         * failure so a later decision never overtakes an earlier one; a consent confirmed with 2xx
-         * is marked delivered and never sent again. The backend has no idempotency key, so a send
-         * whose answer was lost (timeout, status 0) is retried and can arrive twice: delivery is
-         * at-least-once, and a duplicate consent row is the accepted cost of never losing one.
-         * Statuses the event queue treats as retryable (transport errors, 403, 404, 408, 429, 5xx)
-         * keep the record; any other non-2xx status, 401 and 402 included (R-retry), is a rejection and the record is
-         * dropped after [MAX_CONSENT_REJECTIONS] consecutive ones (see [isConsentRetryable]), so
-         * one bad record cannot block every later consent.
-         */
-        @Suppress("ReturnCount") // guard clauses; the drain loop reads clearer flat
-        internal suspend fun drainConsents() {
-            val audit = consentAudit ?: return
-            consentDrainLock.withLock {
-                while (!consentRetry.requestNotAllowed) {
-                    val pending = audit.oldestPending() ?: return
-                    if (consentClock() - pending.createdAt > CONSENT_MAX_AGE_MS) {
-                        // Kept-forever statuses (403/404/5xx...) must not park the queue head for ever.
-                        audit.markDropped(pending.id)
-                        logger.error(
-                            "sendConsentEvent | consent ${pending.id} dropped: undelivered for over " +
-                                "$CONSENT_MAX_AGE_DAYS days",
-                        )
-                        continue
-                    }
-                    val outcome = http.postForStatus(config.consentUrl, pending.payload)
-                    if (!applyConsentOutcome(audit, pending.id, outcome)) return
-                }
-            }
-        }
+        internal suspend fun drainConsents() = consents.drain()
 
-        /** Returns true when the drain may continue with the next record. */
-        @Suppress("ReturnCount") // one exit per outcome class
-        private fun applyConsentOutcome(
-            audit: ConsentAuditLog,
-            id: Long,
-            outcome: PostOutcome,
-        ): Boolean {
-            val status = outcome.status
-            if (outcome.isSuccess) {
-                audit.markDelivered(id)
-                consentRetry.recordSuccess()
-                lastDispatchTime = System.currentTimeMillis()
-                return true
-            }
-            consentRetry.recordFailure(outcome.retryAfterMs)
-            if (!isConsentRetryable(status)) {
-                rejectedCount = if (rejectedId == id) rejectedCount + 1 else 1
-                rejectedId = id
-                if (rejectedCount >= MAX_CONSENT_REJECTIONS) {
-                    audit.markDropped(id)
-                    logger.error(
-                        "sendConsentEvent | consent $id dropped after $rejectedCount rejections with $status",
-                    )
-                    rejectedId = -1L
-                    rejectedCount = 0
-                    // The server is answering; the record was the problem. Do not back off the
-                    // consents behind it.
-                    consentRetry.recordSuccess()
-                    return true
-                }
-            } else {
-                rejectedId = -1L
-                rejectedCount = 0
-            }
-            logger.error(
-                "sendConsentEvent | consent event was NOT delivered to ${config.consentUrl} (status $status). " +
-                    "It stays pending and is retried; the platform did not receive it.",
-            )
-            return false
+        /** R2: where a failed consent is reported; see ConsentSender.errors. */
+        internal fun reportConsentFailuresTo(errors: ErrorReporter) {
+            consents.errors = errors
         }
 
         /**
          * Starts a drain of pending consents without blocking the caller. Used at init, on [flush]
          * and when the app goes to the background, so a consent that failed earlier is retried
-         * even when the host never calls [flush]. Respects the backoff: a drain inside the window
-         * is a no-op. A failure is logged; cancellation is rethrown so it is never swallowed.
+         * even when the host never calls [flush]. A failure is logged; cancellation is rethrown so it
+         * is never swallowed.
          */
         fun drainConsentsAsync() {
             if (consentAudit == null) return
@@ -210,8 +131,6 @@ internal open class EventPoolManagerService
                 }
             }
         }
-
-        private var backoffDrainJob: Job? = null
 
         init {
             startEventCollection()
@@ -387,8 +306,13 @@ internal open class EventPoolManagerService
             }
         }
 
+        /** Per instance, so the once-only auth log and the `onFlagError` hook are per instance too. */
+        internal val flagErrors =
+            FlagErrorReporter({ config.sourceId }, { logger.error(it) }, { logger.debug(it) })
+
         /**
-         * Evaluate flags. Returns an empty list on any failure rather than throwing.
+         * Evaluate flags. Never throws on a service problem: a failure comes back as
+         * [ChooseResult.error] with no choices, after it has been reported to [flagErrors].
          *
          * This is the entire reason a default value is required at the public surface: a network
          * failure, a 5xx or a timeout must resolve to the value the caller chose. A flag SDK that
@@ -398,21 +322,15 @@ internal open class EventPoolManagerService
         suspend fun chooseFlags(
             context: FlagContext,
             names: List<String>?,
-        ): List<JsonObject> {
+            recordExposure: Boolean,
+        ): ChooseResult {
             val url = config.optimizationUrl
-            val body = JSONObject(intemptEvent.generateChooseBody(context, names))
+            val body = JSONObject(withExposure(intemptEvent.generateChooseBody(context, names), recordExposure))
 
-            val response = http.postWithTimeout(url, body, HttpManagerService.CHOOSE_TIMEOUT_MS)
-            val text = response?.bodyAsText() ?: return emptyList()
-            return try {
-                Json.parseToJsonElement(text).jsonObject["choices"]
-                    ?.jsonArray
-                    ?.mapNotNull { it as? JsonObject }
-                    ?: emptyList()
-            } catch (e: Exception) {
-                logger.error("chooseFlags | unreadable response: ${e.message}")
-                emptyList()
-            }
+            val response = http.postChoose(url, body, HttpManagerService.CHOOSE_TIMEOUT_MS)
+            val result = chooseResultOf(names?.singleOrNull(), response.status, response.body, response.timedOut)
+            result.error?.let(flagErrors::report)
+            return result
         }
 
         suspend fun getFeedData(
@@ -519,25 +437,7 @@ internal open class EventPoolManagerService
 
             coroutineScope.launch {
                 try {
-                    if (recorded >= 0) {
-                        drainConsents()
-                        // A consent recorded inside a backoff window is saved but not yet sent:
-                        // schedule one drain for when the window closes (one-shot, deduplicated).
-                        backoffDrainJob =
-                            coroutineScope.launchOnceAfter(
-                                backoffDrainJob,
-                                consentRetry.remainingMs().takeIf { it > 0L }?.plus(BACKOFF_DRAIN_SLACK_MS) ?: 0L,
-                                { logger.error("sendConsentEvent | scheduled consent drain failed: ${it.message}") },
-                            ) { drainConsents() }
-                    } else {
-                        // No usable local store: one best-effort attempt, as before INT-3904.
-                        val outcome = http.postForStatus(config.consentUrl, requestBodyJson)
-                        if (outcome.isSuccess) {
-                            lastDispatchTime = System.currentTimeMillis()
-                        } else {
-                            logger.error("sendConsentEvent | consent event was NOT delivered to ${config.consentUrl}")
-                        }
-                    }
+                    if (recorded >= 0) drainConsents() else consents.sendUnstored(requestBodyJson)
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {

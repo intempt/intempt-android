@@ -12,8 +12,11 @@ public final class com/intempt/core/Intempt {
 	public static final fun allFlags (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static synthetic fun allFlags$default (Lcom/intempt/core/types/FlagContext;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public static final fun boolVariation (Ljava/lang/String;Lcom/intempt/core/types/FlagContext;ZLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static final fun boolVariation (Ljava/lang/String;Lcom/intempt/core/types/FlagContext;ZZLkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static final fun boolVariation (Ljava/lang/String;ZLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static final fun boolVariation (Ljava/lang/String;ZZLkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static synthetic fun boolVariation$default (Ljava/lang/String;Lcom/intempt/core/types/FlagContext;ZLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static synthetic fun boolVariation$default (Ljava/lang/String;Lcom/intempt/core/types/FlagContext;ZZLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public static final fun consent (Lcom/intempt/core/types/ConsentAction;J)Z
 	public static final fun consent (Lcom/intempt/core/types/ConsentAction;JLjava/lang/String;)Z
 	public static final fun consent (Lcom/intempt/core/types/ConsentAction;JLjava/lang/String;Ljava/lang/String;)Z
@@ -27,6 +30,7 @@ public final class com/intempt/core/Intempt {
 	public static final fun getAutocapture ()Lcom/intempt/core/Intempt$AutocaptureFacade;
 	public static final fun getAutomaticEvents ()Lcom/intempt/core/types/AutomaticEventsOptions;
 	public static final fun getFlushInterval ()I
+	public static final fun getOnFlagError ()Lkotlin/jvm/functions/Function1;
 	public static final fun getProfileId ()Ljava/lang/String;
 	public static final fun getSessionId ()Ljava/lang/String;
 	public static final fun group (Ljava/lang/String;)Z
@@ -49,8 +53,11 @@ public final class com/intempt/core/Intempt {
 	public static final fun logOut ()V
 	public static final fun mainInstance ()Lcom/intempt/core/IntemptInstance;
 	public static final fun numberVariation (Ljava/lang/String;DLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static final fun numberVariation (Ljava/lang/String;DZLkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static final fun numberVariation (Ljava/lang/String;Lcom/intempt/core/types/FlagContext;DLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static final fun numberVariation (Ljava/lang/String;Lcom/intempt/core/types/FlagContext;DZLkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static synthetic fun numberVariation$default (Ljava/lang/String;Lcom/intempt/core/types/FlagContext;DLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static synthetic fun numberVariation$default (Ljava/lang/String;Lcom/intempt/core/types/FlagContext;DZLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public static final fun optIn ()V
 	public static final fun optOut ()V
 	public static final fun productAdd (Ljava/lang/String;I)Z
@@ -73,15 +80,28 @@ public final class com/intempt/core/Intempt {
 	public static final fun setAutomaticEvents (Lcom/intempt/core/types/AutomaticEventsOptions;)V
 	public static final fun setErrorListener (Lkotlin/jvm/functions/Function1;)V
 	public static final fun setFlushInterval (I)V
+	public static final fun setOnFlagError (Lkotlin/jvm/functions/Function1;)V
 	public static final fun stringVariation (Ljava/lang/String;Lcom/intempt/core/types/FlagContext;Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static final fun stringVariation (Ljava/lang/String;Lcom/intempt/core/types/FlagContext;Ljava/lang/String;ZLkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static final fun stringVariation (Ljava/lang/String;Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static final fun stringVariation (Ljava/lang/String;Ljava/lang/String;ZLkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static synthetic fun stringVariation$default (Ljava/lang/String;Lcom/intempt/core/types/FlagContext;Ljava/lang/String;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static synthetic fun stringVariation$default (Ljava/lang/String;Lcom/intempt/core/types/FlagContext;Ljava/lang/String;ZLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public static final fun track (Ljava/lang/String;)Z
 	public static final fun track (Ljava/lang/String;Ljava/util/Map;)Z
 	public static synthetic fun track$default (Ljava/lang/String;Ljava/util/Map;ILjava/lang/Object;)Z
 	public static final fun variation (Ljava/lang/String;Lcom/intempt/core/types/FlagContext;Ljava/lang/Object;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static final fun variation (Ljava/lang/String;Lcom/intempt/core/types/FlagContext;Ljava/lang/Object;ZLkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static final fun variation (Ljava/lang/String;Ljava/lang/Object;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static final fun variation (Ljava/lang/String;Ljava/lang/Object;ZLkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static synthetic fun variation$default (Ljava/lang/String;Lcom/intempt/core/types/FlagContext;Ljava/lang/Object;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static synthetic fun variation$default (Ljava/lang/String;Lcom/intempt/core/types/FlagContext;Ljava/lang/Object;ZLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static final fun variationDetail (Ljava/lang/String;Lcom/intempt/core/types/FlagContext;Ljava/lang/Object;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static final fun variationDetail (Ljava/lang/String;Lcom/intempt/core/types/FlagContext;Ljava/lang/Object;ZLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static final fun variationDetail (Ljava/lang/String;Ljava/lang/Object;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static final fun variationDetail (Ljava/lang/String;Ljava/lang/Object;ZLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun variationDetail$default (Ljava/lang/String;Lcom/intempt/core/types/FlagContext;Ljava/lang/Object;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static synthetic fun variationDetail$default (Ljava/lang/String;Lcom/intempt/core/types/FlagContext;Ljava/lang/Object;ZLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public static final fun waitForInitialization (Ljava/lang/Long;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static final fun waitForInitialization (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static synthetic fun waitForInitialization$default (Ljava/lang/Long;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
@@ -109,6 +129,12 @@ public final class com/intempt/core/IntemptInstance {
 	public final fun allFlags (Lcom/intempt/core/types/FlagContext;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun allFlags (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static synthetic fun allFlags$default (Lcom/intempt/core/IntemptInstance;Lcom/intempt/core/types/FlagContext;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun boolVariation (Ljava/lang/String;Lcom/intempt/core/types/FlagContext;ZLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun boolVariation (Ljava/lang/String;Lcom/intempt/core/types/FlagContext;ZZLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun boolVariation (Ljava/lang/String;ZLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun boolVariation (Ljava/lang/String;ZZLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun boolVariation$default (Lcom/intempt/core/IntemptInstance;Ljava/lang/String;Lcom/intempt/core/types/FlagContext;ZLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static synthetic fun boolVariation$default (Lcom/intempt/core/IntemptInstance;Ljava/lang/String;Lcom/intempt/core/types/FlagContext;ZZLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public final fun consent (Lcom/intempt/core/types/ConsentAction;J)Z
 	public final fun consent (Lcom/intempt/core/types/ConsentAction;JLjava/lang/String;)Z
 	public final fun consent (Lcom/intempt/core/types/ConsentAction;JLjava/lang/String;Ljava/lang/String;)Z
@@ -123,6 +149,7 @@ public final class com/intempt/core/IntemptInstance {
 	public final fun getAutomaticEvents ()Lcom/intempt/core/types/AutomaticEventsOptions;
 	public final fun getFlushInterval ()I
 	public final fun getName ()Ljava/lang/String;
+	public final fun getOnFlagError ()Lkotlin/jvm/functions/Function1;
 	public final fun getProfileId ()Ljava/lang/String;
 	public final fun getSessionId ()Ljava/lang/String;
 	public final fun group (Ljava/lang/String;)Z
@@ -138,6 +165,12 @@ public final class com/intempt/core/IntemptInstance {
 	public final fun isLoggingEnabled ()Z
 	public final fun isOptedIn ()Z
 	public final fun logOut ()V
+	public final fun numberVariation (Ljava/lang/String;DLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun numberVariation (Ljava/lang/String;DZLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun numberVariation (Ljava/lang/String;Lcom/intempt/core/types/FlagContext;DLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun numberVariation (Ljava/lang/String;Lcom/intempt/core/types/FlagContext;DZLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun numberVariation$default (Lcom/intempt/core/IntemptInstance;Ljava/lang/String;Lcom/intempt/core/types/FlagContext;DLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static synthetic fun numberVariation$default (Lcom/intempt/core/IntemptInstance;Ljava/lang/String;Lcom/intempt/core/types/FlagContext;DZLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public final fun optIn ()V
 	public final fun optOut ()V
 	public final fun productAdd (Ljava/lang/String;I)Z
@@ -160,15 +193,31 @@ public final class com/intempt/core/IntemptInstance {
 	public final fun setAutomaticEvents (Lcom/intempt/core/types/AutomaticEventsOptions;)V
 	public final fun setErrorListener (Lkotlin/jvm/functions/Function1;)V
 	public final fun setFlushInterval (I)V
+	public final fun setOnFlagError (Lkotlin/jvm/functions/Function1;)V
 	public final fun startLogging ()V
 	public final fun stopLogging ()V
+	public final fun stringVariation (Ljava/lang/String;Lcom/intempt/core/types/FlagContext;Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun stringVariation (Ljava/lang/String;Lcom/intempt/core/types/FlagContext;Ljava/lang/String;ZLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun stringVariation (Ljava/lang/String;Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun stringVariation (Ljava/lang/String;Ljava/lang/String;ZLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun stringVariation$default (Lcom/intempt/core/IntemptInstance;Ljava/lang/String;Lcom/intempt/core/types/FlagContext;Ljava/lang/String;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static synthetic fun stringVariation$default (Lcom/intempt/core/IntemptInstance;Ljava/lang/String;Lcom/intempt/core/types/FlagContext;Ljava/lang/String;ZLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public fun toString ()Ljava/lang/String;
 	public final fun track (Ljava/lang/String;)Z
 	public final fun track (Ljava/lang/String;Ljava/util/Map;)Z
 	public static synthetic fun track$default (Lcom/intempt/core/IntemptInstance;Ljava/lang/String;Ljava/util/Map;ILjava/lang/Object;)Z
 	public final fun variation (Ljava/lang/String;Lcom/intempt/core/types/FlagContext;Ljava/lang/Object;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun variation (Ljava/lang/String;Lcom/intempt/core/types/FlagContext;Ljava/lang/Object;ZLkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun variation (Ljava/lang/String;Ljava/lang/Object;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun variation (Ljava/lang/String;Ljava/lang/Object;ZLkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static synthetic fun variation$default (Lcom/intempt/core/IntemptInstance;Ljava/lang/String;Lcom/intempt/core/types/FlagContext;Ljava/lang/Object;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static synthetic fun variation$default (Lcom/intempt/core/IntemptInstance;Ljava/lang/String;Lcom/intempt/core/types/FlagContext;Ljava/lang/Object;ZLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun variationDetail (Ljava/lang/String;Lcom/intempt/core/types/FlagContext;Ljava/lang/Object;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun variationDetail (Ljava/lang/String;Lcom/intempt/core/types/FlagContext;Ljava/lang/Object;ZLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun variationDetail (Ljava/lang/String;Ljava/lang/Object;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun variationDetail (Ljava/lang/String;Ljava/lang/Object;ZLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun variationDetail$default (Lcom/intempt/core/IntemptInstance;Ljava/lang/String;Lcom/intempt/core/types/FlagContext;Ljava/lang/Object;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static synthetic fun variationDetail$default (Lcom/intempt/core/IntemptInstance;Ljava/lang/String;Lcom/intempt/core/types/FlagContext;Ljava/lang/Object;ZLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 }
 
 public final class com/intempt/core/IntemptInstance$Autocapture {
@@ -179,6 +228,24 @@ public final class com/intempt/core/IntemptInstance$Autocapture {
 	public final fun start (Lcom/intempt/core/types/AutocaptureOptions;)Z
 	public static synthetic fun start$default (Lcom/intempt/core/IntemptInstance$Autocapture;Lcom/intempt/core/types/AutocaptureOptions;ILjava/lang/Object;)Z
 	public final fun stop ()Z
+}
+
+public final class com/intempt/core/queue/DeliveryFailure {
+	public fun getEventCount ()I
+	public fun getEventIds ()Ljava/util/List;
+	public fun getKind ()Lcom/intempt/core/queue/DeliveryFailure$Kind;
+	public fun getRetryAfterSeconds ()I
+	public fun getStatus ()I
+	public fun isTerminal ()Z
+}
+
+public final class com/intempt/core/queue/DeliveryFailure$Kind : java/lang/Enum {
+	public static final field DROPPED Lcom/intempt/core/queue/DeliveryFailure$Kind;
+	public static final field TERMINAL Lcom/intempt/core/queue/DeliveryFailure$Kind;
+	public static final field TRANSPORT Lcom/intempt/core/queue/DeliveryFailure$Kind;
+	public fun getWireName ()Ljava/lang/String;
+	public static fun valueOf (Ljava/lang/String;)Lcom/intempt/core/queue/DeliveryFailure$Kind;
+	public static fun values ()[Lcom/intempt/core/queue/DeliveryFailure$Kind;
 }
 
 public class com/intempt/core/queue/DeliveryMessages {
@@ -206,7 +273,7 @@ public class com/intempt/core/queue/DeliveryMessages {
 }
 
 public abstract interface class com/intempt/core/queue/DeliveryMessages$DeliveryFailureListener {
-	public abstract fun onFailure (ILjava/lang/String;JZ)V
+	public abstract fun onFailure (Lcom/intempt/core/queue/DeliveryFailure;)V
 }
 
 public abstract interface class com/intempt/core/queue/DeliveryMessages$FlushCompletion {
@@ -299,6 +366,8 @@ public class com/intempt/core/queue/RemoteService$RequestResult {
 
 public class com/intempt/core/queue/RemoteService$ServiceUnavailableException : java/lang/Exception {
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;I)V
+	public fun getResponseCode ()I
 	public fun getRetryAfter ()I
 }
 
@@ -376,6 +445,53 @@ public final class com/intempt/core/types/FlagContext {
 	public fun toString ()Ljava/lang/String;
 }
 
+public final class com/intempt/core/types/FlagDetail {
+	public fun <init> (Ljava/lang/Object;Lcom/intempt/core/types/FlagReason;)V
+	public fun <init> (Ljava/lang/Object;Lcom/intempt/core/types/FlagReason;Lcom/intempt/core/types/FlagError;)V
+	public synthetic fun <init> (Ljava/lang/Object;Lcom/intempt/core/types/FlagReason;Lcom/intempt/core/types/FlagError;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun getError ()Lcom/intempt/core/types/FlagError;
+	public final fun getReason ()Lcom/intempt/core/types/FlagReason;
+	public final fun getValue ()Ljava/lang/Object;
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/intempt/core/types/FlagError {
+	public final fun getKey ()Ljava/lang/String;
+	public final fun getKind ()Lcom/intempt/core/types/FlagErrorKind;
+	public final fun getStatus ()Ljava/lang/Integer;
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/intempt/core/types/FlagErrorKind : java/lang/Enum {
+	public static final field AUTH Lcom/intempt/core/types/FlagErrorKind;
+	public static final field BAD_REQUEST Lcom/intempt/core/types/FlagErrorKind;
+	public static final field NETWORK Lcom/intempt/core/types/FlagErrorKind;
+	public static final field PARSE Lcom/intempt/core/types/FlagErrorKind;
+	public static final field SERVER Lcom/intempt/core/types/FlagErrorKind;
+	public static final field TIMEOUT Lcom/intempt/core/types/FlagErrorKind;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public final fun getWireName ()Ljava/lang/String;
+	public static fun valueOf (Ljava/lang/String;)Lcom/intempt/core/types/FlagErrorKind;
+	public static fun values ()[Lcom/intempt/core/types/FlagErrorKind;
+}
+
+public final class com/intempt/core/types/FlagReason : java/lang/Enum {
+	public static final field Companion Lcom/intempt/core/types/FlagReason$Companion;
+	public static final field ERROR Lcom/intempt/core/types/FlagReason;
+	public static final field HOLDOUT Lcom/intempt/core/types/FlagReason;
+	public static final field NOT_TARGETED Lcom/intempt/core/types/FlagReason;
+	public static final field OFF Lcom/intempt/core/types/FlagReason;
+	public static final field TARGETED Lcom/intempt/core/types/FlagReason;
+	public static final fun fromWire$app_release (Ljava/lang/String;)Lcom/intempt/core/types/FlagReason;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public final fun getWireValue ()Ljava/lang/String;
+	public static fun valueOf (Ljava/lang/String;)Lcom/intempt/core/types/FlagReason;
+	public static fun values ()[Lcom/intempt/core/types/FlagReason;
+}
+
+public final class com/intempt/core/types/FlagReason$Companion {
+}
+
 public final class com/intempt/core/types/IntemptCredentials {
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
 	public final fun component2 ()Ljava/lang/String;
@@ -396,6 +512,17 @@ public final class com/intempt/core/types/IntemptCredentials {
 public abstract class com/intempt/core/types/IntemptError {
 	public abstract fun getMessage ()Ljava/lang/String;
 	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/intempt/core/types/IntemptError$DeliveryFailure : com/intempt/core/types/IntemptError {
+	public fun <init> (Ljava/lang/String;Ljava/lang/Integer;ILjava/util/List;Ljava/lang/Integer;Z)V
+	public final fun getEventCount ()I
+	public final fun getEventIds ()Ljava/util/List;
+	public final fun getKind ()Ljava/lang/String;
+	public fun getMessage ()Ljava/lang/String;
+	public final fun getRetryAfter ()Ljava/lang/Integer;
+	public final fun getStatus ()Ljava/lang/Integer;
+	public final fun getTerminal ()Z
 }
 
 public final class com/intempt/core/types/IntemptError$EncodingFailed : com/intempt/core/types/IntemptError {

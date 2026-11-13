@@ -103,7 +103,7 @@ internal class CustomCaptureService
             }
 
             // Same dead rule as isIdentifyValid had, for the same reason: GroupEvent carries no
-            // title, and the caller already writes `name = eventTitle ?: "Group"`. Requiring a
+            // title, and the caller already writes `name = eventTitle ?: "Identify"`. Requiring a
             // title here turned group(accountId, accountAttributes) into a silent no-op.
 
             return true

@@ -60,7 +60,7 @@ Auth: `Authorization: Basic base64(identifier:secret)` — the canonical form; p
 | Purpose | Endpoint | Batched |
 |---|---|---|
 Event ingestion | `sources/{sourceId}/track` | ✅ yes |
-Consent | `consents/data` | no — sent immediately, persisted in `intempt_consent_audit`, retried with backoff (init, `flush()`, app background) until delivered or dropped |
+Consent | `consents/data` | no — sent immediately and persisted in `intempt_consent_audit`, then send-once like events (R3): a 503 / 429 is resent once after `Retry-After` (1–60 s), any other answer drops it, and one that never reached the server waits for the next drain (init, `flush()`, app background, the next consent). Every failure reaches `setErrorListener` as a `DeliveryFailure` |
 Recommendations | `feeds/{id}/data` | n/a |
 Push lifecycle | `webhooks/events/push-notification` | no |
 
@@ -117,10 +117,10 @@ unaffected and remain part of the SDK.
 |---|---|---|
 Queue durability | in-memory only | ✨ disk-backed (SQLiteOpenHelper), survives process death |
 Delete timing | cleared **before** POST | 🔧 only after confirmed 2xx |
-Retry | none | ✨ 403 / 404 + 408 + 429 + 5xx + offline; exponential backoff capped at 10 min. 401 / 402 drop the batch on the first answer (R-retry, INT-7438); a consent is dropped after three |
-`Retry-After` honored | no | ✨ yes |
+Retry | none | ✨ send-once (INT-7436; consent too, R3): a 503 / 429 is resent once; every other answered status, and a failure after the body was written, drops the batch. Only a batch that never reached the server (DNS, refused or timed-out connect, offline, TLS handshake) is kept, for the next flush at the flush interval or the next explicit `flush()` when the timer is off, with no backoff |
+`Retry-After` honored | no | ✨ yes, for the one 503 / 429 resend, clamped to 1–60 s (1 s when absent) |
 413 Payload Too Large | n/a | ✨ adaptive batch halving; drop single oversized event |
-Non-retryable statuses | all failures dropped | ✨ 400 / 413 / 422, 3xx and unlisted 4xx dropped, logged |
+Non-retryable statuses | all failures dropped | ✨ every answered status ≥ 300 left after the resend is dropped, logged and reported once per batch (`DeliveryFailure`, kind `terminal`) |
 Duplicate protection | none | ✨ dedup by `eventId`, marked **before** send |
 Concurrent flush | race | ✨ in-progress guard |
 Crash-stranded items | lost | ✨ orphan recovery via `flushAfter` |

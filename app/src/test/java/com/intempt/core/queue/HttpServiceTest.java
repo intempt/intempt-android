@@ -1,6 +1,7 @@
 package com.intempt.core.queue;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
@@ -243,13 +244,17 @@ public class HttpServiceTest {
     @Test
     public void a429CarriesItsRetryAfter() {
         server.respondWithRetryAfter(429, "slow down", "30");
+        final HttpService http = new HttpService();
+        final java.util.List<Long> waits = new java.util.ArrayList<>();
+        http.setSleeper(waits::add);
 
         try {
-            new HttpService().performRequest(url(), null, null, jsonHeaders("Basic x"), body("[]"), null);
+            http.performRequest(url(), null, null, jsonHeaders("Basic x"), body("[]"), null);
             fail("a 429 must not be reported as a delivered batch");
         } catch (RemoteService.ClientErrorException e) {
             assertEquals(429, e.getResponseCode());
             assertEquals("Retry-After seconds must be carried to delivery", 30, e.getRetryAfter());
+            assertEquals("the one resend waits the Retry-After", java.util.Collections.singletonList(30_000L), waits);
         } catch (Exception e) {
             fail("expected ClientErrorException, got " + e);
         }
@@ -345,21 +350,26 @@ public class HttpServiceTest {
             assertTrue(
                     "the failure must name the truncation rather than being a generic wrap, got: " + expected,
                     expected.getMessage() != null);
+            assertFalse(
+                    "a failure after the write must not read as never-sent, or it would be kept and resent",
+                    expected instanceof NotSentException);
         }
     }
 
     // ----------------------------------------------------------------- retries
 
     /**
-     * Three attempts, then give up. Unbounded retries against a host that is down would spin the
-     * worker thread and drain the battery; zero retries would drop a batch on a single blip.
+     * A 503 gets exactly one resend, then the call gives up (CONTRACT-R2 S1.2, INT-7436). Was
+     * "more than one and at most six" under the vendored three-round loop.
      */
     @Test
     public void aFailingHostIsRetriedAndThenAbandoned() {
         server.respond(503, "down");
+        final HttpService http = new HttpService();
+        http.setSleeper(ms -> { });
 
         try {
-            new HttpService().performRequest(url(), null, null, jsonHeaders("Basic x"), body("[]"), null);
+            http.performRequest(url(), null, null, jsonHeaders("Basic x"), body("[]"), null);
         } catch (Exception ignored) {
             // the outcome is asserted through the server's request count
         }
@@ -370,7 +380,65 @@ public class HttpServiceTest {
         assertTrue(
                 "retries must be bounded or a dead host would spin the worker, got "
                         + server.requestCount(),
-                server.requestCount() <= 6);
+                server.requestCount() <= 2);
+    }
+
+    /** Retry-After is clamped to [1, 60] s, 1 s when absent; nothing but 503/429 is resent. */
+    @Test
+    public void theResendDelayIsClampedAndOnlyFor503And429() {
+        assertEquals(1, HttpService.resendDelaySeconds(new ServiceUnavailableException("x", null, 503)));
+        assertEquals(60, HttpService.resendDelaySeconds(new ServiceUnavailableException("x", "2000000000", 503)));
+        assertEquals(7, HttpService.resendDelaySeconds(new ServiceUnavailableException("x", "7", 503)));
+        assertEquals(60, HttpService.resendDelaySeconds(new RemoteService.ClientErrorException(429, "x", "61")));
+        assertEquals(60, HttpService.resendDelaySeconds(new RemoteService.ClientErrorException(429, "x", "60")));
+        assertEquals(1, HttpService.resendDelaySeconds(new RemoteService.ClientErrorException(429, "x", "1")));
+        assertEquals(-1, HttpService.resendDelaySeconds(new ServiceUnavailableException("x", "5", 500)));
+        assertEquals(-1, HttpService.resendDelaySeconds(new RemoteService.ClientErrorException(413, "x", "5")));
+        assertEquals(-1, HttpService.resendDelaySeconds(new IOException("timeout")));
+        assertEquals(-1, HttpService.resendDelaySeconds(null));
+    }
+
+    /** INT-7436, CONTRACT-R2 S1: a status other than 503/429 is sent once, never resent. */
+    @Test
+    public void a500IsSentOnce() {
+        server.respond(500, "boom");
+
+        try {
+            new HttpService().performRequest(url(), null, null, jsonHeaders("Basic x"), body("[]"), null);
+            fail("a 500 must not read as success");
+        } catch (Exception expected) {
+            // the property is the request count
+        }
+
+        assertEquals("a 500 must be sent exactly once", 1, server.requestCount());
+    }
+
+    /** INT-7436, CONTRACT-R2 S1: 429 joins 503, one resend after Retry-After (1 s when absent). */
+    @Test
+    public void a429IsResentOnceAndMayThenSucceed() throws Exception {
+        server.respondInSequence(429, 200);
+
+        final RemoteService.RequestResult result =
+                new HttpService().performRequest(url(), null, null, jsonHeaders("Basic x"), body("[]"), null);
+
+        assertNotNull("the single resend of a 429 must be allowed to succeed", result);
+        assertEquals(2, server.requestCount());
+    }
+
+    /** INT-7436: a connection that never opened is reported as not sent, so the batch is kept. */
+    @Test
+    public void aRefusedConnectionIsReportedAsNeverSent() throws Exception {
+        final int deadPort = findAFreePort();
+
+        try {
+            new HttpService()
+                    .performRequest(
+                            "http://127.0.0.1:" + deadPort + "/track",
+                            null, null, jsonHeaders("Basic x"), body("[]"), null);
+            fail("an unreachable host must never look like a delivered batch");
+        } catch (Exception expected) {
+            assertEquals("NotSentException", expected.getClass().getSimpleName());
+        }
     }
 
     @Test

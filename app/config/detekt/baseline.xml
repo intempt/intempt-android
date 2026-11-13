@@ -107,6 +107,7 @@
     <ID>TooManyFunctions:CustomCaptureComponent.kt$CustomCaptureComponent</ID>
     <ID>TooManyFunctions:Intempt.kt$Intempt</ID>
     <ID>TooManyFunctions:IntemptEventManagerService.kt$IntemptEventManagerService</ID>
+    <ID>TooManyFunctions:StorageManagerService.kt$StorageManagerService</ID>
     <ID>UnusedParameter:CustomCaptureService.kt$CustomCaptureService$accountAttributes: Map&lt;String, String>?</ID>
     <ID>UnusedParameter:CustomCaptureService.kt$CustomCaptureService$userAttributes: Map&lt;String, String>?</ID>
     <ID>UnusedParameter:EventHandlers.kt$EventHandlers$props: HandleEventTypeProps</ID>

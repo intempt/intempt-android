@@ -3,6 +3,7 @@ package com.intempt.core.services
 import android.content.Context
 import android.content.SharedPreferences
 import com.intempt.core.types.AppVisibilityState
+import com.intempt.core.types.Constants
 import com.intempt.core.types.IdTypeKeys
 import com.intempt.core.types.InstanceId
 import com.intempt.core.types.StorageKeys
@@ -142,6 +143,50 @@ internal class StorageManagerService
                 return fetched
             }
         }
+
+        private val sessionLock = Any()
+
+        /**
+         * Emits "Session start" for a rotation. Installed by the session tracker only when the
+         * sessions switch is on; the id itself is minted either way (INT-7446).
+         */
+        @Volatile
+        var onSessionStart: (() -> Unit)? = null
+
+        /**
+         * Mints or rotates the session id on the caller's thread and records activity. True when a
+         * new session began.
+         *
+         * Every event build calls this, so the decision is made before the event reads its
+         * sessionId: the old async start let the first event after init carry "" or the previous
+         * session's id, and a second minting path in the event subscriber produced two Session
+         * starts for one window (INT-7446, CONTRACT-R2 S5). [onSessionStart] runs inside the lock,
+         * so a concurrent event waits until the Session start is enqueued ahead of it; the lock is
+         * reentrant because that event's own build calls back in here.
+         */
+        fun ensureSession(now: Long = System.currentTimeMillis()): Boolean =
+            synchronized(sessionLock) {
+                val lastActivity =
+                    getStorageItem(
+                        prefs = StorageKeys.SessionPrefs.key,
+                        key = StorageKeys.SessionTimestamp.key,
+                    ) { key, fallBack -> getLong(key, fallBack ?: 0L) } ?: 0L
+                val rotate = getSessionId().isEmpty() || now - lastActivity > Constants.SESSION.SESSION_TIMEOUT
+                if (rotate) {
+                    setStorageItem(
+                        prefs = StorageKeys.SessionPrefs.key,
+                        key = StorageKeys.SessionId.key,
+                        value = utils.generateId(IdTypeKeys.SessionId.key),
+                    ) { key, value -> putString(key, value) }
+                }
+                setStorageItem(
+                    prefs = StorageKeys.SessionPrefs.key,
+                    key = StorageKeys.SessionTimestamp.key,
+                    value = now,
+                ) { key, value -> putLong(key, value) }
+                if (rotate) onSessionStart?.invoke()
+                rotate
+            }
 
         fun getSessionId(): String {
             val fallback = ""

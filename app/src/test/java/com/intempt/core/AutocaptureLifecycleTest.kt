@@ -20,6 +20,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import org.mockito.ArgumentMatchers.anyLong
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.never
 import org.mockito.Mockito.times
@@ -175,6 +176,19 @@ class AutocaptureLifecycleTest {
             // Deliberately NO advanceUntilIdle before the verify: the mint must happen on the
             // caller's thread, before startAutomaticEvents returns, or getProfileId() races it.
             verify(storage).ensureProfileId()
+            scheduler.advanceUntilIdle()
+        }
+
+    /** INT-7446: the session id is identity too, minted before init returns even with sessions off. */
+    @Test
+    fun `the session id is ensured synchronously even with sessions off`() =
+        runTest(scheduler) {
+            `when`(config.automaticEventsOptions).thenReturn(AutomaticEventsOptions(sessions = false))
+
+            component.startAutomaticEvents()
+
+            verify(storage).ensureSession(anyLong())
+            verify(session, never()).start()
             scheduler.advanceUntilIdle()
         }
 

@@ -208,12 +208,9 @@ public class ProdDeliveryTest {
             result = service.performRequest(trackUrl(), null, null, bad, body("jvm e2e bad key"), null);
         } catch (RemoteService.ClientErrorException e) {
             threwClientError = true;
-            // R-retry (INT-7438) reversed INT-5897 for 401/402: the batch is dropped, not retried.
-            assertFalse(
-                    "a rejected key must not be retried, got " + e.getResponseCode(),
-                    HttpStatusPolicy.isRetryable(e.getResponseCode()));
+            // INT-7438 / INT-7436: a rejected key is never accepted on resend, so the batch drops.
             assertTrue(
-                    "a rejected key must drop the batch on the first answer, got " + e.getResponseCode(),
+                    "a rejected key must drop the batch, got " + e.getResponseCode(),
                     HttpStatusPolicy.shouldDrop(e.getResponseCode()));
         }
 

@@ -21,11 +21,12 @@ package com.intempt.core.types
  *
  * ## Terminal versus retryable is a real distinction, not a severity label
  *
- * [Terminal] means the request will never succeed on retry; [Retryable] means it should be retried
- * with backoff. Queued events are **kept** on a 401 (reported as [Retryable]), because the data is
- * valid and the integration is what is broken — deleting them is total silent data loss, and it has
- * already happened twice in this transport. `HttpStatusPolicy` decides; this is how a host
- * app hears about the decision.
+ * Delivery reports one [DeliveryFailure] per batch on its final outcome (CONTRACT-R2 S2,
+ * INT-7444): the batch was kept because it never reached the server (`transport`), the server
+ * answered a status that drops it (`terminal`, which includes 401 and 402 since INT-7438), or the
+ * device dropped it (`dropped`). [Terminal], [Retryable] and [Transport] are the pre-INT-7444
+ * per-attempt reports; delivery no longer emits them, and they stay so existing `when` branches
+ * compile. `HttpStatusPolicy` decides; this is how a host app hears about the decision.
  */
 sealed class IntemptError {
     /**
@@ -100,6 +101,26 @@ sealed class IntemptError {
     /** The network layer failed before a status was available. */
     class Transport(val description: String) : IntemptError() {
         override val message: String get() = "Transport failure: $description."
+    }
+
+    /**
+     * The final outcome of one batch that did not deliver. [kind] is `transport`, `terminal` or
+     * `dropped`; [status] is the HTTP status when the server answered; [retryAfter] is in seconds;
+     * [terminal] is false only for `transport`, where the batch is still queued.
+     */
+    class DeliveryFailure(
+        val kind: String,
+        val status: Int?,
+        val eventCount: Int,
+        val eventIds: List<String>,
+        val retryAfter: Int?,
+        val terminal: Boolean,
+    ) : IntemptError() {
+        override val message: String
+            get() =
+                "Delivery failure ($kind): $eventCount event(s)" +
+                    (status?.let { ", HTTP $it" } ?: "") +
+                    (if (terminal) ", dropped." else ", kept for the next flush.")
     }
 
     /** The durable queue could not persist the event, so it is lost rather than delayed. */

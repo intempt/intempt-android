@@ -30,15 +30,15 @@ import com.intempt.core.types.EventType
 import com.intempt.core.types.FLAG_KEY_PATTERN
 import com.intempt.core.types.FlagContext
 import com.intempt.core.types.FlagDetail
+import com.intempt.core.types.FlagError
 import com.intempt.core.types.FlagReason
 import com.intempt.core.types.IntemptError
 import com.intempt.core.types.IntemptValue
 import com.intempt.core.types.Product
 import com.intempt.core.types.StorageKeys
+import com.intempt.core.types.flagDetailOf
 import com.intempt.core.types.flagNameOf
-import com.intempt.core.types.flagReasonOf
 import com.intempt.core.types.isValidFlagKey
-import com.intempt.core.types.selectChoice
 import com.intempt.core.types.unwrapFlagValue
 import kotlinx.serialization.json.JsonObject
 import javax.inject.Inject
@@ -73,6 +73,9 @@ internal class CustomCaptureComponent
         private val errors: ErrorReporter,
     ) {
         init {
+            // R2: consent failures reach the host's error listener. Wired here because this
+            // component holds both ends.
+            eventPool.reportConsentFailuresTo(errors)
             // INT-3911 — `ConfigManagerService` resets `isUserOptIn` to the default on
             // every load and nothing wrote optIn()/optOut() down, so an opt-out lasted
             // exactly one process lifetime. Restore the persisted decision, if any.
@@ -217,12 +220,11 @@ internal class CustomCaptureComponent
                 if (!valuesRepresentable(accountAttributes)) return@capture null
 
                 IntemptEvent(
-                    // "Group", not "Identify". This was copy-pasted from identify() above, so
-                    // every group() call made without an explicit eventTitle arrived at the
-                    // ingestion endpoint named "Identify" while carrying type "group" — the
-                    // name and the type disagreed, and any analysis grouping on the event name
-                    // silently folded account events in with user identification.
-                    name = eventTitle ?: "Group",
+                    // "Identify" with type "group": the cross-SDK contract's reserved name for
+                    // account linking (CONTRACT-R2 S6, INT-7448), which swift, node, python, php
+                    // and java already send. Android sent "Group" from 3.0.0; `type` is what
+                    // tells an account link from a user identify.
+                    name = eventTitle ?: "Identify",
                     type = EventType.Group.value,
                     payload =
                         intemptEvent.generateGroupEventPayload(
@@ -430,22 +432,24 @@ internal class CustomCaptureComponent
             return productEvent("productView", "Product viewed", listOf(Product(productId)))
         }
 
+        var onFlagError: ((FlagError) -> Unit)?
+            get() = eventPool.flagErrors.hook
+            set(value) {
+                eventPool.flagErrors.hook = value
+            }
+
         /**
-         * Internal. NOT public, deliberately.
+         * Backs the public `variationDetail` and `variation` (INT-7454 made the detail public).
          *
-         * It returns a reason, and the platform does not send one: a held-back person's experience is
-         * absent from the evaluation response entirely rather than present with a cause. So every
-         * reason would read OFF — including for someone who WAS targeted and did receive the variant.
-         * That is a wrong answer, not a missing one, and a method whose only job is explaining why
-         * must not guess.
-         *
-         * [variation] uses it for the value, which is correct either way. It becomes public when the
-         * serving contract carries a reason.
+         * The platform sends no reason, so an answered read is OFF even for someone who WAS
+         * targeted; only [FlagReason.ERROR] is a reason a caller can act on. See rule 3 in
+         * `types/Flags.kt`.
          */
         internal suspend fun variationDetailInternal(
             key: String,
             context: FlagContext,
             defaultValue: Any?,
+            recordExposure: Boolean = true,
         ): FlagDetail {
             // `docs/CONVENTIONS.md`: a validation mistake THROWS, a service problem does not.
             // A blank key is a programming error the caller can fix at the call site. Returning
@@ -455,24 +459,12 @@ internal class CustomCaptureComponent
             require(key.isNotBlank()) { "variation | key must not be blank" }
             require(isValidFlagKey(key)) { "variation | key must match ${FLAG_KEY_PATTERN.pattern}: $key" }
 
-            // One exit for both outcomes rather than an early return for the miss:
-            // detekt's ReturnCount caps a function at two, and an absent choice is not
-            // an error path — it is simply the other answer.
-            val choice = selectChoice(eventPool.chooseFlags(context, listOf(key)), key)
-
-            return if (choice == null) {
-                FlagDetail(defaultValue, FlagReason.OFF)
-            } else {
-                val body = choice["body"]
-                FlagDetail(
-                    value = body?.let { unwrapFlagValue(it) } ?: defaultValue,
-                    reason = flagReasonOf(choice),
-                )
-            }
+            return flagDetailOf(eventPool.chooseFlags(context, listOf(key), recordExposure), key, defaultValue)
         }
 
+        /** Evaluates without recording an exposure: reading every key is not seeing every variant (INT-7456). */
         suspend fun allFlags(context: FlagContext): Map<String, Any?> =
-            eventPool.chooseFlags(context, null).mapNotNull { choice ->
+            eventPool.chooseFlags(context, null, recordExposure = false).choices.mapNotNull { choice ->
                 val name = flagNameOf(choice)
                 if (name.isNullOrBlank()) null else name to choice["body"]?.let { unwrapFlagValue(it) }
             }.toMap()

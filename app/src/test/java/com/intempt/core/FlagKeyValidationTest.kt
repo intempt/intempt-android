@@ -11,6 +11,7 @@ import com.intempt.core.services.LoggerManagerService
 import com.intempt.core.services.StorageManagerService
 import com.intempt.core.services.UtilsService
 import com.intempt.core.services.eventPool.EventPoolManagerService
+import com.intempt.core.types.ChooseResult
 import com.intempt.core.types.FlagContext
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -49,18 +50,18 @@ class FlagKeyValidationTest {
                     runBlocking { component.variationDetailInternal(key, FlagContext(), "fallback") }
                 }
             }
-            verify(eventPool, never()).chooseFlags(any(), anyOrNull())
+            verify(eventPool, never()).chooseFlags(any(), anyOrNull(), any())
         }
 
     @Test
     fun `a key inside the pattern is looked up`(): Unit =
         runBlocking {
-            `when`(eventPool.chooseFlags(any(), anyOrNull())).thenReturn(emptyList())
+            `when`(eventPool.chooseFlags(any(), anyOrNull(), any())).thenReturn(ChooseResult(emptyList(), null))
 
             assertEquals("d", component.variationDetailInternal("a_b-1", FlagContext(), "d").value)
             assertEquals("d", component.variationDetailInternal("ABC", FlagContext(), "d").value)
 
-            verify(eventPool).chooseFlags(FlagContext(), listOf("a_b-1"))
-            verify(eventPool).chooseFlags(FlagContext(), listOf("ABC"))
+            verify(eventPool).chooseFlags(FlagContext(), listOf("a_b-1"), true)
+            verify(eventPool).chooseFlags(FlagContext(), listOf("ABC"), true)
         }
 }

@@ -10,6 +10,9 @@ import com.intempt.core.types.AutomaticEventsOptions
 import com.intempt.core.types.ConsentAction
 import com.intempt.core.types.FeedFields
 import com.intempt.core.types.FlagContext
+import com.intempt.core.types.FlagDetail
+import com.intempt.core.types.FlagError
+import com.intempt.core.types.FlagReason
 import com.intempt.core.types.IntemptError
 import com.intempt.core.types.IntemptValue
 import com.intempt.core.types.Product
@@ -260,9 +263,107 @@ class IntemptInstance internal constructor(
         defaultValue: Any?,
     ): Any? = core.capture.variationDetailInternal(key, context, defaultValue).value
 
-    /** Every key assigned to this person, in one call. */
+    /**
+     * As above; `disableExposure = true` evaluates without recording an exposure, for a pre-render or
+     * prefetch read the person may never see (INT-7456). A separate overload so the existing JVM
+     * signature stays as it was.
+     */
+    @JvmOverloads
+    suspend fun variation(
+        key: String,
+        context: FlagContext = FlagContext(),
+        defaultValue: Any?,
+        disableExposure: Boolean,
+    ): Any? = core.capture.variationDetailInternal(key, context, defaultValue, !disableExposure).value
+
+    /**
+     * [variation] with the reason (INT-7454). [FlagDetail.reason] is [FlagReason.ERROR], with
+     * [FlagDetail.error] set, when the default came back because the call failed; an answered read
+     * is [FlagReason.OFF] whether or not a value was served, because the platform sends no reason.
+     */
+    @JvmOverloads
+    suspend fun variationDetail(
+        key: String,
+        context: FlagContext = FlagContext(),
+        defaultValue: Any?,
+    ): FlagDetail = core.capture.variationDetailInternal(key, context, defaultValue)
+
+    /**
+     * As above; `disableExposure = true` evaluates without recording an exposure, for a pre-render or
+     * prefetch read the person may never see (INT-7456). A separate overload so the existing JVM
+     * signature stays as it was.
+     */
+    @JvmOverloads
+    suspend fun variationDetail(
+        key: String,
+        context: FlagContext = FlagContext(),
+        defaultValue: Any?,
+        disableExposure: Boolean,
+    ): FlagDetail = core.capture.variationDetailInternal(key, context, defaultValue, !disableExposure)
+
+    /**
+     * Called with a [FlagError] each time a flag read returns its default because the call failed,
+     * on the thread that made the read. A hook that throws is caught and logged. Null clears it.
+     */
+    var onFlagError: ((FlagError) -> Unit)?
+        get() = core.capture.onFlagError
+        set(value) {
+            core.capture.onFlagError = value
+        }
+
+    /** Every key assigned to this person, in one call. Records no exposure (INT-7456). */
     @JvmOverloads
     suspend fun allFlags(context: FlagContext = FlagContext()): Map<String, Any?> = core.capture.allFlags(context)
+
+    /** A boolean flag. A served value of another type falls back to [defaultValue]; it is never coerced. */
+    @JvmOverloads
+    suspend fun boolVariation(
+        key: String,
+        context: FlagContext = FlagContext(),
+        defaultValue: Boolean,
+    ): Boolean = variation(key, context, defaultValue) as? Boolean ?: defaultValue
+
+    /** [boolVariation]; `disableExposure = true` evaluates without recording an exposure (INT-7456). */
+    @JvmOverloads
+    suspend fun boolVariation(
+        key: String,
+        context: FlagContext = FlagContext(),
+        defaultValue: Boolean,
+        disableExposure: Boolean,
+    ): Boolean = variation(key, context, defaultValue, disableExposure) as? Boolean ?: defaultValue
+
+    @JvmOverloads
+    suspend fun stringVariation(
+        key: String,
+        context: FlagContext = FlagContext(),
+        defaultValue: String,
+    ): String = variation(key, context, defaultValue) as? String ?: defaultValue
+
+    /** [stringVariation]; `disableExposure = true` evaluates without recording an exposure (INT-7456). */
+    @JvmOverloads
+    suspend fun stringVariation(
+        key: String,
+        context: FlagContext = FlagContext(),
+        defaultValue: String,
+        disableExposure: Boolean,
+    ): String = variation(key, context, defaultValue, disableExposure) as? String ?: defaultValue
+
+    /** A numeric flag. A Boolean is not a Number in Kotlin, so `true` cannot arrive as 1. */
+    @JvmOverloads
+    suspend fun numberVariation(
+        key: String,
+        context: FlagContext = FlagContext(),
+        defaultValue: Double,
+    ): Double = (variation(key, context, defaultValue) as? Number)?.toDouble() ?: defaultValue
+
+    /** [numberVariation]; `disableExposure = true` evaluates without recording an exposure (INT-7456). */
+    @JvmOverloads
+    suspend fun numberVariation(
+        key: String,
+        context: FlagContext = FlagContext(),
+        defaultValue: Double,
+        disableExposure: Boolean,
+    ): Double = (variation(key, context, defaultValue, disableExposure) as? Number)?.toDouble() ?: defaultValue
 
     /** Excludes [view] from autocapture so its text is never recorded. Android-only. */
     fun doNotCaptureText(view: View) = core.capture.doNotCaptureText(view)

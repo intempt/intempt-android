@@ -9,19 +9,23 @@ import com.intempt.core.eventModels.IntemptEvent
 import com.intempt.core.queue.ConsentAuditLog
 import com.intempt.core.queue.DeliveryMessages
 import com.intempt.core.services.ConfigManagerService
+import com.intempt.core.services.ErrorReporter
 import com.intempt.core.services.HttpManagerService
 import com.intempt.core.services.IntemptEventManagerService
 import com.intempt.core.services.LoggerManagerService
 import com.intempt.core.services.PostOutcome
-import com.intempt.core.services.eventPool.ConsentRetryPolicy
 import com.intempt.core.services.eventPool.EventPoolManagerService
-import com.intempt.core.services.eventPool.isConsentRetryable
+import com.intempt.core.types.IntemptError
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -34,9 +38,20 @@ import org.mockito.kotlin.whenever
 import org.robolectric.RobolectricTestRunner
 
 /**
- * INT-3904: a consent decision whose POST fails is persisted and retried, like the Swift SDK.
- * The backend has no idempotency key, so a consent confirmed with 2xx must never be resent.
+ * INT-3904: a consent decision is persisted before it is sent, and a 2xx is never resent (the
+ * backend has no idempotency key).
+ *
+ * R3 (Beso 2026-11-13): consent is send-once, like events and the other six SDKs. A 503 or 429 is
+ * resent once after its Retry-After, clamped to 1-60 s. Any other answer drops the consent and is
+ * reported terminal. A request that never reached the server is kept for the next drain and
+ * reported once as transport; one that may have reached it (a failure after the write) is dropped
+ * and reported as dropped. R2: every failure reaches the error listener as a DeliveryFailure.
+ *
+ * Rewritten for R3. The previous version pinned the consent-only taxonomy (403/404/408/429/5xx
+ * kept and retried with a 60-600 s backoff, other statuses dropped after three rejections), which
+ * is the behaviour the ruling removes.
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
 class ConsentRetryTest {
     private val context = ApplicationProvider.getApplicationContext<android.content.Context>()
@@ -44,7 +59,7 @@ class ConsentRetryTest {
 
     private lateinit var config: ConfigManagerService
     private lateinit var http: HttpManagerService
-    private var clock = 0L
+    private val reported = mutableListOf<IntemptError.DeliveryFailure>()
 
     @Before
     fun setUp() {
@@ -53,13 +68,18 @@ class ConsentRetryTest {
         whenever(config.isUserOptIn).thenReturn(true)
         whenever(config.consentUrl).thenReturn("https://example.invalid/consent")
         http = mock(HttpManagerService::class.java)
-        clock = 0L
+        reported.clear()
     }
 
     @After
     fun tearDown() {
         context.getDatabasePath(dbName).delete()
     }
+
+    private fun reporter() =
+        ErrorReporter(mock(LoggerManagerService::class.java)).apply {
+            setListener { if (it is IntemptError.DeliveryFailure) reported += it }
+        }
 
     private fun TestScope.service(log: ConsentAuditLog = ConsentAuditLog(context)) =
         EventPoolManagerService(
@@ -70,7 +90,7 @@ class ConsentRetryTest {
             mock(DeliveryMessages::class.java),
             dispatcher = UnconfinedTestDispatcher(testScheduler),
             consentAudit = log,
-        ).also { it.consentRetry = ConsentRetryPolicy(now = { clock }, jitterMs = { 0L }) }
+        ).also { it.consents.errors = reporter() }
 
     private fun consent(
         action: String,
@@ -95,11 +115,15 @@ class ConsentRetryTest {
             ),
     )
 
-    private suspend fun stubPosts(vararg statuses: Int) {
-        val outcomes = statuses.map { PostOutcome(it) }
+    private val notSent = PostOutcome(0, notSent = true)
+    private val maybeReached = PostOutcome(0, notSent = false)
+
+    private suspend fun stub(vararg outcomes: PostOutcome) {
         whenever(http.postForStatus(any(), any<JSONObject>(), any()))
             .thenReturn(outcomes.first(), *outcomes.drop(1).toTypedArray())
     }
+
+    private suspend fun stubPosts(vararg statuses: Int) = stub(*statuses.map { PostOutcome(it) }.toTypedArray())
 
     private suspend fun sentActions(times: Int = 1): List<String> {
         val captor = argumentCaptor<JSONObject>()
@@ -107,11 +131,10 @@ class ConsentRetryTest {
         return captor.allValues.map { it.getString("action") }
     }
 
-    // (a)
     @Test
-    fun `a failed post leaves the consent pending and a later drain re-sends it with its original timestamp`() =
+    fun `a never-reached consent stays pending and a later drain sends it with its original timestamp`() =
         runTest {
-            stubPosts(0, 200)
+            stub(notSent, PostOutcome(200))
             val svc = service()
 
             svc.emitEvent(consent("opt_out", timestamp = 1_234L))
@@ -124,11 +147,10 @@ class ConsentRetryTest {
             assertEquals(1_234L, captor.secondValue.getLong("timestamp"))
         }
 
-    // (a) variant: 5xx, and survives a process restart (new log + service over the same file)
     @Test
-    fun `a 503 leaves the consent pending across a restart`() =
+    fun `a consent that never reached the server stays pending across a restart`() =
         runTest {
-            stubPosts(503)
+            stub(notSent)
             service().apply {
                 emitEvent(consent("opt_out"))
                 testScheduler.advanceUntilIdle()
@@ -145,7 +167,7 @@ class ConsentRetryTest {
     @Test
     fun `a pending consent keeps its userId across a restart`() =
         runTest {
-            stubPosts(503)
+            stub(notSent)
             service().apply {
                 emitEvent(consent("accept", userId = "u1"))
                 testScheduler.advanceUntilIdle()
@@ -159,7 +181,6 @@ class ConsentRetryTest {
             assertEquals(listOf("u1", "u1"), captor.allValues.map { it.getString("userId") })
         }
 
-    // (b)
     @Test
     fun `a 2xx removes the consent from the pending queue and it is never re-sent`() =
         runTest {
@@ -172,188 +193,188 @@ class ConsentRetryTest {
             svc.drainConsents()
 
             assertEquals(listOf("opt_in"), sentActions(times = 1))
+            assertTrue(reported.isEmpty())
         }
 
-    // (c)
     @Test
     fun `pending consents drain oldest first`() =
         runTest {
-            stubPosts(0, 0, 200, 200, 200)
+            stub(notSent, notSent, PostOutcome(200))
             val svc = service()
 
             svc.emitEvent(consent("opt_in", 1L))
             svc.emitEvent(consent("opt_out", 2L))
             testScheduler.advanceUntilIdle()
-            clock += 1_000_000L // past the backoff opened by the second failure
             svc.drainConsents()
 
-            // two failed immediate attempts, then the drain sends opt_in before opt_out
-            val sent = sentActions(times = 4)
-            assertEquals(listOf("opt_in", "opt_in", "opt_out"), sent.takeLast(3))
-        }
-
-    // (d)
-    @Test
-    fun `400 413 422 are dropped only after three consecutive rejections`() =
-        runTest {
-            for (status in listOf(400, 413, 422)) {
-                context.getDatabasePath(dbName).delete()
-                http = mock(HttpManagerService::class.java)
-                stubPosts(status)
-                val svc = service()
-                svc.emitEvent(consent("opt_in"))
-                testScheduler.advanceUntilIdle()
-                // the immediate attempt was strike 1
-                clock += 1_000_000L
-                svc.drainConsents()
-                clock += 1_000_000L
-                svc.drainConsents() // strike 3: dropped
-                clock += 1_000_000L
-                svc.drainConsents() // nothing left
-                assertEquals("status $status", 3, sentActions(times = 3).size)
-            }
-        }
-
-    @Test
-    fun `every non-retryable status 300 to 599 is dropped after three rejections, never blocking the queue`() =
-        runTest {
-            for (status in (300..599).filter { !isConsentRetryable(it) }) {
-                context.getDatabasePath(dbName).delete()
-                http = mock(HttpManagerService::class.java)
-                stubPosts(status)
-                val svc = service()
-                svc.emitEvent(consent("opt_in"))
-                testScheduler.advanceUntilIdle()
-                clock += 1_000_000L
-                svc.drainConsents()
-                clock += 1_000_000L
-                svc.drainConsents() // strike 3: dropped
-                clock += 1_000_000L
-                svc.drainConsents() // nothing left
-                assertEquals("status $status", 3, sentActions(times = 3).size)
-            }
-        }
-
-    @Test
-    fun `retryable statuses are exactly transport errors, 403, 404, 408, 429 and 5xx`() {
-        for (status in listOf(0, 403, 404, 408, 429, 500, 503, 599)) {
-            assertEquals("status $status", true, isConsentRetryable(status))
-        }
-        for (status in listOf(300, 302, 400, 401, 402, 409, 410, 413, 415, 422, 600)) {
-            assertEquals("status $status", false, isConsentRetryable(status))
-        }
-    }
-
-    @Test
-    fun `a consent older than the maximum age is dropped even while the server answers 403`() =
-        runTest {
-            stubPosts(403)
-            val svc = service()
-            svc.emitEvent(consent("opt_in"))
-            testScheduler.advanceUntilIdle() // the immediate attempt
-            svc.consentClock = { System.currentTimeMillis() + 31L * 24 * 60 * 60 * 1000 }
-            clock += 1_000_000L
-            svc.drainConsents() // expired: dropped without a send
-            clock += 1_000_000L
-            svc.drainConsents() // nothing left
-            assertEquals(1, sentActions(times = 1).size)
-        }
-
-    @Test
-    fun `a consent recorded during backoff is sent when the window closes, without another trigger`() =
-        runTest {
-            stubPosts(0, 0, 200)
-            val svc = service()
-            svc.emitEvent(consent("c1"))
-            svc.emitEvent(consent("c2")) // second failure on the head: backoff opens
-            svc.emitEvent(consent("c3")) // recorded inside the window, not sent yet
-            assertEquals(2, sentActions(times = 2).size)
-
-            clock += 700_000L // past the maximum backoff
-            testScheduler.advanceUntilIdle() // the scheduled drain fires
-
-            // c1 again (the head), then c2 and c3, in order.
-            assertEquals(listOf("c1", "c1", "c1", "c2", "c3"), sentActions(times = 5))
-        }
-
-    @Test
-    fun `an oversized Retry-After is capped at the maximum backoff`() {
-        var t = 1_000_000L
-        val policy = ConsentRetryPolicy(now = { t })
-        policy.recordFailure(Long.MAX_VALUE)
-        t += ConsentRetryPolicy.MAX_BACKOFF_MS - 1
-        assertEquals("still blocked just inside the cap", true, policy.requestNotAllowed)
-        t += 1
-        assertEquals("open again at the cap, not at Long.MAX_VALUE", false, policy.requestNotAllowed)
-    }
-
-    @Test
-    fun `401 and 402 take the non-retryable path, dropped after three strikes like 400`() =
-        runTest {
-            for (status in listOf(401, 402)) {
-                context.getDatabasePath(dbName).delete()
-                http = mock(HttpManagerService::class.java)
-                stubPosts(status)
-                val svc = service()
-                svc.emitEvent(consent("opt_in"))
-                testScheduler.advanceUntilIdle()
-                repeat(5) {
-                    clock += 1_000_000L
-                    svc.drainConsents()
-                }
-                assertEquals("status $status", 3, sentActions(times = 3).size)
-            }
-        }
-
-    @Test
-    fun `403 404 408 429 and 5xx are kept and retried until the age limit`() =
-        runTest {
-            for (status in listOf(403, 404, 500, 503, 408, 429)) {
-                context.getDatabasePath(dbName).delete()
-                http = mock(HttpManagerService::class.java)
-                stubPosts(status)
-                val svc = service()
-                svc.emitEvent(consent("opt_in"))
-                testScheduler.advanceUntilIdle()
-                repeat(5) {
-                    clock += 1_000_000L
-                    svc.drainConsents()
-                }
-                assertEquals("status $status", 6, sentActions(times = 6).size)
-            }
-        }
-
-    @Test
-    fun `a dropped head no longer blocks the consent behind it`() =
-        runTest {
-            stubPosts(400, 400, 400, 200)
-            val svc = service()
-            svc.emitEvent(consent("opt_in", 1L)) // strike 1 (immediate)
-            testScheduler.advanceUntilIdle()
-            clock += 1_000_000L
-            svc.drainConsents() // strike 2
-            clock += 1_000_000L
-            svc.drainConsents() // strike 3: dropped, then the next record drains
-            svc.emitEvent(consent("opt_out", 2L))
-            testScheduler.advanceUntilIdle()
-
+            // Each immediate attempt sends the head (opt_in) and stops there; the drain then sends
+            // opt_in before opt_out.
             assertEquals(listOf("opt_in", "opt_in", "opt_in", "opt_out"), sentActions(times = 4))
         }
 
     @Test
-    fun `backoff gates the drain after two failures and Retry-After is honoured`() {
-        val policy = ConsentRetryPolicy(now = { clock }, jitterMs = { 0L })
-        policy.recordFailure()
-        assertEquals(false, policy.requestNotAllowed)
-        policy.recordFailure() // 2nd: 2^1*60s = 120s
-        assertEquals(true, policy.requestNotAllowed)
-        clock = 119_999L
-        assertEquals(true, policy.requestNotAllowed)
-        clock = 120_000L
-        assertEquals(false, policy.requestNotAllowed)
-        assertEquals(600_000L, policy.backoffMs(20))
-        assertEquals(60_000L, policy.backoffMs(1))
-    }
+    fun `every answered status other than 429 and 503 drops the consent on the first answer, reported terminal`() =
+        runTest {
+            for (status in (300..599).filter { it != 429 && it != 503 }) {
+                context.getDatabasePath(dbName).delete()
+                http = mock(HttpManagerService::class.java)
+                reported.clear()
+                stubPosts(status)
+                val svc = service()
+                svc.emitEvent(consent("opt_in"))
+                testScheduler.advanceUntilIdle()
+                svc.drainConsents() // nothing left
+
+                assertEquals("status $status", 1, sentActions(times = 1).size)
+                assertEquals("status $status", 1, reported.size)
+                with(reported.single()) {
+                    assertEquals("status $status", "terminal", kind)
+                    assertEquals(status, this.status)
+                    assertTrue(terminal)
+                    assertEquals(1, eventCount)
+                    assertEquals(emptyList<String>(), eventIds)
+                }
+            }
+        }
+
+    @Test
+    fun `a 503 or 429 is resent once after its Retry-After and dropped if it fails again`() =
+        runTest {
+            for (status in listOf(503, 429)) {
+                context.getDatabasePath(dbName).delete()
+                http = mock(HttpManagerService::class.java)
+                reported.clear()
+                stub(PostOutcome(status, retryAfterMs = 7_000L))
+                val svc = service()
+                svc.emitEvent(consent("opt_in"))
+                testScheduler.advanceTimeBy(6_999L)
+                assertEquals("status $status: no resend before Retry-After", 1, sentActions(times = 1).size)
+                testScheduler.advanceUntilIdle()
+                svc.drainConsents() // dropped: nothing left
+
+                assertEquals("status $status", 2, sentActions(times = 2).size)
+                with(reported.single()) {
+                    assertEquals("terminal", kind)
+                    assertEquals(status, this.status)
+                    assertEquals(7, retryAfter)
+                }
+            }
+        }
+
+    @Test
+    fun `a 503 resent once and then accepted is delivered and not reported`() =
+        runTest {
+            stub(PostOutcome(503), PostOutcome(200))
+            val svc = service()
+            svc.emitEvent(consent("opt_in"))
+            testScheduler.advanceUntilIdle()
+            svc.drainConsents()
+
+            assertEquals(2, sentActions(times = 2).size)
+            assertTrue(reported.isEmpty())
+        }
+
+    @Test
+    fun `the Retry-After wait is clamped to 1 to 60 seconds`() =
+        runTest {
+            for ((retryAfter, expectedWait) in listOf(null to 1_000L, 0L to 1_000L, 600_000L to 60_000L)) {
+                context.getDatabasePath(dbName).delete()
+                http = mock(HttpManagerService::class.java)
+                stub(PostOutcome(503, retryAfterMs = retryAfter), PostOutcome(200))
+                val svc = service()
+                val start = testScheduler.currentTime
+                svc.emitEvent(consent("opt_in"))
+                testScheduler.advanceTimeBy(expectedWait - 1)
+                assertEquals("Retry-After $retryAfter", 1, sentActions(times = 1).size)
+                testScheduler.advanceTimeBy(2)
+                assertEquals("Retry-After $retryAfter", 2, sentActions(times = 2).size)
+                assertTrue(testScheduler.currentTime - start <= expectedWait + 1)
+            }
+        }
+
+    @Test
+    fun `a consent that never reached the server is reported once as transport, not on every drain`() =
+        runTest {
+            stub(notSent)
+            val svc = service()
+            svc.emitEvent(consent("opt_in"))
+            testScheduler.advanceUntilIdle()
+            svc.drainConsents()
+            svc.drainConsents()
+
+            assertEquals(3, sentActions(times = 3).size)
+            with(reported.single()) {
+                assertEquals("transport", kind)
+                assertFalse(terminal)
+                assertNull(status)
+                assertEquals(emptyList<String>(), eventIds)
+            }
+        }
+
+    @Test
+    fun `a failure after the write drops the consent, reported as dropped`() =
+        runTest {
+            stub(maybeReached)
+            val svc = service()
+            svc.emitEvent(consent("opt_in"))
+            testScheduler.advanceUntilIdle()
+            svc.drainConsents()
+
+            assertEquals(1, sentActions(times = 1).size)
+            with(reported.single()) {
+                assertEquals("dropped", kind)
+                assertTrue(terminal)
+            }
+        }
+
+    @Test
+    fun `a dropped head does not block the consent behind it`() =
+        runTest {
+            stubPosts(400, 200)
+            val svc = service()
+            svc.emitEvent(consent("opt_in", 1L))
+            testScheduler.advanceUntilIdle()
+            svc.emitEvent(consent("opt_out", 2L))
+            testScheduler.advanceUntilIdle()
+
+            assertEquals(listOf("opt_in", "opt_out"), sentActions(times = 2))
+        }
+
+    @Test
+    fun `a consent older than the maximum age is dropped and reported`() =
+        runTest {
+            stub(notSent)
+            val svc = service()
+            svc.emitEvent(consent("opt_in"))
+            testScheduler.advanceUntilIdle() // the immediate attempt
+            svc.consentClock = { System.currentTimeMillis() + 31L * 24 * 60 * 60 * 1000 }
+            svc.drainConsents() // expired: dropped without a send
+            svc.drainConsents() // nothing left
+
+            assertEquals(1, sentActions(times = 1).size)
+            assertEquals(listOf("transport", "dropped"), reported.map { it.kind })
+        }
+
+    @Test
+    fun `without a local store a consent is still sent once and its failure reported`() =
+        runTest {
+            stubPosts(400)
+            val svc =
+                EventPoolManagerService(
+                    config,
+                    mock(LoggerManagerService::class.java),
+                    http,
+                    mock(IntemptEventManagerService::class.java),
+                    mock(DeliveryMessages::class.java),
+                    dispatcher = UnconfinedTestDispatcher(testScheduler),
+                    consentAudit = null,
+                ).also { it.consents.errors = reporter() }
+            svc.emitEvent(consent("opt_in"))
+            testScheduler.advanceUntilIdle()
+
+            assertEquals(1, sentActions(times = 1).size)
+            assertEquals("terminal", reported.single().kind)
+        }
 
     // (e)
     @Test

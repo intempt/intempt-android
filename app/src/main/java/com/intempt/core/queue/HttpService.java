@@ -10,8 +10,11 @@
  *   - package moved to com.intempt.core.queue
  *   - replaced form-urlencoded body encoding with Intempt's raw JSON contract
  *   - added Basic authorization header support
- *   - replaced the 4xx-discard error taxonomy so 429 is retried
- *   - 4xx errors carry the server's Retry-After
+ *   - 4xx errors carry the server's Retry-After, and 5xx errors their status
+ *   - send-once (CONTRACT-R2 S1, INT-7436): the 3x primary+backup retry loop is replaced by one
+ *     send, the backup host only when the primary never received the request, and one resend
+ *     of a 503 or 429 after its Retry-After (HttpStatusPolicy.resendDelaySeconds)
+ *   - a failure before the request is fully written is thrown as NotSentException
  */
 package com.intempt.core.queue;
 
@@ -37,6 +40,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.InetAddress;
+import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -196,8 +200,7 @@ public class HttpService implements RemoteService {
     /**
      * Performs an HTTP POST request. Handles either URL-encoded parameters OR a raw byte request
      * body. Includes support for custom headers and network error listening.
-     * Each attempt tries primary host first, then backup host on ANY failure.
-     * Retries up to 3 times if both primary and backup fail.
+     * Sends once; see the overload below for the backup-host and 503/429 rules.
      */
     @Override
     public RequestResult performRequest(
@@ -223,80 +226,73 @@ public class HttpService implements RemoteService {
             @Nullable SSLSocketFactory socketFactory)
             throws ServiceUnavailableException, IOException {
         
-        int retries = 0;
-        Exception lastException = null;
-        
-        while (retries < 3) {
-            // Try primary host first
-            InternalRequestResult primaryResult = tryRequestWithHost(
-                    method, endpointUrl, "Primary", interactor, params, headers, requestBodyBytes, socketFactory);
-            
-            if (primaryResult.success) {
-                return RequestResult.success(primaryResult.response, primaryResult.requestUrl);
-            }
-            
-            // If it was a client error, throw immediately without retrying
-            if (primaryResult.isClientError) {
-                throw (ClientErrorException) primaryResult.exception;
-            }
-            
-            // Primary failed, update last exception
-            lastException = primaryResult.exception;
-            
-            // If primary failed (and it wasn't a client error), try backup host if configured
-            if (mBackupHost != null && !mBackupHost.isEmpty()) {
-                String backupUrl = replaceHost(endpointUrl, mBackupHost);
-                if (backupUrl.equals(endpointUrl)) {
-                    // URL replacement failed, skip backup attempt
-                    QueueLog.w(LOGTAG, "Failed to replace host for backup, skipping backup attempt");
-                } else {
-                    QueueLog.v(LOGTAG, "Primary failed, trying backup: " + backupUrl);
-                    
-                    InternalRequestResult backupResult = tryRequestWithHost(
-                            method, backupUrl, "Backup", interactor, params, headers, requestBodyBytes, socketFactory);
-                    
-                    if (backupResult.success) {
-                        return RequestResult.success(backupResult.response, backupResult.requestUrl);
-                    }
-                    
-                    // If backup had client error, throw immediately
-                    if (backupResult.isClientError) {
-                        throw (ClientErrorException) backupResult.exception;
-                    }
-                    
-                    // Backup also failed, update last exception
-                    lastException = backupResult.exception;
-                    QueueLog.w(LOGTAG, "Backup also failed: " + backupResult.exception.getMessage());
-                }
-            }
-            
-            // Both primary and backup failed, increment retry counter
-            retries++;
-            if (retries < 3) {
-                QueueLog.d(LOGTAG, "Attempt " + retries + " failed, retrying...");
-                // Add a small delay before retry to avoid hammering the servers
-                try {
-                    Thread.sleep(100 * retries); // Progressive backoff: 100ms, 200ms, 300ms
-                } catch (InterruptedException ie) {
-                    Thread.currentThread().interrupt();
-                    break;
-                }
+        // Send once (CONTRACT-R2 S1, INT-7436). The vendored loop made three rounds of primary +
+        // backup on any 5xx or IOException, which resent batches the server may already have
+        // taken. What is left: the backup host only when the primary never received the request,
+        // and one resend of a 503 or 429 after its Retry-After.
+        InternalRequestResult result = tryRequestWithHost(
+                method, endpointUrl, "Primary", interactor, params, headers, requestBodyBytes, socketFactory);
+        String answeredUrl = endpointUrl;
+
+        if (!result.success && result.exception instanceof NotSentException
+                && mBackupHost != null && !mBackupHost.isEmpty()) {
+            final String backupUrl = replaceHost(endpointUrl, mBackupHost);
+            if (backupUrl.equals(endpointUrl)) {
+                QueueLog.w(LOGTAG, "Failed to replace host for backup, skipping backup attempt");
+            } else {
+                QueueLog.v(LOGTAG, "Primary never received the request, trying backup: " + backupUrl);
+                result = tryRequestWithHost(
+                        method, backupUrl, "Backup", interactor, params, headers, requestBodyBytes, socketFactory);
+                answeredUrl = backupUrl;
             }
         }
-        
-        // All retries exhausted
-        QueueLog.e(LOGTAG, method + " request to " + endpointUrl + " failed after " + retries + " attempts");
-        
-        // Throw the appropriate exception type
-        if (lastException instanceof ServiceUnavailableException) {
-            throw (ServiceUnavailableException) lastException;
-        } else if (lastException instanceof IOException) {
-            throw (IOException) lastException;
-        } else if (lastException != null) {
-            throw new IOException(method + " request failed after " + retries + " attempts", lastException);
-        } else {
-            throw new IOException(method + " request failed after " + retries + " attempts");
+
+        final int resendAfterSeconds = result.success ? -1 : resendDelaySeconds(result.exception);
+        if (resendAfterSeconds > 0) {
+            QueueLog.d(LOGTAG, "Resending once in " + resendAfterSeconds + " s: " + result.exception.getMessage());
+            try {
+                mSleeper.sleep(resendAfterSeconds * 1000L);
+                result = tryRequestWithHost(
+                        method, answeredUrl, "Resend", interactor, params, headers, requestBodyBytes, socketFactory);
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+            }
         }
+
+        if (result.success) {
+            return RequestResult.success(result.response, result.requestUrl);
+        }
+        final Exception failure = result.exception;
+        if (failure instanceof ServiceUnavailableException) {
+            throw (ServiceUnavailableException) failure;
+        } else if (failure instanceof IOException) {
+            throw (IOException) failure;
+        }
+        throw new IOException(method + " request failed", failure);
+    }
+
+    /** Seconds to wait before the one resend, or -1 for none; the rule is in HttpStatusPolicy. */
+    /* package */ static int resendDelaySeconds(@Nullable Exception failure) {
+        if (failure instanceof ServiceUnavailableException) {
+            final ServiceUnavailableException e = (ServiceUnavailableException) failure;
+            return HttpStatusPolicy.resendDelaySeconds(e.getResponseCode(), e.getRetryAfter());
+        } else if (failure instanceof ClientErrorException) {
+            final ClientErrorException e = (ClientErrorException) failure;
+            return HttpStatusPolicy.resendDelaySeconds(e.getResponseCode(), e.getRetryAfter());
+        }
+        return -1;
+    }
+
+    /** Blocking wait before the resend; replaced in tests so a 60 s Retry-After costs nothing. */
+    /* package */ interface Sleeper {
+        void sleep(long millis) throws InterruptedException;
+    }
+
+    private Sleeper mSleeper = Thread::sleep;
+
+    @VisibleForTesting
+    void setSleeper(Sleeper sleeper) {
+        mSleeper = sleeper;
     }
 
 
@@ -412,6 +408,9 @@ public class HttpService implements RemoteService {
         long startTimeNanos = System.nanoTime();
         long uncompressedBodySize = -1;
         long compressedBodySize = -1; // Only set if gzip applied to params
+        // Set once the request is fully on the wire. A failure before it is NotSentException
+        // (batch kept); after it the server may hold the batch, so the failure drops (INT-7436).
+        boolean written = false;
 
         try {
                 // --- Connection Setup ---
@@ -520,7 +519,10 @@ public class HttpService implements RemoteService {
                     out.flush();
                     out.close(); // Close output stream before getting response
                     out = null;
+                } else {
+                    connection.connect();
                 }
+                written = true;
 
                 // --- Process Response ---
                 int responseCode = connection.getResponseCode();
@@ -556,7 +558,8 @@ public class HttpService implements RemoteService {
                             "Server error " + responseCode + " (" + responseMessage + ") for URL: " + fullUrl);
                     ServiceUnavailableException serviceException = new ServiceUnavailableException(
                             "Service Unavailable: " + responseCode,
-                            connection.getHeaderField("Retry-After"));
+                            connection.getHeaderField("Retry-After"),
+                            responseCode);
                     // Report error via listener
                     onNetworkError(
                             connection,
@@ -613,6 +616,7 @@ public class HttpService implements RemoteService {
                         compressedBodySize,
                         e);
                 QueueLog.d(LOGTAG, "EOFException, likely network issue for request to " + fullUrl);
+                if (!written) throw new NotSentException(e);
                 throw new IOException("EOFException during network request", e);
             } catch (final ServiceUnavailableException e) {
                 // ServiceUnavailableException extends Exception, not IOException, so without this
@@ -638,7 +642,9 @@ public class HttpService implements RemoteService {
                         uncompressedBodySize,
                         compressedBodySize,
                         e);
-                // Re-throw the original exception
+                if (!written && !(e instanceof ClientErrorException) && !(e instanceof MalformedURLException)) {
+                    throw new NotSentException(e);
+                }
                 throw e;
             } catch (final Exception e) { // Catch any other unexpected exceptions
                 // Report error via listener
@@ -650,8 +656,7 @@ public class HttpService implements RemoteService {
                         uncompressedBodySize,
                         compressedBodySize,
                         e);
-                // Wrap and re-throw as IOException? Or handle differently?
-                // Let's wrap in IOException for consistency with method signature.
+                if (!written) throw new NotSentException(e);
                 throw new IOException("Unexpected exception during network request", e);
             } finally {
                 // Clean up resources

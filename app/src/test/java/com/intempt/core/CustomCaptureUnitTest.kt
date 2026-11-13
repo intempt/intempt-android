@@ -218,6 +218,18 @@ class CustomCaptureUnitTest {
             assertEnqueued("group")
         }
 
+    /** INT-7448, CONTRACT-R2 S6: every SDK names the account-link event "Identify". */
+    @Test
+    fun `group without a title is sent as Identify with type group`() =
+        runTest {
+            component.group("acct-7448", null, IntemptValue.mapOf(mapOf("plan" to "pro")))
+
+            val captor = ArgumentCaptor.forClass(JSONObject::class.java)
+            verify(delivery, atLeastOnce()).enqueueEvent(captor.capture())
+            val group = captor.allValues.single { it.getString("type") == "group" }
+            assertEquals("Identify", group.getString("name"))
+        }
+
     @Test
     fun `should receive event of type track`() =
         runTest {
@@ -292,6 +304,13 @@ class CustomCaptureUnitTest {
         }
 
     // ------------------------------------------------- 3.0 contract behaviours
+
+    // R2: a failed consent reaches the host's error listener, so the pool must report to the same
+    // ErrorReporter the capture surface uses.
+    @Test
+    fun `the event pool reports consent failures to the capture component's error reporter`() {
+        verify(eventPoolSrv).reportConsentFailuresTo(errors)
+    }
 
     /**
      * Consent transmits even when the user has opted out.

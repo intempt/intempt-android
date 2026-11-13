@@ -91,10 +91,10 @@ public class DeliveryBehaviourTest {
         final List<Map<String, String>> sentHeaders = new CopyOnWriteArrayList<>();
         final List<byte[]> sentBodies = new CopyOnWriteArrayList<>();
         final AtomicInteger calls = new AtomicInteger();
-
-        private final int[] statuses;
         private final boolean throwIo;
-        private final Exception scripted;
+        // Volatile and settable so one poster can go from never-reached to answering mid-test.
+        volatile Exception scripted;
+        volatile int[] statuses;
 
         FakePoster(int status, boolean throwIo) {
             this.statuses = new int[] {status};
@@ -303,8 +303,15 @@ public class DeliveryBehaviourTest {
      * {@code sendAllData} left all four retry tests green.
      */
     private FakePoster deliver(int status, boolean throwIo, int events) throws Exception {
-        FakePoster poster = new FakePoster(status, throwIo);
-        TestableDelivery delivery = deliveryWith(poster);
+        return deliverWith(new FakePoster(status, throwIo), events);
+    }
+
+    private FakePoster deliverWith(FakePoster poster, int events) throws Exception {
+        return deliverWith(poster, events, deliveryWith(poster));
+    }
+
+    private FakePoster deliverWith(FakePoster poster, int events, TestableDelivery delivery) throws Exception {
+        final int status = poster.statuses == null || poster.statuses.length == 0 ? 0 : poster.statuses[0];
         for (int i = 0; i < events; i++) {
             delivery.enqueueEvent(event("behaviour " + i));
         }
@@ -373,32 +380,46 @@ public class DeliveryBehaviourTest {
                 rowCount());
     }
 
-    /** A network failure must keep the events. This is the P0 the branch exists to fix. */
+    /**
+     * A request that never reached the server must keep the events (CONTRACT-R2 S1.5). Was
+     * aNetworkFailureKeepsTheBatch with a bare IOException, which INT-7436 splits into never-sent
+     * (kept, here) and failed-after-the-write (dropped, below).
+     */
     @Test
-    public void aNetworkFailureKeepsTheBatch() throws Exception {
+    public void aBatchThatNeverReachedTheServerIsKept() throws Exception {
+        deliverWith(new FakePoster(new NotSentException(new java.net.ConnectException("refused"))), 3);
+        assertEquals("a POST that never left must not lose events", 3, rowCount());
+    }
+
+    /** INT-7436, CONTRACT-R2 S1.4: a failure after the write (eg a read timeout) drops. */
+    @Test
+    public void aFailureAfterTheWriteDropsTheBatch() throws Exception {
         deliver(0, true, 3);
-        assertEquals("a failed POST must not lose events", 3, rowCount());
+        assertEquals("the server may hold this batch, so it must not be resent", 0, rowCount());
     }
 
-    /** 429 is backpressure: keep and back off. */
+    /** INT-7436: the transport made the one 429 resend; what reaches delivery is final. Was kept. */
     @Test
-    public void rateLimitingKeepsTheBatch() throws Exception {
+    public void rateLimitingDropsTheBatchOnceTheTransportGivesUp() throws Exception {
         deliver(429, false, 2);
-        assertEquals("429 must be retried, not dropped", 2, rowCount());
+        assertEquals("a final 429 must be dropped", 0, rowCount());
     }
 
-    /** 5xx is transient: keep. */
+    /**
+     * INT-7436, CONTRACT-R2 S1: the transport already made the one 503 resend, so the status
+     * delivery sees is final and the batch is dropped. Was aServerErrorKeepsTheBatch (kept).
+     */
     @Test
-    public void aServerErrorKeepsTheBatch() throws Exception {
+    public void aServerErrorDropsTheBatch() throws Exception {
         deliver(503, false, 2);
-        assertEquals("5xx must be retried, not dropped", 2, rowCount());
+        assertEquals("a final 5xx must be dropped, not parked at the queue head", 0, rowCount());
     }
 
     /** 408 is transient too, and used to fall into the wedging default. */
     @Test
-    public void aRequestTimeoutKeepsTheBatch() throws Exception {
+    public void aRequestTimeoutDropsTheBatch() throws Exception {
         deliver(408, false, 2);
-        assertEquals("408 is transient and must be retried", 2, rowCount());
+        assertEquals("408 drops under INT-7436 (was kept)", 0, rowCount());
     }
 
     /**
@@ -413,9 +434,9 @@ public class DeliveryBehaviourTest {
 
     /** A forbidden key is the same class of failure as a rejected one. */
     @Test
-    public void aForbiddenKeyKeepsTheBatch() throws Exception {
+    public void aForbiddenKeyDropsTheBatch() throws Exception {
         deliver(403, false, 2);
-        assertEquals("403 is recoverable server-side, so the batch must be kept", 2, rowCount());
+        assertEquals("403 drops under INT-7436 (was kept)", 0, rowCount());
     }
 
     /** Ruling R-retry (INT-7438): over the analytics cap, a resend is never accepted, so drop. */
@@ -427,9 +448,9 @@ public class DeliveryBehaviourTest {
 
     /** A gateway route missing during a deploy recovers server-side, so keep. */
     @Test
-    public void aMissingRouteKeepsTheBatch() throws Exception {
+    public void aMissingRouteDropsTheBatch() throws Exception {
         deliver(404, false, 2);
-        assertEquals("404 must be retried, not dropped", 2, rowCount());
+        assertEquals("404 drops under INT-7436, reversing INT-5897 (was kept)", 0, rowCount());
     }
 
     /**
@@ -639,7 +660,9 @@ public class DeliveryBehaviourTest {
                 };
         currentConfig = tinyExpirationConfig;
         currentDb = db;
-        FakePoster poster = new FakePoster(0, true); // throwIo -> retryable, never deleted by id
+        // Never sent -> kept, never deleted by id. A bare IOException now means "failed after the
+        // write" and drops (INT-7436), so it no longer parks a row.
+        FakePoster poster = new FakePoster(new NotSentException(new java.net.ConnectException("offline")));
         currentPoster = poster;
         TestableDelivery delivery = new TestableDelivery(context);
 
@@ -674,43 +697,134 @@ public class DeliveryBehaviourTest {
                 rowCount());
     }
 
-    /**
-     * Posts one event through a transport that throws {@code failure} and returns the delay the
-     * worker scheduled its retry with.
-     */
-    private long retryDelayAfter(Exception failure) throws Exception {
-        FakePoster poster = new FakePoster(failure);
-        TestableDelivery delivery = deliveryWith(poster);
-        delivery.enqueueEvent(event("retry after"));
-        delivery.flush();
+    // INT-7444, CONTRACT-R2 S2: one report per batch, on its final outcome, naming its events.
 
-        long deadline = System.currentTimeMillis() + 10_000;
-        while (System.currentTimeMillis() < deadline && poster.calls.get() == 0) {
+    @Test
+    public void aDroppedBatchIsReportedOnceWithItsEventIds() throws Exception {
+        final FakePoster poster = new FakePoster(413, false);
+        final TestableDelivery delivery = deliveryWith(poster);
+        final java.util.List<DeliveryFailure> seen = new java.util.concurrent.CopyOnWriteArrayList<>();
+        delivery.setDeliveryFailureListener(seen::add);
+
+        deliverWith(poster, 3, delivery);
+
+        assertEquals("exactly one report for the batch, got " + seen.size(), 1, seen.size());
+        final DeliveryFailure failure = seen.get(0);
+        assertEquals(DeliveryFailure.Kind.TERMINAL, failure.getKind());
+        assertEquals("terminal", failure.getKind().getWireName());
+        assertEquals(413, failure.getStatus());
+        assertEquals(3, failure.getEventCount());
+        assertTrue(failure.isTerminal());
+        for (String id : failure.getEventIds()) {
+            assertTrue("eventId " + id, id.startsWith("ev_"));
+        }
+    }
+
+    @Test
+    public void aKeptBatchIsReportedAsTransportOnlyOnceAcrossFlushes() throws Exception {
+        final FakePoster poster = new FakePoster(new NotSentException(new java.net.UnknownHostException("dns")));
+        final TestableDelivery delivery = deliveryWith(poster);
+        final java.util.List<DeliveryFailure> seen = new java.util.concurrent.CopyOnWriteArrayList<>();
+        delivery.setDeliveryFailureListener(seen::add);
+
+        deliverWith(poster, 2, delivery);
+        delivery.flush();
+        final long deadline = System.currentTimeMillis() + 10_000;
+        while (System.currentTimeMillis() < deadline && poster.calls.get() < 2) {
             Thread.sleep(25);
         }
-        Thread.sleep(400);
-        assertTrue("delivery never posted at all", poster.calls.get() >= 1);
-        return delivery.getTrackEngageRetryAfter();
+        Thread.sleep(200);
+
+        assertTrue("the second flush must have tried again", poster.calls.get() >= 2);
+        assertEquals("an offline batch must not refire its report every flush", 1, seen.size());
+        assertEquals(DeliveryFailure.Kind.TRANSPORT, seen.get(0).getKind());
+        assertFalse(seen.get(0).isTerminal());
+        assertEquals(2, seen.get(0).getEventCount());
+        assertEquals(2, rowCount());
     }
 
-    /**
-     * A 503's Retry-After was multiplied in int: 2000000000 * 1000 overflowed to a negative
-     * floor, and the batch was retried after one minute instead of at the ten-minute cap.
-     */
     @Test
-    public void aHugeRetryAfterOnA503IsClampedToTheCap() throws Exception {
-        long delay =
-                retryDelayAfter(new RemoteService.ServiceUnavailableException("simulated 503", "2000000000"));
+    public void aThrowingListenerDoesNotStopDelivery() throws Exception {
+        final FakePoster poster = new FakePoster(400, false);
+        final TestableDelivery delivery = deliveryWith(poster);
+        delivery.setDeliveryFailureListener(
+                failure -> {
+                    throw new IllegalStateException("host app bug");
+                });
 
-        assertEquals(DeliveryRetryPolicy.MAX_DELAY_MS, delay);
+        deliverWith(poster, 2, delivery);
+
+        assertEquals("the batch is still dropped", 0, rowCount());
     }
 
-    /** The same header on a retryable 4xx must not push the retry past the cap either. */
-    @Test
-    public void aHugeRetryAfterOnA429IsClampedToTheCap() throws Exception {
-        long delay =
-                retryDelayAfter(new RemoteService.ClientErrorException(429, "simulated 429", "2000000000"));
+    // R4 (Beso 2026-11-13), impact:F1: with the timer off, a kept batch waits for the next explicit
+    // flush; nothing else may send it, and nothing may spin.
 
-        assertEquals(DeliveryRetryPolicy.MAX_DELAY_MS, delay);
+    private void awaitCalls(FakePoster poster, int calls) throws Exception {
+        final long deadline = System.currentTimeMillis() + 10_000;
+        while (System.currentTimeMillis() < deadline && poster.calls.get() < calls) {
+            Thread.sleep(25);
+        }
+        Thread.sleep(200);
+    }
+
+    @Test
+    public void withTheTimerOffAKeptBatchGoesOutOnTheNextExplicitFlushAndNotBefore() throws Exception {
+        config.setFlushInterval(0);
+        final FakePoster poster = new FakePoster(new NotSentException(new java.net.ConnectException("refused")));
+        final TestableDelivery delivery = deliveryWith(poster);
+
+        deliverWith(poster, 2, delivery);
+        assertEquals("kept", 2, rowCount());
+        delivery.enqueueEvent(event("while kept"));
+        Thread.sleep(500);
+        assertEquals("an enqueue must not start a send while a batch is kept, and nothing may spin", 1, poster.calls.get());
+
+        poster.scripted = null;
+        poster.statuses = new int[] {200};
+        delivery.flush();
+        awaitCalls(poster, 2);
+
+        assertEquals("the explicit flush sends the kept batch", 0, rowCount());
+        assertEquals(3, totalEventsPosted(poster) - 2);
+    }
+
+    @Test
+    public void onceAKeptBatchIsDroppedTheSizeTriggerWorksAgain() throws Exception {
+        config.setFlushInterval(0);
+        final QueueConfig smallBatches =
+                new QueueConfig("https://example.invalid/track", "Basic dGVzdDp0ZXN0") {
+                    @Override
+                    public int getBulkUploadLimit() {
+                        return 2;
+                    }
+                };
+        smallBatches.setFlushInterval(0);
+        currentConfig = smallBatches;
+        config = smallBatches;
+        final FakePoster poster = new FakePoster(new NotSentException(new java.net.ConnectException("refused")));
+        currentPoster = poster;
+        currentDb = db;
+        final TestableDelivery delivery = new TestableDelivery(context);
+
+        deliverWith(poster, 1, delivery);
+        assertEquals("kept", 1, rowCount());
+
+        poster.scripted = null;
+        poster.statuses = new int[] {400};
+        delivery.flush();
+        awaitCalls(poster, 2);
+        assertEquals("the 400 drops the kept batch", 0, rowCount());
+
+        poster.statuses = new int[] {200};
+        delivery.enqueueEvent(event("a"));
+        delivery.enqueueEvent(event("b"));
+        awaitCalls(poster, 3);
+
+        assertEquals(
+                "nothing is kept any more, so reaching the bulk limit must send without an explicit flush",
+                3,
+                poster.calls.get());
+        assertEquals(0, rowCount());
     }
 }

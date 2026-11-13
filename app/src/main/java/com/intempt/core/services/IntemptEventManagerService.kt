@@ -449,6 +449,7 @@ internal open class IntemptEventManagerService
         }
 
         private fun getBaseEventProps(): BaseIntemptEvent {
+            storage.ensureSession()
             return BaseIntemptEvent(
                 eventId = utils.generateId(IdTypeKeys.EventId.key),
                 sessionId = storage.getSessionId(),

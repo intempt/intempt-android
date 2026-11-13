@@ -194,15 +194,16 @@ internal class IntemptCoreModule(
                 // listener from the capture components; without this, every failure that happens after
                 // an event is accepted — offline, 401, 5xx — would be invisible to a host app, which is
                 // the half where events are actually lost.
-                it.setDeliveryFailureListener { status, description, retryAfterMillis, terminal ->
+                it.setDeliveryFailureListener { failure ->
                     errors.report(
-                        when {
-                            // No usable status: the request never got an answer, so this is a transport
-                            // failure rather than a rejection.
-                            status <= 0 -> IntemptError.Transport(description)
-                            terminal -> IntemptError.Terminal(status)
-                            else -> IntemptError.Retryable(status, retryAfterMillis.takeIf { ms -> ms > 0 })
-                        },
+                        IntemptError.DeliveryFailure(
+                            kind = failure.kind.wireName,
+                            status = failure.status.takeIf { s -> s > 0 },
+                            eventCount = failure.eventCount,
+                            eventIds = failure.eventIds,
+                            retryAfter = failure.retryAfterSeconds.takeIf { s -> s > 0 },
+                            terminal = failure.isTerminal,
+                        ),
                     )
                 }
             }

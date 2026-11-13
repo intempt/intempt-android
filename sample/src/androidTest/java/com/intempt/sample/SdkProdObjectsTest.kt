@@ -175,7 +175,7 @@ class SdkProdObjectsTest {
                 row.optString("type") == "group" &&
                     row.optJSONArray("payload")?.optJSONObject(0)?.optString("accountId") == accountId
             }
-        assertEquals("Group", event.optString("name"))
+        assertEquals("Identify", event.optString("name"))
         assertEquals(accountId, event.getJSONArray("payload").getJSONObject(0).optString("accountId"))
     }
 
