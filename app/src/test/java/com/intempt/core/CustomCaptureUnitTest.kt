@@ -305,6 +305,13 @@ class CustomCaptureUnitTest {
 
     // ------------------------------------------------- 3.0 contract behaviours
 
+    // R2: a failed consent reaches the host's error listener, so the pool must report to the same
+    // ErrorReporter the capture surface uses.
+    @Test
+    fun `the event pool reports consent failures to the capture component's error reporter`() {
+        verify(eventPoolSrv).reportConsentFailuresTo(errors)
+    }
+
     /**
      * Consent transmits even when the user has opted out.
      *

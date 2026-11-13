@@ -122,7 +122,6 @@ internal class IntemptCoreModule(
         http: HttpManagerService,
         intemptEvent: IntemptEventManagerService,
         delivery: DeliveryMessages,
-        errors: ErrorReporter,
     ): EventPoolManagerService =
         traced("Intempt.provideEventPool") {
             EventPoolManagerService(
@@ -136,7 +135,6 @@ internal class IntemptCoreModule(
                         consumerContext.applicationContext,
                         instance.scope(CONSENT_DATABASE_NAME),
                     ),
-                errors = errors,
             )
         }
 

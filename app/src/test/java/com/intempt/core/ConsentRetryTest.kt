@@ -16,6 +16,7 @@ import com.intempt.core.services.LoggerManagerService
 import com.intempt.core.services.PostOutcome
 import com.intempt.core.services.eventPool.EventPoolManagerService
 import com.intempt.core.types.IntemptError
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
@@ -50,6 +51,7 @@ import org.robolectric.RobolectricTestRunner
  * kept and retried with a 60-600 s backoff, other statuses dropped after three rejections), which
  * is the behaviour the ruling removes.
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
 class ConsentRetryTest {
     private val context = ApplicationProvider.getApplicationContext<android.content.Context>()
@@ -74,6 +76,11 @@ class ConsentRetryTest {
         context.getDatabasePath(dbName).delete()
     }
 
+    private fun reporter() =
+        ErrorReporter(mock(LoggerManagerService::class.java)).apply {
+            setListener { if (it is IntemptError.DeliveryFailure) reported += it }
+        }
+
     private fun TestScope.service(log: ConsentAuditLog = ConsentAuditLog(context)) =
         EventPoolManagerService(
             config,
@@ -83,11 +90,7 @@ class ConsentRetryTest {
             mock(DeliveryMessages::class.java),
             dispatcher = UnconfinedTestDispatcher(testScheduler),
             consentAudit = log,
-            errors =
-                ErrorReporter(mock(LoggerManagerService::class.java)).apply {
-                    setListener { if (it is IntemptError.DeliveryFailure) reported += it }
-                },
-        )
+        ).also { it.consents.errors = reporter() }
 
     private fun consent(
         action: String,
@@ -129,7 +132,7 @@ class ConsentRetryTest {
     }
 
     @Test
-    fun `a consent that never reached the server stays pending and a later drain sends it with its original timestamp`() =
+    fun `a never-reached consent stays pending and a later drain sends it with its original timestamp`() =
         runTest {
             stub(notSent, PostOutcome(200))
             val svc = service()
@@ -365,11 +368,7 @@ class ConsentRetryTest {
                     mock(DeliveryMessages::class.java),
                     dispatcher = UnconfinedTestDispatcher(testScheduler),
                     consentAudit = null,
-                    errors =
-                        ErrorReporter(mock(LoggerManagerService::class.java)).apply {
-                            setListener { if (it is IntemptError.DeliveryFailure) reported += it }
-                        },
-                )
+                ).also { it.consents.errors = reporter() }
             svc.emitEvent(consent("opt_in"))
             testScheduler.advanceUntilIdle()
 

@@ -73,6 +73,9 @@ internal class CustomCaptureComponent
         private val errors: ErrorReporter,
     ) {
         init {
+            // R2: consent failures reach the host's error listener. Wired here because this
+            // component holds both ends.
+            eventPool.reportConsentFailuresTo(errors)
             // INT-3911 — `ConfigManagerService` resets `isUserOptIn` to the default on
             // every load and nothing wrote optIn()/optOut() down, so an opt-out lasted
             // exactly one process lifetime. Restore the persisted decision, if any.
