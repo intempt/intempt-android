@@ -24,12 +24,17 @@ import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.json.Json
 import org.json.JSONObject
+import java.net.ConnectException
+import java.net.NoRouteToHostException
+import java.net.UnknownHostException
+import java.nio.channels.UnresolvedAddressException
 import java.text.ParseException
 import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.TimeZone
 import javax.inject.Inject
 import javax.inject.Singleton
+import javax.net.ssl.SSLHandshakeException
 
 private const val HTTP_OK_FIRST = 200
 private const val HTTP_OK_LAST = 299
@@ -59,17 +64,34 @@ private fun parseHttpDate(text: String): Long? =
     }
 
 /**
- * What a POST came back with, for the one caller (consent retry) that has to tell a 5xx or a
- * network error from a 4xx. [status] is the HTTP status, or 0 when no response arrived.
+ * What a consent POST came back with. [status] is the HTTP status, or 0 when no response arrived;
+ * then [notSent] says whether the request never reached the server (kept for the next drain) or
+ * may have (dropped, since a resend could duplicate it) — R3/R5, Beso 2026-11-13.
  */
 @InternalIntemptApi
-data class PostOutcome(val status: Int, val retryAfterMs: Long? = null) {
+data class PostOutcome(val status: Int, val retryAfterMs: Long? = null, val notSent: Boolean = false) {
     val isSuccess: Boolean get() = status in HTTP_OK_FIRST..HTTP_OK_LAST
 }
 
 /** One choose call: [status] 0 when no response arrived, [timedOut] when that was a timeout. */
 @InternalIntemptApi
 class ChooseResponse(val status: Int, val body: String?, val timedOut: Boolean)
+
+private const val MAX_CAUSE_DEPTH = 8
+
+/**
+ * True when [t], or a cause of it, failed before a connection carried the request: DNS, refused,
+ * no route, connect timeout, TLS handshake (R5). Anything else may have reached the server.
+ */
+internal fun isNeverReached(t: Throwable): Boolean =
+    generateSequence(t) { it.cause }.take(MAX_CAUSE_DEPTH).any {
+        it is UnknownHostException ||
+            it is ConnectException ||
+            it is NoRouteToHostException ||
+            it is ConnectTimeoutException ||
+            it is SSLHandshakeException ||
+            it is UnresolvedAddressException
+    }
 
 private fun isTimeout(t: Throwable): Boolean =
     t is HttpRequestTimeoutException || t is ConnectTimeoutException || t is java.net.SocketTimeoutException
@@ -229,7 +251,7 @@ class HttpManagerService
 
         /**
          * Like [post], but reports the status instead of collapsing every failure into null.
-         * [post] is unchanged and keeps its callers' behaviour; this exists for consent retry.
+         * [post] is unchanged and keeps its callers' behaviour; this exists for consent delivery.
          */
         suspend fun postForStatus(
             url: String,
@@ -252,7 +274,7 @@ class HttpManagerService
                 throw e
             } catch (e: Exception) {
                 logger.error("HttpService post request error: ${e.message}")
-                PostOutcome(0)
+                PostOutcome(0, notSent = isNeverReached(e))
             }
         }
 

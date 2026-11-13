@@ -5,8 +5,13 @@ import com.intempt.core.autocapture.BaseComponent
 import com.intempt.core.eventModels.IntemptEvent
 import com.intempt.core.internal.traced
 import com.intempt.core.queue.ConsentAuditLog
+import com.intempt.core.queue.DeliveryFailure
 import com.intempt.core.queue.DeliveryMessages
+import com.intempt.core.queue.consentFailureKind
+import com.intempt.core.queue.consentResendDelayMs
+import com.intempt.core.queue.retryAfterSeconds
 import com.intempt.core.services.ConfigManagerService
+import com.intempt.core.services.ErrorReporter
 import com.intempt.core.services.HttpManagerService
 import com.intempt.core.services.IntemptEventManagerService
 import com.intempt.core.services.LoggerManagerService
@@ -17,6 +22,7 @@ import com.intempt.core.types.EventType
 import com.intempt.core.types.FlagContext
 import com.intempt.core.types.FlagErrorReporter
 import com.intempt.core.types.HandleEventTypeProps
+import com.intempt.core.types.IntemptError
 import com.intempt.core.types.IntemptEventProvider
 import com.intempt.core.types.chooseResultOf
 import com.intempt.core.types.withExposure
@@ -28,6 +34,7 @@ import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.launch
@@ -57,6 +64,8 @@ internal open class EventPoolManagerService
         // IntemptCoreModule aside) keeps compiling unchanged. Production wiring supplies a
         // real instance; null only shows up in tests that don't care about the audit trail.
         private val consentAudit: ConsentAuditLog? = null,
+        // Where a failed consent is reported (R2). Nullable for the same reason as consentAudit.
+        private val errors: ErrorReporter? = null,
     ) : BaseComponent(logger) {
         // `dispatcher`, not Dispatchers.IO. This class accepted an injected dispatcher and
         // then ignored it here, so a test that supplied one still had the collector running
@@ -101,9 +110,7 @@ internal open class EventPoolManagerService
 
         private companion object {
             const val MILLIS_PER_SECOND = 1000
-            const val MAX_CONSENT_REJECTIONS = 3
             const val CONSENT_MAX_AGE_DAYS = 30L
-            private const val BACKOFF_DRAIN_SLACK_MS = 1_000L
 
             // Bounds flush's wait for in-flight hand-offs: a collector that died or stalls must
             // cost one late flush, never a flush that does not happen.
@@ -111,95 +118,108 @@ internal open class EventPoolManagerService
             val CONSENT_MAX_AGE_MS = java.util.concurrent.TimeUnit.DAYS.toMillis(CONSENT_MAX_AGE_DAYS)
         }
 
-        // Backoff for resending pending consents; replaced in tests to control the clock.
-        internal var consentRetry = ConsentRetryPolicy()
-
         // Clock for the consent age limit; replaced in tests.
         internal var consentClock: () -> Long = System::currentTimeMillis
         private val consentDrainLock = Mutex()
 
-        // Consecutive non-retryable answers (see isConsentRetryable) for the head consent, in memory only.
-        private var rejectedId = -1L
-        private var rejectedCount = 0
+        // The kept consent already reported as transport, so a device that stays offline reports it
+        // once rather than on every drain (the event queue's mTransportReportedHead). In memory only.
+        private var transportReportedId = -1L
 
         /**
-         * Sends pending consents oldest first, one request at a time (INT-3904). Stops at the first
-         * failure so a later decision never overtakes an earlier one; a consent confirmed with 2xx
-         * is marked delivered and never sent again. The backend has no idempotency key, so a send
-         * whose answer was lost (timeout, status 0) is retried and can arrive twice: delivery is
-         * at-least-once, and a duplicate consent row is the accepted cost of never losing one.
-         * Statuses the event queue treats as retryable (transport errors, 403, 404, 408, 429, 5xx)
-         * keep the record; any other non-2xx status, 401 and 402 included (R-retry), is a rejection and the record is
-         * dropped after [MAX_CONSENT_REJECTIONS] consecutive ones (see [isConsentRetryable]), so
-         * one bad record cannot block every later consent.
+         * Sends pending consents oldest first, one request at a time (INT-3904), each one once (R3,
+         * Beso 2026-11-13): a 503 or 429 is resent once after its Retry-After (1-60 s), any other
+         * answer or a failure after the write drops it, and one that never reached the server stays
+         * pending and stops the drain, so a later decision never overtakes it. A consent confirmed
+         * with 2xx is marked delivered and never sent again. Every failure is reported (R2).
          */
-        @Suppress("ReturnCount") // guard clauses; the drain loop reads clearer flat
         internal suspend fun drainConsents() {
             val audit = consentAudit ?: return
             consentDrainLock.withLock {
-                while (!consentRetry.requestNotAllowed) {
+                while (true) {
                     val pending = audit.oldestPending() ?: return
                     if (consentClock() - pending.createdAt > CONSENT_MAX_AGE_MS) {
-                        // Kept-forever statuses (403/404/5xx...) must not park the queue head for ever.
+                        // A never-reached consent is the only kind left pending; this bounds it.
                         audit.markDropped(pending.id)
                         logger.error(
                             "sendConsentEvent | consent ${pending.id} dropped: undelivered for over " +
                                 "$CONSENT_MAX_AGE_DAYS days",
                         )
+                        reportConsentFailure(DeliveryFailure.Kind.DROPPED, PostOutcome(0))
                         continue
                     }
-                    val outcome = http.postForStatus(config.consentUrl, pending.payload)
+                    val outcome = sendConsentOnce(pending.payload)
                     if (!applyConsentOutcome(audit, pending.id, outcome)) return
                 }
             }
         }
 
+        private suspend fun sendConsentOnce(payload: JSONObject): PostOutcome {
+            val first = http.postForStatus(config.consentUrl, payload)
+            val waitMs = consentResendDelayMs(first.status, first.retryAfterMs)
+            if (waitMs < 0L) return first
+            delay(waitMs)
+            return http.postForStatus(config.consentUrl, payload)
+        }
+
         /** Returns true when the drain may continue with the next record. */
-        @Suppress("ReturnCount") // one exit per outcome class
         private fun applyConsentOutcome(
             audit: ConsentAuditLog,
             id: Long,
             outcome: PostOutcome,
         ): Boolean {
-            val status = outcome.status
-            if (outcome.isSuccess) {
+            val kind = consentFailureKind(outcome.status, outcome.notSent)
+            if (kind == null) {
                 audit.markDelivered(id)
-                consentRetry.recordSuccess()
                 lastDispatchTime = System.currentTimeMillis()
                 return true
             }
-            consentRetry.recordFailure(outcome.retryAfterMs)
-            if (!isConsentRetryable(status)) {
-                rejectedCount = if (rejectedId == id) rejectedCount + 1 else 1
-                rejectedId = id
-                if (rejectedCount >= MAX_CONSENT_REJECTIONS) {
-                    audit.markDropped(id)
-                    logger.error(
-                        "sendConsentEvent | consent $id dropped after $rejectedCount rejections with $status",
-                    )
-                    rejectedId = -1L
-                    rejectedCount = 0
-                    // The server is answering; the record was the problem. Do not back off the
-                    // consents behind it.
-                    consentRetry.recordSuccess()
-                    return true
+            if (kind == DeliveryFailure.Kind.TRANSPORT) {
+                logger.error(
+                    "sendConsentEvent | consent $id was NOT delivered to ${config.consentUrl}: it never " +
+                        "reached the server. It stays pending for the next flush.",
+                )
+                if (transportReportedId != id) {
+                    transportReportedId = id
+                    reportConsentFailure(kind, outcome)
                 }
-            } else {
-                rejectedId = -1L
-                rejectedCount = 0
+                return false
             }
+            audit.markDropped(id)
             logger.error(
-                "sendConsentEvent | consent event was NOT delivered to ${config.consentUrl} (status $status). " +
-                    "It stays pending and is retried; the platform did not receive it.",
+                "sendConsentEvent | consent $id was NOT delivered to ${config.consentUrl} " +
+                    "(status ${outcome.status}) and is dropped; it is not resent.",
             )
-            return false
+            reportConsentFailure(kind, outcome)
+            return true
+        }
+
+        /**
+         * One DeliveryFailure per failed consent request, in the event queue's shape (R2). eventIds
+         * is empty: the consent body carries no eventId on the wire (ConsentEvent.toFormated).
+         */
+        private fun reportConsentFailure(
+            kind: DeliveryFailure.Kind,
+            outcome: PostOutcome,
+        ) {
+            val retryAfter = retryAfterSeconds(outcome.retryAfterMs)
+            errors?.report(
+                IntemptError.DeliveryFailure(
+                    kind = kind.wireName,
+                    status = outcome.status.takeIf { it > 0 },
+                    eventCount = 1,
+                    eventIds = emptyList(),
+                    retryAfter = retryAfter.takeIf { it > 0 },
+                    terminal = kind != DeliveryFailure.Kind.TRANSPORT,
+                ),
+            )
         }
 
         /**
          * Starts a drain of pending consents without blocking the caller. Used at init, on [flush]
          * and when the app goes to the background, so a consent that failed earlier is retried
-         * even when the host never calls [flush]. Respects the backoff: a drain inside the window
-         * is a no-op. A failure is logged; cancellation is rethrown so it is never swallowed.
+         * even when the host never calls [flush]. A failure is logged; cancellation is rethrown so it
+         * is never swallowed.
          */
         fun drainConsentsAsync() {
             if (consentAudit == null) return
@@ -213,8 +233,6 @@ internal open class EventPoolManagerService
                 }
             }
         }
-
-        private var backoffDrainJob: Job? = null
 
         init {
             startEventCollection()
@@ -523,21 +541,17 @@ internal open class EventPoolManagerService
                 try {
                     if (recorded >= 0) {
                         drainConsents()
-                        // A consent recorded inside a backoff window is saved but not yet sent:
-                        // schedule one drain for when the window closes (one-shot, deduplicated).
-                        backoffDrainJob =
-                            coroutineScope.launchOnceAfter(
-                                backoffDrainJob,
-                                consentRetry.remainingMs().takeIf { it > 0L }?.plus(BACKOFF_DRAIN_SLACK_MS) ?: 0L,
-                                { logger.error("sendConsentEvent | scheduled consent drain failed: ${it.message}") },
-                            ) { drainConsents() }
                     } else {
-                        // No usable local store: one best-effort attempt, as before INT-3904.
-                        val outcome = http.postForStatus(config.consentUrl, requestBodyJson)
-                        if (outcome.isSuccess) {
+                        // No usable local store: one send-once attempt, as before INT-3904. Nothing
+                        // can keep it, so a never-reached consent is lost and reported as dropped.
+                        val outcome = sendConsentOnce(requestBodyJson)
+                        val kind = consentFailureKind(outcome.status, outcome.notSent)
+                        if (kind == null) {
                             lastDispatchTime = System.currentTimeMillis()
                         } else {
                             logger.error("sendConsentEvent | consent event was NOT delivered to ${config.consentUrl}")
+                            val reported = if (kind == DeliveryFailure.Kind.TRANSPORT) DeliveryFailure.Kind.DROPPED else kind
+                            reportConsentFailure(reported, outcome)
                         }
                     }
                 } catch (e: CancellationException) {

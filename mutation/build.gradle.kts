@@ -60,6 +60,8 @@ sourceSets {
             include("com/intempt/core/queue/ProxyServerInteractor.java")
             include("com/intempt/core/queue/EventDedupKey.java")
             include("com/intempt/core/queue/DeliveryRetryPolicy.java")
+            // Compiled, not gated: QueueStatusBridge.kt returns its Kind.
+            include("com/intempt/core/queue/DeliveryFailure.java")
             include("android/util/Log.java")
         }
         kotlin {
@@ -86,6 +88,8 @@ sourceSets {
             // both android.* and androidx.compose.* so this gate can reach it. The Compose-typed
             // adapter beside it (ComposeSemantics.kt) is deliberately NOT here: it is glue.
             include("com/intempt/core/autocapture/composeHitTest/HitNode.kt")
+            // R3: consent's send-once decisions, so the consent change is under this gate too.
+            include("com/intempt/core/queue/QueueStatusBridge.kt")
         }
     }
     test {
@@ -113,6 +117,7 @@ sourceSets {
             include("com/intempt/core/types/FlagsTest.kt")
             include("com/intempt/core/types/ChooseBodyJsonTest.kt")
             include("com/intempt/core/autocapture/composeHitTest/SemanticsHitTest.kt")
+            include("com/intempt/core/queue/ConsentSendOnceTest.kt")
         }
     }
 }
@@ -157,6 +162,7 @@ pitest {
             "com.intempt.core.queue.QueueLog*",
             "com.intempt.core.queue.EventDedupKey*",
             "com.intempt.core.queue.DeliveryRetryPolicy*",
+            "com.intempt.core.queue.QueueStatusBridgeKt*",
         ),
     )
     targetTests.set(
@@ -174,6 +180,7 @@ pitest {
             "com.intempt.core.queue.QueueLogFallbackTest",
             "com.intempt.core.queue.EventDedupKeyPureTest",
             "com.intempt.core.queue.DeliveryRetryPolicyTest",
+            "com.intempt.core.queue.ConsentSendOnceTest",
         ),
     )
     threads.set(2)

@@ -8,7 +8,8 @@ import org.junit.Test;
 
 /**
  * Ruling R-retry as amended by CONTRACT-R2 S1 (INT-7436): only 503 and 429 are resent, once, by
- * the transport; every status still standing after that drops; consent keeps its own taxonomy.
+ * the transport; every status still standing after that drops. Consent follows the same rule
+ * (R3, Beso 2026-11-13).
  *
  * <p>Rewritten for INT-7436. The previous version pinned 403/404/408/429/5xx as retried-and-kept
  * (INT-5897), which is exactly the behaviour the ruling removes.
@@ -38,19 +39,21 @@ public class HttpStatusPolicyTest {
         assertFalse(HttpStatusPolicy.shouldDrop(-1));
     }
 
-    /** Consent's taxonomy is the pre-INT-7436 one, frozen (plan2/android.md decision (c)). */
+    /** CONTRACT-R2 S1.2: Retry-After clamped to [1, 60] s, 1 s when absent or not positive. */
     @Test
-    public void consentKeepsItsRetryTaxonomy() {
+    public void resendDelayIsClampedForTheTwoResentStatusesAndAbsentForEveryOther() {
         for (int status = -1; status <= 999; status++) {
-            final boolean expected =
-                    status <= 0
-                            || status == 403
-                            || status == 404
-                            || status == 408
-                            || status == 429
-                            || (status >= 500 && status <= 599);
-            assertEquals("status " + status, expected, HttpStatusPolicy.isConsentRetryable(status));
+            final boolean resent = status == 503 || status == 429;
+            assertEquals("status " + status, resent ? 7 : -1, HttpStatusPolicy.resendDelaySeconds(status, 7));
         }
+        assertEquals(1, HttpStatusPolicy.resendDelaySeconds(503, 0));
+        assertEquals(1, HttpStatusPolicy.resendDelaySeconds(503, -5));
+        assertEquals(1, HttpStatusPolicy.resendDelaySeconds(429, 1));
+        assertEquals(2, HttpStatusPolicy.resendDelaySeconds(429, 2));
+        assertEquals(59, HttpStatusPolicy.resendDelaySeconds(503, 59));
+        assertEquals(60, HttpStatusPolicy.resendDelaySeconds(503, 60));
+        assertEquals(60, HttpStatusPolicy.resendDelaySeconds(429, 61));
+        assertEquals(60, HttpStatusPolicy.resendDelaySeconds(503, Integer.MAX_VALUE));
     }
 
     /** Executes the private constructor so PIT's line coverage measures the decisions. */

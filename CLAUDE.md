@@ -112,9 +112,10 @@ refused or timed-out connect, offline. It waits for the next flush at the flush 
 backoff. This reverses INT-5897 for `403`/`404`/`408`/`429`/`5xx`: events sent during an outage
 are lost on purpose, in exchange for no duplicates and a queue head that cannot park on a status.
 
-Consent does not follow this. A withdrawal must reach the server, so the consent drain reads its
-own frozen taxonomy, `HttpStatusPolicy.isConsentRetryable` (the pre-INT-7436 list), with
-`ConsentRetryPolicy`'s strikes.
+Consent follows the same rule (R3, Beso 2026-11-13): one resend of a `503`/`429` through
+`HttpStatusPolicy.resendDelaySeconds`, a drop on any other answer, and a never-reached request kept
+for the next drain. The old consent-only taxonomy (`isConsentRetryable`, three strikes, 60–600 s
+backoff) is gone. Every consent failure is reported through the error listener (R2).
 
 The only bound on a kept (never-sent) head is the age sweep, `QueueConfig.DATA_EXPIRATION_MS`
 (5 days): `MAXIMUM_DATABASE_LIMIT` is `Integer.MAX_VALUE`, so it bounds nothing.

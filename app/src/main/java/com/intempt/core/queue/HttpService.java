@@ -10,8 +10,11 @@
  *   - package moved to com.intempt.core.queue
  *   - replaced form-urlencoded body encoding with Intempt's raw JSON contract
  *   - added Basic authorization header support
- *   - replaced the 4xx-discard error taxonomy so 429 is retried
- *   - 4xx errors carry the server's Retry-After
+ *   - 4xx errors carry the server's Retry-After, and 5xx errors their status
+ *   - send-once (CONTRACT-R2 S1, INT-7436): the 3x primary+backup retry loop is replaced by one
+ *     send, the backup host only when the primary never received the request, and one resend
+ *     of a 503 or 429 after its Retry-After (HttpStatusPolicy.resendDelaySeconds)
+ *   - a failure before the request is fully written is thrown as NotSentException
  */
 package com.intempt.core.queue;
 
@@ -268,30 +271,17 @@ public class HttpService implements RemoteService {
         throw new IOException(method + " request failed", failure);
     }
 
-    /**
-     * Seconds to wait before the one resend, or -1 for no resend. Only 503 and 429 qualify
-     * (CONTRACT-R2 S1.2): Retry-After clamped to [1, 60] s, 1 s when absent.
-     */
+    /** Seconds to wait before the one resend, or -1 for none; the rule is in HttpStatusPolicy. */
     /* package */ static int resendDelaySeconds(@Nullable Exception failure) {
-        final int status;
-        final int retryAfter;
         if (failure instanceof ServiceUnavailableException) {
-            status = ((ServiceUnavailableException) failure).getResponseCode();
-            retryAfter = ((ServiceUnavailableException) failure).getRetryAfter();
+            final ServiceUnavailableException e = (ServiceUnavailableException) failure;
+            return HttpStatusPolicy.resendDelaySeconds(e.getResponseCode(), e.getRetryAfter());
         } else if (failure instanceof ClientErrorException) {
-            status = ((ClientErrorException) failure).getResponseCode();
-            retryAfter = ((ClientErrorException) failure).getRetryAfter();
-        } else {
-            return -1;
+            final ClientErrorException e = (ClientErrorException) failure;
+            return HttpStatusPolicy.resendDelaySeconds(e.getResponseCode(), e.getRetryAfter());
         }
-        if (!HttpStatusPolicy.isResentOnce(status)) {
-            return -1;
-        }
-        return Math.max(MIN_RESEND_DELAY_S, Math.min(retryAfter, MAX_RESEND_DELAY_S));
+        return -1;
     }
-
-    private static final int MIN_RESEND_DELAY_S = 1;
-    private static final int MAX_RESEND_DELAY_S = 60;
 
     /** Blocking wait before the resend; replaced in tests so a 60 s Retry-After costs nothing. */
     /* package */ interface Sleeper {

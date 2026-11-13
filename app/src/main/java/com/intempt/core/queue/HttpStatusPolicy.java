@@ -27,9 +27,8 @@ package com.intempt.core.queue;
  * </ul>
  *
  * <p>The vendored taxonomy kept 403, 404, 408, 429 and every 5xx at the queue head with
- * exponential backoff (INT-5897). It is gone for events. Consent kept it on purpose (a withdrawal
- * must reach the server, plan2/android.md decision (c)), so it lives on as
- * {@link #isConsentRetryable}, which the consent drain alone reads.
+ * exponential backoff (INT-5897). It is gone, for consent as well as events (R3, Beso
+ * 2026-11-13): consent reads {@link #resendDelaySeconds} through QueueStatusBridge.kt.
  */
 /* package */ final class HttpStatusPolicy {
 
@@ -45,18 +44,19 @@ package com.intempt.core.queue;
     }
 
     /**
-     * The consent drain's taxonomy, frozen as it was before INT-7436: 403, 404, 408, 429, every
-     * 5xx up to 599, and no status at all are kept and retried under {@code ConsentRetryPolicy}'s
-     * strike count; anything else is a rejection.
+     * Seconds to wait before the one resend, or -1 for none. Only 503 and 429 qualify
+     * (CONTRACT-R2 S1.2): the server's Retry-After clamped to [1, 60] s, so an absent or
+     * non-positive one waits 1 s and a hostile one cannot park the sender.
      */
-    /* package */ static boolean isConsentRetryable(int status) {
-        return status == 403
-                || status == 404
-                || status == 408
-                || status == 429
-                || (status >= 500 && status <= 599)
-                || status <= 0;
+    /* package */ static int resendDelaySeconds(int status, int retryAfterSeconds) {
+        if (!isResentOnce(status)) {
+            return -1;
+        }
+        return Math.max(MIN_RESEND_DELAY_S, Math.min(retryAfterSeconds, MAX_RESEND_DELAY_S));
     }
+
+    private static final int MIN_RESEND_DELAY_S = 1;
+    private static final int MAX_RESEND_DELAY_S = 60;
 
     private HttpStatusPolicy() {
     }
