@@ -1,5 +1,11 @@
 package com.intempt.core.types
 
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
+
 /**
  * A value Intempt can transmit as an event attribute.
  *
@@ -127,6 +133,8 @@ sealed class IntemptValue {
                 is Byte -> Num(value.toDouble())
                 is List<*> -> Arr(value.map { of(it) })
                 is Array<*> -> Arr(value.map { of(it) })
+                is Date -> Str(iso8601Utc(value))
+                is Calendar -> Str(iso8601Utc(value.time))
                 is Map<*, *> ->
                     Obj(
                         value.entries.associate { (k, v) ->
@@ -142,9 +150,19 @@ sealed class IntemptValue {
                 else ->
                     throw IllegalArgumentException(
                         "Unsupported attribute type ${value.javaClass.name}. Supported: String, " +
-                            "Boolean, Int, Long, Float, Double, Short, Byte, List, Array, Map, null.",
+                            "Boolean, Int, Long, Float, Double, Short, Byte, Date, Calendar, List, Array, Map, null.",
                     )
             }
+
+        /**
+         * The Swift SDK's wire form for a date, so one attribute compares equal across platforms.
+         * `java.time` is not used: it needs API 26 and minSdk is 23 without core library
+         * desugaring. A new formatter per call because `SimpleDateFormat` is not thread-safe.
+         */
+        private fun iso8601Utc(date: Date): String =
+            SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US)
+                .apply { timeZone = TimeZone.getTimeZone("UTC") }
+                .format(date)
 
         /**
          * Convenience for the common case of a plain map, so a host app writes

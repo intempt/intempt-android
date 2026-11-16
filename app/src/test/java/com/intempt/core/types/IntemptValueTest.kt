@@ -6,6 +6,9 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.util.Calendar
+import java.util.Date
+import java.util.TimeZone
 
 /**
  * Typed attribute values, and the two things they exist to prevent.
@@ -324,5 +327,60 @@ class IntemptValueTest {
         val once = IntemptValue.of("x")
 
         assertEquals(once, IntemptValue.of(once))
+    }
+
+    // ------------------------------------------------------------------ dates
+
+    /**
+     * Same wire form as the Swift SDK: ISO-8601, UTC, milliseconds, `Z`. A non-UTC default zone is
+     * set because a formatter left on the device zone passes this test on a UTC CI runner.
+     */
+    @Test
+    fun `a Date is sent as an ISO-8601 UTC string with milliseconds`() =
+        withDefaultTimeZone("Asia/Tbilisi") {
+            assertEquals(IntemptValue.Str("2026-11-16T09:05:03.007Z"), IntemptValue.of(Date(1_794_819_903_007L)))
+        }
+
+    @Test
+    fun `a Calendar is sent as the UTC instant it holds, not its own zone`() =
+        withDefaultTimeZone("America/New_York") {
+            val calendar = Calendar.getInstance(TimeZone.getTimeZone("Asia/Tokyo"))
+            calendar.timeInMillis = 0L
+
+            assertEquals(IntemptValue.Str("1970-01-01T00:00:00.000Z"), IntemptValue.of(calendar))
+        }
+
+    @Test
+    fun `a Date nested in a map or list is encoded the same way`() =
+        withDefaultTimeZone("Asia/Tbilisi") {
+            val wrapped = IntemptValue.of(mapOf("signup" to mapOf("at" to Date(0L)), "seen" to listOf(Date(1L))))
+
+            assertEquals(
+                mapOf(
+                    "signup" to mapOf("at" to "1970-01-01T00:00:00.000Z"),
+                    "seen" to listOf("1970-01-01T00:00:00.001Z"),
+                ),
+                wrapped.raw(),
+            )
+        }
+
+    @Test
+    fun `the rejection message lists Date and Calendar`() {
+        val error = assertThrows(IllegalArgumentException::class.java) { IntemptValue.of(Any()) }
+
+        assertTrue(error.message!!.contains("Date, Calendar"))
+    }
+
+    private fun withDefaultTimeZone(
+        id: String,
+        block: () -> Unit,
+    ) {
+        val previous = TimeZone.getDefault()
+        TimeZone.setDefault(TimeZone.getTimeZone(id))
+        try {
+            block()
+        } finally {
+            TimeZone.setDefault(previous)
+        }
     }
 }

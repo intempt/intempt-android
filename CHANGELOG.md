@@ -9,6 +9,12 @@ Only `v2.0.1` is tagged in this repository's history, so entries below it do not
 invent them, the `2.0.1` section records what the tag contains and nothing more. Everything since is
 under Unreleased.
 
+## [Unreleased]
+
+### Added
+
+- `IntemptValue.of` accepts `java.util.Date` and `java.util.Calendar`, at any depth inside a list or map, and sends them as an ISO-8601 UTC string with milliseconds (`2026-11-16T09:05:03.007Z`), the form the Swift SDK sends. Before, both threw `IllegalArgumentException`. `java.time` types are still rejected: they need API 26 and minSdk is 23 without core library desugaring.
+
 ## [7.0.0] - unreleased
 
 ### Added
