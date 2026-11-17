@@ -101,7 +101,7 @@ class CustomCaptureUnitTest {
         """
         {
             "auth": {
-                "INTEMPT_API_KEY": "1c75007239cf420c929602f74b872906.95084d4f10804fc3b4820dfae579a0a7",
+                "INTEMPT_API_KEY": "$FAKE_API_KEY",
                 "INTEMPT_SOURCE_ID": "1430727403234930688",
                 "INTEMPT_ORGANIZATION_ID": "intempt_internal_use_only",
                 "INTEMPT_PROJECT_ID": "intempt_android"

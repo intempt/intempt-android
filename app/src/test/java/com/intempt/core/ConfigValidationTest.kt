@@ -77,7 +77,7 @@ class ConfigValidationTest {
         }
 
         // And a well-formed one must be accepted, or the guard is too strict and rejects everything.
-        val good = "rcukTEJJe8eT5gaZ.LOmQAga9gTxeZKph6QcNY17UAcoO8qZY".split(".")
+        val good = FAKE_API_KEY.split(".")
         assertTrue(good.size == 2 && good[0].isNotBlank() && good[1].isNotBlank())
     }
     // ------------------------------------------- server-side geolocation flag

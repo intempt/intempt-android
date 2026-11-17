@@ -128,7 +128,7 @@ class ChangeTrackerUnitTest {
         """
         {
             "auth": {
-                "INTEMPT_API_KEY": "9643576a2cfa47729a1eb63213074e78.1a4f98ffc8f648d3a4c8455a2041cae5",
+                "INTEMPT_API_KEY": "$FAKE_API_KEY",
                 "INTEMPT_SOURCE_ID": "687499928542224384",
                 "INTEMPT_ORGANIZATION_ID": "intempt2",
                 "INTEMPT_PROJECT_ID": "intempt2_project"
