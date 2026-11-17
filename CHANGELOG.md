@@ -9,11 +9,16 @@ Only `v2.0.1` is tagged in this repository's history, so entries below it do not
 invent them, the `2.0.1` section records what the tag contains and nothing more. Everything since is
 under Unreleased.
 
-## [7.0.0] - unreleased
+## [7.1.0] - unreleased
 
 ### Added
 
 - `IntemptValue.of` accepts `java.util.Date` and `java.util.Calendar`, at any depth inside a list or map, and sends them as an ISO-8601 UTC string with milliseconds (`2026-11-16T09:05:03.007Z`), the form the Swift SDK sends. Before, both threw `IllegalArgumentException`. `java.time` types are still rejected: they need API 26 and minSdk is 23 without core library desugaring.
+
+## [7.0.0] - 2026-11-13
+
+### Added
+
 - **Flag errors (INT-7454).** `variationDetail(key, context, defaultValue)` on `Intempt` and `IntemptInstance` returns `FlagDetail(value, reason, error)`. `FlagReason` is public and gains `ERROR`: the default came back because the call failed, and `error` says why as a `FlagError(key, kind, status)` with `kind` one of `auth`, `bad_request`, `server`, `timeout`, `network`, `parse` (401/403 → auth, 408 → timeout, 429 and 5xx → server, other statuses → bad_request). An answered read with no choice for the key stays `OFF`. `onFlagError` (property on both) is called once per failed read, `allFlags` included with `key = null`; a hook that throws is caught and logged. A rejected API key is logged at error level once per instance, naming the source and never the key; later ones at debug.
 - **Evaluation is separate from exposure (INT-7456).** `variation`, `variationDetail`, `boolVariation`, `stringVariation` and `numberVariation` have a new overload with `disableExposure: Boolean`; `true` sends `exposure: false` to choose-api, which evaluates without recording an exposure (for pre-render or prefetch reads). A default read leaves the field out, so the service records exactly as before.
 - `IntemptInstance` has the same flag surface as `Intempt` (R1): `boolVariation`, `stringVariation` and `numberVariation`, each with a `disableExposure` overload, join `variation`, `variationDetail`, `allFlags` and `onFlagError`.
