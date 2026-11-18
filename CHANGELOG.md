@@ -72,6 +72,15 @@ Ships as 6.0.0 (MAJOR: the binary break under Changed).
   The ingestion schema field is nullable, so no server change is needed; any downstream consumer that
   read `androidId` from session events will now see it absent. There is no opt-in flag.
 
+### Fixed
+
+- **Journey pushes report delivered, opened and bounced again, addressed to their run (INT-5960).**
+  destinations-processor stamps `runId` and `subrunId` into the push metadata of every journey send.
+  `PushNotificationMetadata` had no `@JsonIgnoreProperties(ignoreUnknown = true)`, so those two keys
+  failed the parse, the metadata was dropped and no webhook was sent at all for any journey push.
+  Unknown metadata fields are now ignored, and the run ids are read and sent back on all three
+  webhooks so a journey waiting on the push's outcome can see it.
+
 ## [5.1.0] - 2026-10-30
 
 > **Behaviour change: check your error callback.** 401, 402, 403 and 404 now arrive as

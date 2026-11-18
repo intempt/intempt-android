@@ -1,9 +1,11 @@
 package com.intempt.push.model
 
 import android.os.Parcelable
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import kotlinx.parcelize.Parcelize
 
 @Parcelize
+@JsonIgnoreProperties(ignoreUnknown = true)
 internal data class PushNotificationMetadata(
     val orgId: String,
     val projectId: String,
@@ -13,4 +15,6 @@ internal data class PushNotificationMetadata(
     val masterId: String,
     val accountId: String,
     val templateId: String,
+    val runId: String? = null,
+    val subrunId: String? = null,
 ) : Parcelable

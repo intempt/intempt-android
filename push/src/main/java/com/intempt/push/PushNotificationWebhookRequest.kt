@@ -15,6 +15,8 @@ internal data class PushNotificationWebhookRequest(
     var subject: String = "firebase_cloud_messaging",
     var destinationType: String = "firebase_cloud_messaging",
     var status: String,
+    var runId: String? = null,
+    var subrunId: String? = null,
 ) {
     constructor(type: WebhookType, metadata: PushNotificationMetadata) : this(
         type = type,
@@ -27,6 +29,8 @@ internal data class PushNotificationWebhookRequest(
         transformerId = metadata.transformerId.toLong(),
         templateId = metadata.templateId.toLong(),
         status = type.toString().lowercase(),
+        runId = metadata.runId,
+        subrunId = metadata.subrunId,
     )
 
     enum class WebhookType(val receivedType: String) {
