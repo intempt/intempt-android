@@ -9,7 +9,18 @@ Only `v2.0.1` is tagged in this repository's history, so entries below it do not
 invent them, the `2.0.1` section records what the tag contains and nothing more. Everything since is
 under Unreleased.
 
-## [7.1.0] - unreleased
+## [7.1.1] - 2026-11-25
+
+### Fixed
+
+- **Journey pushes report delivered, opened and bounced again, addressed to their run (INT-5960).**
+  destinations-processor stamps `runId` and `subrunId` into the push metadata of every journey send.
+  `PushNotificationMetadata` had no `@JsonIgnoreProperties(ignoreUnknown = true)`, so those two keys
+  failed the parse, the metadata was dropped and no webhook was sent at all for any journey push.
+  Unknown metadata fields are now ignored, and the run ids are read and sent back on all three
+  webhooks so a journey waiting on the push's outcome can see it.
+
+## [7.1.0] - 2026-11-17
 
 ### Added
 
@@ -71,15 +82,6 @@ Ships as 6.0.0 (MAJOR: the binary break under Changed).
   start. **Payload change:** the `androidId` field is no longer sent in the session-start event `data`.
   The ingestion schema field is nullable, so no server change is needed; any downstream consumer that
   read `androidId` from session events will now see it absent. There is no opt-in flag.
-
-### Fixed
-
-- **Journey pushes report delivered, opened and bounced again, addressed to their run (INT-5960).**
-  destinations-processor stamps `runId` and `subrunId` into the push metadata of every journey send.
-  `PushNotificationMetadata` had no `@JsonIgnoreProperties(ignoreUnknown = true)`, so those two keys
-  failed the parse, the metadata was dropped and no webhook was sent at all for any journey push.
-  Unknown metadata fields are now ignored, and the run ids are read and sent back on all three
-  webhooks so a journey waiting on the push's outcome can see it.
 
 ## [5.1.0] - 2026-10-30
 
