@@ -23,23 +23,19 @@ import com.intempt.core.services.IntemptEventManagerService
 import com.intempt.core.services.StorageManagerService
 import com.intempt.core.services.UtilsService
 import com.intempt.core.services.eventPool.EventPoolManagerService
+import com.intempt.core.types.Choice
 import com.intempt.core.types.ConsentAction
 import com.intempt.core.types.Constants
 import com.intempt.core.types.DefaultConfigs
 import com.intempt.core.types.EventType
-import com.intempt.core.types.FLAG_KEY_PATTERN
 import com.intempt.core.types.FlagContext
-import com.intempt.core.types.FlagDetail
-import com.intempt.core.types.FlagError
-import com.intempt.core.types.FlagReason
+import com.intempt.core.types.FlagErrorKind
 import com.intempt.core.types.IntemptError
 import com.intempt.core.types.IntemptValue
 import com.intempt.core.types.Product
 import com.intempt.core.types.StorageKeys
-import com.intempt.core.types.flagDetailOf
-import com.intempt.core.types.flagNameOf
-import com.intempt.core.types.isValidFlagKey
-import com.intempt.core.types.unwrapFlagValue
+import com.intempt.core.types.choiceOf
+import com.intempt.core.types.requireChooseNames
 import kotlinx.serialization.json.JsonObject
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -432,42 +428,30 @@ internal class CustomCaptureComponent
             return productEvent("productView", "Product viewed", listOf(Product(productId)))
         }
 
-        var onFlagError: ((FlagError) -> Unit)?
-            get() = eventPool.flagErrors.hook
-            set(value) {
-                eventPool.flagErrors.hook = value
-            }
-
         /**
-         * Backs the public `variationDetail` and `variation` (INT-7454 made the detail public).
-         *
-         * The platform sends no reason, so an answered read is OFF even for someone who WAS
-         * targeted; only [FlagReason.ERROR] is a reason a caller can act on. See rule 3 in
-         * `types/Flags.kt`.
+         * Experiments and personalizations (D13: one `choose()`) over choose-api, bounded by the 2 s
+         * flag timeout (D19). A runtime failure resolves to no choices after one log line, which is
+         * what an unserved experiment looks like anyway; only a malformed call throws.
          */
-        internal suspend fun variationDetailInternal(
-            key: String,
+        suspend fun choose(
             context: FlagContext,
-            defaultValue: Any?,
-            recordExposure: Boolean = true,
-        ): FlagDetail {
-            // `docs/CONVENTIONS.md`: a validation mistake THROWS, a service problem does not.
-            // A blank key is a programming error the caller can fix at the call site. Returning
-            // the default here instead made a typo'd key indistinguishable from a paused flag and
-            // from an unreachable service — three causes, one value, and only one of them is the
-            // caller's to fix.
-            require(key.isNotBlank()) { "variation | key must not be blank" }
-            require(isValidFlagKey(key)) { "variation | key must match ${FLAG_KEY_PATTERN.pattern}: $key" }
-
-            return flagDetailOf(eventPool.chooseFlags(context, listOf(key), recordExposure), key, defaultValue)
+            names: List<String>?,
+            groups: List<String>?,
+            disableExposure: Boolean,
+        ): List<Choice> {
+            requireChooseNames("names", names)
+            requireChooseNames("groups", groups)
+            require(!context.userId.isNullOrBlank() || config.sourceId.isNotBlank()) {
+                "choose: context needs either userId, or profileId together with a sourceId configured on the client"
+            }
+            val result = eventPool.choose(context, names, groups, recordExposure = !disableExposure)
+            result.error?.let { error ->
+                val line = "choose: request failed (${error.kind.wireName} ${error.status ?: ""}), returning no choices"
+                if (error.kind == FlagErrorKind.AUTH) srv.logger.error(line) else srv.logger.warn(line)
+                return emptyList()
+            }
+            return result.choices.mapNotNull(::choiceOf)
         }
-
-        /** Evaluates without recording an exposure: reading every key is not seeing every variant (INT-7456). */
-        suspend fun allFlags(context: FlagContext): Map<String, Any?> =
-            eventPool.chooseFlags(context, null, recordExposure = false).choices.mapNotNull { choice ->
-                val name = flagNameOf(choice)
-                if (name.isNullOrBlank()) null else name to choice["body"]?.let { unwrapFlagValue(it) }
-            }.toMap()
 
         suspend fun products(
             feedId: String,

@@ -15,7 +15,6 @@ import com.intempt.core.types.ChooseResult
 import com.intempt.core.types.DispatchEventProps
 import com.intempt.core.types.EventType
 import com.intempt.core.types.FlagContext
-import com.intempt.core.types.FlagErrorReporter
 import com.intempt.core.types.HandleEventTypeProps
 import com.intempt.core.types.IntemptEventProvider
 import com.intempt.core.types.chooseResultOf
@@ -306,31 +305,21 @@ internal open class EventPoolManagerService
             }
         }
 
-        /** Per instance, so the once-only auth log and the `onFlagError` hook are per instance too. */
-        internal val flagErrors =
-            FlagErrorReporter({ config.sourceId }, { logger.error(it) }, { logger.debug(it) })
-
         /**
-         * Evaluate flags. Never throws on a service problem: a failure comes back as
-         * [ChooseResult.error] with no choices, after it has been reported to [flagErrors].
-         *
-         * This is the entire reason a default value is required at the public surface: a network
-         * failure, a 5xx or a timeout must resolve to the value the caller chose. A flag SDK that
-         * throws when the service is unreachable takes the host app down with it, which is the
-         * opposite of what a kill switch is for.
+         * One choose-api call for `choose()`. Never throws on a service problem: a failure comes back
+         * as [ChooseResult.error] with no choices. Flags never come through here (D20).
          */
-        suspend fun chooseFlags(
+        suspend fun choose(
             context: FlagContext,
             names: List<String>?,
+            groups: List<String>?,
             recordExposure: Boolean,
         ): ChooseResult {
             val url = config.optimizationUrl
-            val body = JSONObject(withExposure(intemptEvent.generateChooseBody(context, names), recordExposure))
+            val body = JSONObject(withExposure(intemptEvent.generateChooseBody(context, names, groups), recordExposure))
 
             val response = http.postChoose(url, body, HttpManagerService.CHOOSE_TIMEOUT_MS)
-            val result = chooseResultOf(names?.singleOrNull(), response.status, response.body, response.timedOut)
-            result.error?.let(flagErrors::report)
-            return result
+            return chooseResultOf(null, response.status, response.body, response.timedOut)
         }
 
         suspend fun getFeedData(

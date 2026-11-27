@@ -12,6 +12,7 @@ import com.intempt.core.internal.PushBridge
 import com.intempt.core.internal.traced
 import com.intempt.core.types.AutocaptureOptions
 import com.intempt.core.types.AutomaticEventsOptions
+import com.intempt.core.types.Choice
 import com.intempt.core.types.ConsentAction
 import com.intempt.core.types.FeedFields
 import com.intempt.core.types.FlagContext
@@ -24,6 +25,7 @@ import com.intempt.core.types.IntemptError
 import com.intempt.core.types.IntemptRuntimeOptions
 import com.intempt.core.types.IntemptValue
 import com.intempt.core.types.Product
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import java.util.concurrent.ConcurrentHashMap
 
@@ -646,25 +648,13 @@ object Intempt {
     ): JsonObject? = main("products")?.products(feedId, count, fields, productId, userId)
 
     /**
-     * The value assigned for [key], or [defaultValue] when the service did not answer.
+     * The flag value for [key], or [defaultValue]. Reads `/flags/evaluate`, which records the
+     * exposure. Flags only: experiments and personalizations are read with [choose] (D20; earlier
+     * versions resolved them by key over choose-api).
      *
-     * Ask for a KEY, never a mode. Whether the key names an experiment, a personalization or a
-     * flag is the platform's business: its serving query filters on channel and status and never
-     * on mode. The older surface put the mode in the method name, which forced a caller to know
-     * which it was before reading it.
-     *
-     * [defaultValue] is what comes back on a network failure, a 5xx, a timeout, an unknown key or
-     * an uninitialized SDK. A flag SDK that throws when the service is unreachable takes the host
-     * app down with it.
-     *
-     * A **[key] that is blank or outside `^[a-zA-Z0-9_-]+$` throws** [IllegalArgumentException]
-     * (the second since INT-7455: the service answers such a key with a 400). That is not the same
-     * class of problem: a service problem is absorbed, a programming error the caller can fix at the
-     * call site is not. Returning the default for a typo would make it indistinguishable from a
-     * paused flag.
-     *
-     * A returned `null` means the flag's configured value is JSON `null`, not that the call failed
-     * — the failure paths all return [defaultValue].
+     * Never throws (S11): an invalid key, a failed call, a value of another type than
+     * [defaultValue], an unknown flag and an uninitialized SDK all return [defaultValue];
+     * [variationDetail] says which. A returned `null` is a served JSON `null`.
      */
     @JvmStatic
     @JvmOverloads
@@ -673,19 +663,13 @@ object Intempt {
         context: FlagContext = FlagContext(),
         defaultValue: Any?,
     ): Any? {
-        // Deliberately NOT `main(..)?.variation(..) ?: defaultValue`. That elvis collapses two
-        // different answers into one: an uninitialized SDK, and a flag whose configured value is
-        // JSON `null` — which `unwrapFlagValue` maps to `null` on purpose so a caller can tell an
-        // explicitly-null payload from an absent one. Resolving the instance first keeps them apart.
+        // Not `main(..)?.variation(..) ?: defaultValue`: that elvis would turn a served JSON null
+        // into the default. Resolving the instance first keeps the two apart.
         val instance = main("variation") ?: return defaultValue
         return instance.variation(key, context, defaultValue)
     }
 
-    /**
-     * As above; `disableExposure = true` evaluates without recording an exposure, for a pre-render or
-     * prefetch read the person may never see (INT-7456). A separate overload so the existing JVM
-     * signature stays as it was.
-     */
+    /** As above; `disableExposure = true` evaluates without recording an exposure. */
     @JvmStatic
     @JvmOverloads
     suspend fun variation(
@@ -699,10 +683,9 @@ object Intempt {
     }
 
     /**
-     * [variation] with the reason (INT-7454). [FlagDetail.reason] is [FlagReason.ERROR], with
-     * [FlagDetail.error] set, when the call failed; an answered read is [FlagReason.OFF] whether or
-     * not a value was served. Uninitialized: [defaultValue] with [FlagReason.ERROR] and no error,
-     * because no call was made.
+     * [variation] with the server's answer (reason, variationId, valueType, rule, variant) or
+     * [FlagReason.ERROR] with an error code. Uninitialized: [defaultValue] with [FlagReason.ERROR]
+     * and no error, because no call was made.
      */
     @JvmStatic
     @JvmOverloads
@@ -715,11 +698,7 @@ object Intempt {
         return instance.variationDetail(key, context, defaultValue)
     }
 
-    /**
-     * As above; `disableExposure = true` evaluates without recording an exposure, for a pre-render or
-     * prefetch read the person may never see (INT-7456). A separate overload so the existing JVM
-     * signature stays as it was.
-     */
+    /** [variationDetail]; `disableExposure = true` evaluates without recording an exposure. */
     @JvmStatic
     @JvmOverloads
     suspend fun variationDetail(
@@ -744,8 +723,9 @@ object Intempt {
         }
 
     /**
-     * Every key assigned to this person, in one call. Empty when the SDK is not initialized.
-     * Records no exposure: reading every key is not seeing every variant (INT-7456).
+     * Every flag served to this person, from `/flags/all`, which records nothing. Reading a served
+     * key's value from the map records its exposure once; see [IntemptInstance.allFlags]. Empty when
+     * the SDK is not initialized.
      */
     @JvmStatic
     @JvmOverloads
@@ -753,11 +733,7 @@ object Intempt {
         return main("allFlags")?.allFlags(context) ?: emptyMap()
     }
 
-    /**
-     * A boolean flag. A served value of the wrong type falls back rather than being coerced:
-     * the string "false" is truthy in most languages, and a silent coercion is indistinguishable
-     * from a correct answer.
-     */
+    /** A boolean flag. A served value of another type returns [defaultValue]; it is never coerced. */
     @JvmStatic
     @JvmOverloads
     suspend fun boolVariation(
@@ -766,7 +742,7 @@ object Intempt {
         defaultValue: Boolean,
     ): Boolean = variation(key, context, defaultValue) as? Boolean ?: defaultValue
 
-    /** [boolVariation]; `disableExposure = true` evaluates without recording an exposure (INT-7456). */
+    /** [boolVariation]; `disableExposure = true` evaluates without recording an exposure. */
     @JvmStatic
     @JvmOverloads
     suspend fun boolVariation(
@@ -784,7 +760,7 @@ object Intempt {
         defaultValue: String,
     ): String = variation(key, context, defaultValue) as? String ?: defaultValue
 
-    /** [stringVariation]; `disableExposure = true` evaluates without recording an exposure (INT-7456). */
+    /** [stringVariation]; `disableExposure = true` evaluates without recording an exposure. */
     @JvmStatic
     @JvmOverloads
     suspend fun stringVariation(
@@ -803,7 +779,7 @@ object Intempt {
         defaultValue: Double,
     ): Double = (variation(key, context, defaultValue) as? Number)?.toDouble() ?: defaultValue
 
-    /** [numberVariation]; `disableExposure = true` evaluates without recording an exposure (INT-7456). */
+    /** [numberVariation]; `disableExposure = true` evaluates without recording an exposure. */
     @JvmStatic
     @JvmOverloads
     suspend fun numberVariation(
@@ -812,6 +788,43 @@ object Intempt {
         defaultValue: Double,
         disableExposure: Boolean,
     ): Double = (variation(key, context, defaultValue, disableExposure) as? Number)?.toDouble() ?: defaultValue
+
+    /** A json flag: any JSON value, objects, arrays and scalars alike, handed back as parsed. */
+    @JvmStatic
+    @JvmOverloads
+    suspend fun jsonVariation(
+        key: String,
+        context: FlagContext = FlagContext(),
+        defaultValue: JsonElement,
+    ): JsonElement = variation(key, context, defaultValue) as? JsonElement ?: defaultValue
+
+    /** [jsonVariation]; `disableExposure = true` evaluates without recording an exposure. */
+    @JvmStatic
+    @JvmOverloads
+    suspend fun jsonVariation(
+        key: String,
+        context: FlagContext = FlagContext(),
+        defaultValue: JsonElement,
+        disableExposure: Boolean,
+    ): JsonElement = variation(key, context, defaultValue, disableExposure) as? JsonElement ?: defaultValue
+
+    /**
+     * Experiments and personalizations (D13: the one `choose()`): the served [Choice]s for [names]
+     * and/or [groups], from `/optimization/choose-api`. Any runtime failure, including the 2 s
+     * timeout and an uninitialized SDK, returns an empty list; a malformed name or group throws
+     * [IllegalArgumentException].
+     *
+     * Leaving out both [names] and [groups] evaluates, and so EXPOSES, every API-channel experience
+     * this person is eligible for; `disableExposure = true` evaluates without recording.
+     */
+    @JvmStatic
+    @JvmOverloads
+    suspend fun choose(
+        names: List<String>? = null,
+        groups: List<String>? = null,
+        context: FlagContext = FlagContext(),
+        disableExposure: Boolean = false,
+    ): List<Choice> = main("choose")?.choose(names, groups, context, disableExposure) ?: emptyList()
 
     /**
      * Returns immediately.

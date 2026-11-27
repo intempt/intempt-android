@@ -15,80 +15,47 @@ import kotlinx.serialization.json.longOrNull
 import java.util.concurrent.atomic.AtomicBoolean
 
 /*
- * Feature flags, experiments and personalizations, read by key.
- *
- * ## Status of the cross-SDK contract — READ THIS BEFORE CITING IT
- *
- * The cross-SDK surface is defined in `intempt-swift/docs/SDK-API-CONTRACT.md`. As of 2026-08-31,
- * that document at `intempt-swift` `origin/main` **does not specify this surface**: it contains no
- * occurrence of `variation`, `allFlags`, `defaultValue` or `waitForInitialization`, and it still
- * carries the section "`experiments()` is deliberately NOT in any SDK — decided 2026-08-15",
- * whose action table names `intempt-android` with "removal required".
- *
- * An earlier version of this file said the wire was "frozen in `intempt-swift` #7". That is false.
- * `intempt-swift` #7 is **CLOSED with `mergedAt: null`** — it never merged. Its replacement,
- * `intempt-swift` #8, is **OPEN and unreviewed**. An open PR is not settled precedent, so the
- * 2026-08-15 removal stands until #8 lands or a dated supersession is recorded in the contract.
- *
- * This code is therefore written **ahead of** the contract, not against it. It must not merge
- * before the contract change does. See `docs/CONVENTIONS.md` for the ordering.
- *
- * Four rules the contract draft in #8 carries, which shape this file:
- *
- * 1. The caller asks for a KEY, never a mode. The older surface put the mode in the method name,
- *    which forced an integrator to know whether a key was an experiment before reading it and grew
- *    combinatorially with every new mode. The platform resolves mode itself: its serving query
- *    filters on channel and status and never on mode.
- * 2. `defaultValue` is REQUIRED. It is what a caller receives on a network failure, a timeout, an
- *    unknown key or a malformed response.
- * 3. Assignment detail IS exposed, as `variationDetail` (INT-7454, DECISIONS 7454 and
- *    CONTRACT-R2 §S3; this rule used to forbid it). The platform still sends no reason, so an
- *    answered read is [FlagReason.OFF] whether or not a value was served; what the detail adds is
- *    [FlagReason.ERROR] plus a [FlagError] when the default came back because the call failed —
- *    the one distinction the old rule said could not be made, and the SDK can make it alone.
- * 4. Evaluation is REMOTE only. There is no local rule engine and no flag store to poll.
- *
- * An Android SDK runs on a device and is still an `api`-channel consumer: there is no visual editor
- * for a native surface, so the value is authored as a payload and the integrator writes the branch.
+ * Shared flag and choose types. Flag evaluation lives in `com.intempt.core.flags` (F33) and reads
+ * the `/flags` routes only; `/optimization/choose-api` serves `choose()` (experiments and personalizations)
+ * and never a flag (D20, DECISIONS-2026-11-23). Evaluation is remote: there is no local rule engine.
  */
 
 /**
- * Why an evaluation returned the value it did.
- *
- * **Every one of these except [OFF] is unreachable today**, and deliberately kept rather than
- * deleted. `ExperienceApiChoose` on the serving side carries only `name`, `group` and `body`; there
- * is no `reason` key on the wire at all, so [fromWire] can only ever be handed `null`. That is
- * recorded upstream as known limitation 37 on `EXP-SERVE-001` (H, unimplemented).
- *
- * The wire vocabulary is **not agreed** either. [HOLDOUT]'s `"holdout"` is this SDK's guess; the
- * spec's own language for the same state is "held back". Do not branch on those three until
- * `EXP-SERVE-001` ships and fixes the vocabulary.
- *
- * Public since INT-7454 for [ERROR] and [OFF], the two this SDK produces: [ERROR] is decided on the
- * device (the call failed) and is never decoded from a response.
- *
- * They are pinned by `FlagsTest` so that the day a reason does arrive, the decoding is already
- * under the mutation gate rather than being written for the first time under deadline.
+ * Why an evaluation returned the value it did: the server's `FlagValue.reason`, or a reason the SDK
+ * decides itself. [ERROR] (the read failed or was refused, see [FlagDetail.errorCode]) and [CACHED]
+ * (the last known value, served because the read failed) are never decoded from the wire.
  */
 enum class FlagReason(val wireValue: String) {
     TARGETED("targeted"),
     HOLDOUT("holdout"),
     NOT_TARGETED("not_targeted"),
+    NOT_IN_ROLLOUT("not_in_rollout"),
     OFF("off"),
+    KILLED("killed"),
+    NOT_CLIENT_SIDE("not_client_side"),
     ERROR("error"),
+    CACHED("cached"),
     ;
 
     companion object {
         /**
-         * A reason added server-side that this SDK version predates resolves to [OFF] rather than
-         * throwing. An unknown answer is still an answer the caller must not act on.
+         * An absent reason (an older server) and one this SDK version predates both read [OFF], as
+         * every answer did before reasons were sent: an unknown answer is not one to act on.
          */
         @JvmStatic
         internal fun fromWire(value: String?): FlagReason {
             val decoded = entries.firstOrNull { it.wireValue == value }
-            return if (decoded == null || decoded == ERROR) OFF else decoded
+            return if (decoded == null || decoded == ERROR || decoded == CACHED) OFF else decoded
         }
     }
+}
+
+/** OpenFeature error codes, set with [FlagReason.ERROR] when the default came back for a known cause (S11). */
+enum class FlagErrorCode {
+    FLAG_NOT_FOUND,
+    TYPE_MISMATCH,
+    TARGETING_KEY_MISSING,
+    GENERAL,
 }
 
 /**
@@ -118,18 +85,28 @@ data class FlagContext
     )
 
 /**
- * A value and why it was returned. [error] is set only when [reason] is [FlagReason.ERROR].
+ * A value and why it was returned. [error] is set only when the read itself failed; [errorCode] with
+ * every [FlagReason.ERROR]. [variationId], [valueType], [rule] and [variant] are the server's answer
+ * fields, null when nothing was served or the server did not send them.
  *
  * Plain classes here and on [FlagError], not `data`: the CI method-count gate, see [IntemptError].
  */
+@Suppress("LongParameterList") // one parameter per F6 answer field, the shape every SDK returns
 class FlagDetail
     @JvmOverloads
     constructor(
         val value: Any?,
         val reason: FlagReason,
         val error: FlagError? = null,
+        val errorCode: FlagErrorCode? = null,
+        val variationId: Long? = null,
+        val valueType: String? = null,
+        val rule: Int? = null,
+        val variant: String? = null,
     ) {
-        override fun toString(): String = "FlagDetail(value=$value, reason=${reason.wireValue}, error=$error)"
+        override fun toString(): String =
+            "FlagDetail(value=$value, reason=${reason.wireValue}, errorCode=$errorCode, " +
+                "variationId=$variationId, valueType=$valueType, rule=$rule, variant=$variant, error=$error)"
     }
 
 /** CONTRACT-R2 §S3 kinds. 429 is [SERVER] and 408 is [TIMEOUT], as in the node and php SDKs. */
@@ -189,33 +166,27 @@ internal fun chooseResultOf(
 ): ChooseResult {
     val choices = if (status in HTTP_SUCCESS) choicesOf(body) else null
     val error =
-        when {
-            timedOut -> FlagError(key, FlagErrorKind.TIMEOUT, null)
-            status == 0 -> FlagError(key, FlagErrorKind.NETWORK, null)
-            status !in HTTP_SUCCESS -> FlagError(key, flagErrorKindOf(status), status)
-            choices == null -> FlagError(key, FlagErrorKind.PARSE, status)
-            else -> null
-        }
+        transportErrorOf(key, status, timedOut)
+            ?: if (choices == null) FlagError(key, FlagErrorKind.PARSE, status) else null
     return ChooseResult(choices.orEmpty(), error)
 }
+
+/** The failure a response stands for, or null for a 2xx. [status] 0 means no response arrived. */
+internal fun transportErrorOf(
+    key: String?,
+    status: Int,
+    timedOut: Boolean,
+): FlagError? =
+    when {
+        timedOut -> FlagError(key, FlagErrorKind.TIMEOUT, null)
+        status == 0 -> FlagError(key, FlagErrorKind.NETWORK, null)
+        status !in HTTP_SUCCESS -> FlagError(key, flagErrorKindOf(status), status)
+        else -> null
+    }
 
 private fun choicesOf(body: String?): List<JsonObject>? {
     val root = body?.let { runCatching { Json.parseToJsonElement(it) }.getOrNull() } as? JsonObject
     return (root?.get("choices") as? JsonArray)?.mapNotNull { it as? JsonObject }
-}
-
-/** The detail for [key]: the failure, an answered miss ([FlagReason.OFF]), or the served value. */
-internal fun flagDetailOf(
-    result: ChooseResult,
-    key: String,
-    defaultValue: Any?,
-): FlagDetail {
-    val choice = selectChoice(result.choices, key)
-    return when {
-        result.error != null -> FlagDetail(defaultValue, FlagReason.ERROR, result.error)
-        choice == null -> FlagDetail(defaultValue, FlagReason.OFF)
-        else -> FlagDetail(choice["body"]?.let { unwrapFlagValue(it) } ?: defaultValue, flagReasonOf(choice))
-    }
 }
 
 /**
@@ -279,19 +250,42 @@ internal fun buildChooseBody(
 ): Map<String, Any> {
     val identification = mutableMapOf<String, Any>()
     identification["sourceId"] = sourceId
-    profileId?.takeIf { it.isNotBlank() }?.let { identification["profileId"] = it }
-    userId?.takeIf { it.isNotBlank() }?.let { identification["userId"] = it }
+    identification.putAll(identificationOf(null, profileId, userId))
 
     val map = mutableMapOf<String, Any>()
     map["identification"] = identification
-    // `ExperienceDevice` on the serving side is ALL("all")/DESKTOP("desktop")/MOBILE("mobile")
-    // with @JsonValue, so this lowercase token is the one it deserializes.
-    map["device"] = "mobile"
+    map["device"] = SDK_DEVICE
     sessionId?.takeIf { it.isNotBlank() }?.let { map["sessionId"] = it }
     names?.let { map["names"] = it }
 
     return map
 }
+
+/**
+ * `ExperienceDevice` on the serving side is ALL("all")/DESKTOP("desktop")/MOBILE("mobile") with
+ * @JsonValue. Node sends "all" because a server has no device; this SDK runs on one, and sends the
+ * same token on choose and every flag route because `/flags/expose` re-runs the assignment with it.
+ */
+internal const val SDK_DEVICE = "mobile"
+
+/** choose-api's `Identification` (minus `masterId`), blank values omitted rather than sent empty. */
+internal fun identificationOf(
+    sourceId: String?,
+    profileId: String?,
+    userId: String?,
+): Map<String, Any> {
+    val identification = mutableMapOf<String, Any>()
+    sourceId?.takeIf { it.isNotBlank() }?.let { identification["sourceId"] = it }
+    profileId?.takeIf { it.isNotBlank() }?.let { identification["profileId"] = it }
+    userId?.takeIf { it.isNotBlank() }?.let { identification["userId"] = it }
+    return identification
+}
+
+/** choose-api `groups`, sent only when given: an absent list asks for no group filter. */
+internal fun withGroups(
+    body: Map<String, Any>,
+    groups: List<String>?,
+): Map<String, Any> = groups?.let { body + ("groups" to it) } ?: body
 
 /**
  * CONTRACT-R2 §S4 (INT-7456): `exposure: false` asks choose-api to evaluate without recording an
@@ -302,34 +296,6 @@ internal fun withExposure(
     body: Map<String, Any?>,
     recordExposure: Boolean,
 ): Map<String, Any?> = if (recordExposure) body else body + ("exposure" to false)
-
-/**
- * The `name` of a choice, or null when the response did not carry a usable one.
- *
- * Reads through `as?` rather than `jsonPrimitive`, which **throws** on a non-primitive. A response
- * shaped `{"name":{}}` would otherwise propagate an exception out of a public `variation()` call,
- * which is the one thing `docs/CONVENTIONS.md` says a service problem must never do.
- */
-internal fun flagNameOf(choice: JsonObject): String? {
-    val name = choice["name"] as? JsonPrimitive
-    return name?.takeIf { it.isString }?.content
-}
-
-/**
- * The reason a choice carries, decoded.
- *
- * There is no `reason` key on the wire today (known limitation 37), so this returns [FlagReason.OFF]
- * for every real response. It reads through `as?` for the same reason [flagNameOf] does: a
- * non-primitive `reason` must not throw out of a public call.
- */
-internal fun flagReasonOf(choice: JsonObject): FlagReason =
-    FlagReason.fromWire((choice["reason"] as? JsonPrimitive)?.takeIf { it.isString }?.content)
-
-/** The choice matching [key], or null when the service returned none for it. */
-internal fun selectChoice(
-    choices: List<JsonObject>,
-    key: String,
-): JsonObject? = choices.firstOrNull { flagNameOf(it) == key }
 
 /** JSON to a Kotlin value the caller can branch on, with types preserved. */
 internal fun unwrapFlagValue(element: JsonElement): Any? =

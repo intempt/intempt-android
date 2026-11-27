@@ -83,6 +83,13 @@ sourceSets {
             // see them — buildChooseBody's null handling, unwrapFlagValue's type preservation,
             // flagNameOf/flagReasonOf's safe reads and FlagReason.fromWire's fallback.
             include("com/intempt/core/types/Flags.kt")
+            include("com/intempt/core/types/Choice.kt")
+            // SDK-ALIGN (PLAN §3): the flag module's decisions. FlagsService.kt is the Android glue
+            // (ktor, ProcessLifecycleOwner) and stays out; everything it wires is here.
+            include("com/intempt/core/flags/FlagWire.kt")
+            include("com/intempt/core/flags/FlagCache.kt")
+            include("com/intempt/core/flags/FlagStream.kt")
+            include("com/intempt/core/flags/FlagEvaluator.kt")
             // 4.1.0: the Compose hit-test's one decision — which semantics node under the touch
             // point supplies `targetId` — is a pure tree walk over a tiny interface, kept free of
             // both android.* and androidx.compose.* so this gate can reach it. The Compose-typed
@@ -119,6 +126,11 @@ sourceSets {
             include("com/intempt/core/types/ContractTypesTest.kt")
             include("com/intempt/core/types/FlagsTest.kt")
             include("com/intempt/core/types/ChooseBodyJsonTest.kt")
+            include("com/intempt/core/types/ChooseTest.kt")
+            include("com/intempt/core/flags/FlagWireTest.kt")
+            include("com/intempt/core/flags/FlagCacheTest.kt")
+            include("com/intempt/core/flags/FlagStreamTest.kt")
+            include("com/intempt/core/flags/FlagEvaluatorTest.kt")
             include("com/intempt/core/autocapture/composeHitTest/SemanticsHitTest.kt")
             include("com/intempt/core/queue/ConsentSendOnceTest.kt")
         }
@@ -134,6 +146,8 @@ dependencies {
     // serialization COMPILER plugin is deliberately not applied. Same catalog entry :app uses,
     // so there is no second version to drift.
     implementation(libs.kotlinx.serialization.json)
+    // FlagEvaluator suspends; same catalog entry :app exposes as `api`.
+    implementation(libs.kotlinx.coroutines.core)
 }
 
 tasks.test {
@@ -156,6 +170,8 @@ pitest {
             // INT-7454: FlagError, FlagErrorKind, FlagErrorReporter and the choose classification.
             "com.intempt.core.types.FlagError*",
             "com.intempt.core.types.ChooseResult*",
+            "com.intempt.core.types.Choice*",
+            "com.intempt.core.flags.*",
             // Top-level functions in Flags.kt compile into this facade class.
             "com.intempt.core.types.FlagsKt*",
             "com.intempt.core.autocapture.composeHitTest.HitNodeKt*",
@@ -176,6 +192,11 @@ pitest {
             "com.intempt.core.types.ContractTypesTest",
             "com.intempt.core.types.FlagsTest",
             "com.intempt.core.types.ChooseBodyJsonTest",
+            "com.intempt.core.types.ChooseTest",
+            "com.intempt.core.flags.FlagWireTest",
+            "com.intempt.core.flags.FlagCacheTest",
+            "com.intempt.core.flags.FlagStreamTest",
+            "com.intempt.core.flags.FlagEvaluatorTest",
             "com.intempt.core.autocapture.composeHitTest.SemanticsHitTest",
             "com.intempt.core.queue.HttpStatusPolicyTest",
             "com.intempt.core.queue.PureJvmQueueTest",

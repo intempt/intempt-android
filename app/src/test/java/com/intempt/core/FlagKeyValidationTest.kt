@@ -2,66 +2,48 @@
 
 package com.intempt.core
 
-import com.intempt.core.customCapture.CustomCaptureComponent
-import com.intempt.core.customCapture.CustomCaptureService
-import com.intempt.core.services.ConfigManagerService
-import com.intempt.core.services.ErrorReporter
-import com.intempt.core.services.IntemptEventManagerService
-import com.intempt.core.services.LoggerManagerService
-import com.intempt.core.services.StorageManagerService
-import com.intempt.core.services.UtilsService
-import com.intempt.core.services.eventPool.EventPoolManagerService
-import com.intempt.core.types.ChooseResult
 import com.intempt.core.types.FlagContext
+import com.intempt.core.types.FlagErrorCode
+import com.intempt.core.types.FlagReason
 import kotlinx.coroutines.runBlocking
+import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
 import org.junit.Test
-import org.mockito.Mockito.mock
-import org.mockito.Mockito.never
-import org.mockito.Mockito.verify
-import org.mockito.Mockito.`when`
-import org.mockito.kotlin.any
-import org.mockito.kotlin.anyOrNull
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
 /**
- * INT-7455: the choose service only accepts flag names matching `^[a-zA-Z0-9_-]+$`. A key outside
- * it was sent, answered 400, and came back as the default — the same value a paused flag returns.
- * `docs/CONVENTIONS.md` makes a caller mistake a throw, so it must fail before any request.
+ * INT-7455 then S11: a key outside `^[a-zA-Z0-9_-]+$` never reaches the server, which would answer
+ * 400. It used to throw; PLAN §3 makes every flag read fail safe, so it now returns the default with
+ * reason ERROR and FLAG_NOT_FOUND, sending nothing.
  */
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
 class FlagKeyValidationTest {
-    private val eventPool = mock(EventPoolManagerService::class.java)
-    private val component =
-        CustomCaptureComponent(
-            mock(CustomCaptureService::class.java),
-            mock(ConfigManagerService::class.java),
-            eventPool,
-            mock(IntemptEventManagerService::class.java),
-            UtilsService(mock(LoggerManagerService::class.java)),
-            mock(StorageManagerService::class.java),
-            mock(ErrorReporter::class.java),
-        )
+    private val server = StubChooseServer(200 to """{"key":"a_b-1","value":"v","variationId":1}""")
+
+    @After
+    fun tearDown() = server.close()
 
     @Test
-    fun `a key outside the server's pattern throws and sends nothing`(): Unit =
+    fun `a key outside the server's pattern returns the default and sends nothing`(): Unit =
         runBlocking {
-            for (key in listOf("a.b", "a b", "a/b", "ключ")) {
-                assertThrows(key, IllegalArgumentException::class.java) {
-                    runBlocking { component.variationDetailInternal(key, FlagContext(), "fallback") }
-                }
+            val flags = flagsServiceAt(server.flagsBase)
+            for (key in listOf("", "a.b", "a b", "a/b", "ключ")) {
+                val detail = flags.detail(key, FlagContext(), "fallback")
+                assertEquals(key, "fallback", detail.value)
+                assertEquals(key, FlagReason.ERROR, detail.reason)
+                assertEquals(key, FlagErrorCode.FLAG_NOT_FOUND, detail.errorCode)
             }
-            verify(eventPool, never()).chooseFlags(any(), anyOrNull(), any())
+            assertTrue(server.paths.isEmpty())
         }
 
     @Test
     fun `a key inside the pattern is looked up`(): Unit =
         runBlocking {
-            `when`(eventPool.chooseFlags(any(), anyOrNull(), any())).thenReturn(ChooseResult(emptyList(), null))
-
-            assertEquals("d", component.variationDetailInternal("a_b-1", FlagContext(), "d").value)
-            assertEquals("d", component.variationDetailInternal("ABC", FlagContext(), "d").value)
-
-            verify(eventPool).chooseFlags(FlagContext(), listOf("a_b-1"), true)
-            verify(eventPool).chooseFlags(FlagContext(), listOf("ABC"), true)
+            assertEquals("v", flagsServiceAt(server.flagsBase).detail("a_b-1", FlagContext(), "d").value)
+            assertEquals(1, server.bodies.size)
         }
 }

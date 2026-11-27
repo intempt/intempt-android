@@ -5,6 +5,7 @@ package com.intempt.core.intemptCore
 import com.intempt.core.BuildConfig
 import com.intempt.core.autocapture.AutoCaptureComponent
 import com.intempt.core.customCapture.CustomCaptureComponent
+import com.intempt.core.flags.FlagsService
 import com.intempt.core.services.ConfigManagerService
 import com.intempt.core.services.ErrorReporter
 import javax.inject.Inject
@@ -18,7 +19,11 @@ internal class IntemptCoreService
         private val customCaptureComponent: CustomCaptureComponent,
         private val configManager: ConfigManagerService,
         private val errorReporter: ErrorReporter,
+        private val flagsService: FlagsService,
     ) {
+        internal val flags: FlagsService
+            get() = flagsService
+
         internal val capture: CustomCaptureComponent
             get() = customCaptureComponent
 

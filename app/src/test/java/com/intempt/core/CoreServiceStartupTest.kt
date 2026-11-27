@@ -4,6 +4,7 @@ package com.intempt.core
 
 import com.intempt.core.autocapture.AutoCaptureComponent
 import com.intempt.core.customCapture.CustomCaptureComponent
+import com.intempt.core.flags.FlagsService
 import com.intempt.core.intemptCore.IntemptCoreService
 import com.intempt.core.services.ConfigManagerService
 import com.intempt.core.services.ErrorReporter
@@ -44,6 +45,7 @@ class CoreServiceStartupTest {
                 mock(CustomCaptureComponent::class.java),
                 config,
                 mock(ErrorReporter::class.java),
+                mock(FlagsService::class.java),
             )
     }
 

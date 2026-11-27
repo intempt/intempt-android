@@ -161,6 +161,9 @@ class ConfigManagerService
         val optimizationUrl: String
             get() = "$apiUrl/v1/${_organizationId}/projects/${_projectId}/optimization/choose-api"
 
+        /** `/flags/evaluate`, `/all`, `/expose` and `/stream` (audience-service `OptimizationChooserRoutes`). */
+        fun flagsUrl(route: String): String = "$apiUrl/v1/${_organizationId}/projects/${_projectId}/flags/$route"
+
         val pushNotificationWebhookUrl: String
             get() = "$apiUrl/webhooks/events/push-notification"
 

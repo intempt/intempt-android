@@ -2,96 +2,110 @@
 
 package com.intempt.core
 
-import com.intempt.core.customCapture.CustomCaptureComponent
-import com.intempt.core.customCapture.CustomCaptureService
-import com.intempt.core.queue.DeliveryMessages
-import com.intempt.core.services.ConfigManagerService
-import com.intempt.core.services.ErrorReporter
-import com.intempt.core.services.HttpManagerService
-import com.intempt.core.services.IntemptEventManagerService
-import com.intempt.core.services.LoggerManagerService
-import com.intempt.core.services.StorageManagerService
-import com.intempt.core.services.UtilsService
-import com.intempt.core.services.eventPool.EventPoolManagerService
+import com.intempt.core.flags.FlagsService
 import com.intempt.core.types.FlagContext
 import kotlinx.coroutines.runBlocking
 import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.mockito.Mockito.mock
-import org.mockito.Mockito.`when`
-import org.mockito.kotlin.any
-import org.mockito.kotlin.anyOrNull
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * INT-7456 / CONTRACT-R2 §S4: evaluation is not exposure. A bulk read asks the service not to
- * record; a single read records by leaving the field out, so an older backend behaves as before.
+ * F32 hybrid exposure through the real transport: a single read records on `/flags/evaluate`, an
+ * opted-out read and `allFlags` use `/flags/all`, which records nothing, and the first value read
+ * from an `allFlags` map sends `/flags/expose` once. choose-api is never called for a flag (D20).
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class FlagExposureTest {
-    private val server = StubChooseServer(200 to """{"choices":[{"name":"k","body":"on"}]}""")
+    private var server: StubChooseServer? = null
 
     @After
-    fun tearDown() = server.close()
-
-    private fun component(): CustomCaptureComponent {
-        val config = mock(ConfigManagerService::class.java)
-        `when`(config.token()).thenReturn("dG9rZW4=")
-        `when`(config.certificatePins).thenReturn(emptyList())
-        `when`(config.optimizationUrl).thenReturn(server.url)
-        `when`(config.sourceId).thenReturn("src-1")
-        val events = mock(IntemptEventManagerService::class.java)
-        `when`(events.generateChooseBody(any(), anyOrNull())).thenReturn(mapOf("device" to "mobile"))
-        val logger = mock(LoggerManagerService::class.java)
-        val pool =
-            EventPoolManagerService(
-                config,
-                logger,
-                HttpManagerService(config, logger),
-                events,
-                mock(DeliveryMessages::class.java),
-            )
-        return CustomCaptureComponent(
-            mock(CustomCaptureService::class.java),
-            config,
-            pool,
-            events,
-            UtilsService(logger),
-            mock(StorageManagerService::class.java),
-            mock(ErrorReporter::class.java),
-        )
+    fun tearDown() {
+        server?.close()
     }
 
-    private fun sent(): JSONObject = JSONObject(server.bodies.single())
+    private fun serving(vararg answers: Pair<Int, String>): FlagsService {
+        val stub = StubChooseServer(*answers).also { server = it }
+        return flagsServiceAt(stub.flagsBase)
+    }
+
+    private fun flagPaths(): List<String> = server!!.paths.filter { !it.endsWith("/stream") }
+
+    private fun sent(index: Int = 0): JSONObject = JSONObject(server!!.bodies[index])
 
     @Test
-    fun `allFlags asks the service to evaluate without recording an exposure`() =
+    fun `a single read posts one key to flags evaluate with identity, device and session`() =
         runBlocking<Unit> {
-            component().allFlags(FlagContext())
+            val flags = serving(200 to """{"key":"k","value":"on","variationId":3,"reason":"targeted"}""")
 
-            assertEquals(false, sent().opt("exposure"))
+            assertEquals("on", flags.detail("k", FlagContext(), "off").value)
+
+            assertEquals(listOf("/v1/o/projects/p/flags/evaluate"), flagPaths())
+            val body = sent()
+            assertEquals("k", body.getString("key"))
+            assertEquals("mobile", body.getString("device"))
+            assertEquals("sess-1", body.getString("sessionId"))
+            assertEquals("src-1", body.getJSONObject("identification").getString("sourceId"))
+            assertEquals("prof-1", body.getJSONObject("identification").getString("profileId"))
+            assertFalse(body.has("exposure"))
         }
 
     @Test
-    fun `a default single read leaves the exposure field out so the service records`() =
+    fun `an opted-out read asks flags all for that one key and still returns the value`() =
         runBlocking<Unit> {
-            assertEquals("on", component().variationDetailInternal("k", FlagContext(), "off").value)
+            val flags = serving(200 to """{"flags":[{"key":"k","value":"on","variationId":3}]}""")
 
-            assertFalse(sent().has("exposure"))
+            assertEquals("on", flags.detail("k", FlagContext(), "off", disableExposure = true).value)
+
+            assertEquals(listOf("/v1/o/projects/p/flags/all"), flagPaths())
+            assertEquals("k", sent().getJSONArray("keys").getString(0))
+            assertFalse(sent().has("sessionId"))
         }
 
     @Test
-    fun `an opted-out single read sends exposure false and still returns the served value`() =
+    fun `allFlags records nothing until a value is read, then exposes that key once`() =
         runBlocking<Unit> {
-            val detail = component().variationDetailInternal("k", FlagContext(), "off", recordExposure = false)
+            val flags =
+                serving(
+                    200 to
+                        """{"flags":[{"key":"a","value":1,"variationId":11},{"key":"b","value":2,"variationId":12}]}""",
+                    202 to "",
+                )
 
-            assertEquals("on", detail.value)
-            assertEquals(false, sent().opt("exposure"))
+            val all = flags.all(FlagContext())
+            assertEquals(setOf("a", "b"), all.keys)
+            assertEquals(listOf("/v1/o/projects/p/flags/all"), flagPaths())
+            assertFalse(sent().has("keys"))
+
+            assertEquals(1L, all["a"])
+            assertEquals(1L, all["a"])
+            val deadline = System.currentTimeMillis() + 5_000
+            while (flagPaths().size < 2 && System.currentTimeMillis() < deadline) Thread.sleep(20)
+
+            assertEquals(listOf("/v1/o/projects/p/flags/all", "/v1/o/projects/p/flags/expose"), flagPaths())
+            val expose = sent(1)
+            assertEquals("a", expose.getString("key"))
+            assertEquals(11L, expose.getLong("variationId"))
+            assertEquals("sess-1", expose.getString("sessionId"))
+            Thread.sleep(200)
+            assertEquals(2, flagPaths().size)
+        }
+
+    @Test
+    fun `no flag read reaches choose-api`() =
+        runBlocking<Unit> {
+            val flags = serving(200 to """{"flags":[]}""")
+            flags.detail("k", FlagContext(), 1.0)
+            flags.detail("k", FlagContext(), 1.0, disableExposure = true)
+            flags.all(FlagContext())
+
+            assertTrue(flagPaths().none { it.contains("choose") })
+            assertEquals(3, flagPaths().size)
         }
 }

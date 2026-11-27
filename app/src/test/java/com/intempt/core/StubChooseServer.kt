@@ -9,14 +9,16 @@ import java.util.concurrent.CopyOnWriteArrayList
 import kotlin.concurrent.thread
 
 /**
- * A choose endpoint on loopback that answers each request with the next canned (status, body) and
- * keeps every request body. MockWebServer is not on this module's classpath, and the flag path
- * goes through ktor's real Android engine, so the request has to cross a real socket.
+ * A choose or flags endpoint on loopback that answers each request with the next canned (status,
+ * body) and keeps every request body and path. MockWebServer is not on this module's classpath, and
+ * the flag path goes through ktor's real Android engine, so the request has to cross a real socket.
  */
 internal class StubChooseServer(private vararg val answers: Pair<Int, String>) : AutoCloseable {
     private val socket = ServerSocket(0, 50, InetAddress.getLoopbackAddress())
     val bodies = CopyOnWriteArrayList<String>()
+    val paths = CopyOnWriteArrayList<String>()
     val url: String get() = "http://127.0.0.1:${socket.localPort}/choose"
+    val flagsBase: String get() = "http://127.0.0.1:${socket.localPort}/v1/o/projects/p/flags"
 
     init {
         thread(isDaemon = true) {
@@ -30,12 +32,22 @@ internal class StubChooseServer(private vararg val answers: Pair<Int, String>) :
                     }
                 conn.use { c ->
                     val input = c.getInputStream()
+                    val requestHead = readHead(input)
+                    paths += requestHead.lineSequence().first().split(' ').getOrElse(1) { "" }
                     val length =
-                        readHead(input).lines()
+                        requestHead.lines()
                             .firstOrNull { it.startsWith("content-length:", ignoreCase = true) }
                             ?.substringAfter(':')?.trim()?.toInt() ?: 0
-                    bodies += String(ByteArray(length).also { readFully(input, it) })
-                    val (status, text) = answers[minOf(served++, answers.lastIndex)]
+                    val body = String(ByteArray(length).also { readFully(input, it) })
+                    // The flag stream opens on the first read; it must not take a canned answer
+                    // meant for the read itself, so it is refused and retries on its own backoff.
+                    val (status, text) =
+                        if (paths.last().endsWith("/stream")) {
+                            404 to "{}"
+                        } else {
+                            bodies += body
+                            answers[minOf(served++, answers.lastIndex)]
+                        }
                     val bytes = text.toByteArray()
                     val head =
                         "HTTP/1.1 $status S\r\nContent-Type: application/json\r\n" +

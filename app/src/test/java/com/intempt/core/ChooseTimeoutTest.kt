@@ -23,6 +23,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.Mockito.mock
+import org.mockito.Mockito.verify
 import org.mockito.Mockito.`when`
 import org.mockito.kotlin.any
 import org.mockito.kotlin.anyOrNull
@@ -50,7 +51,23 @@ class ChooseTimeoutTest {
     }
 
     @Test
-    fun `a stalled choose server yields the default within about two seconds`() =
+    fun `a stalled flags server yields the default within about two seconds`() =
+        runBlocking {
+            val flags = flagsServiceAt("http://127.0.0.1:${stalled.localPort}/flags")
+
+            val start = System.nanoTime()
+            val detail = flags.detail("checkout", FlagContext(), "fallback")
+            val elapsedMs = (System.nanoTime() - start) / 1_000_000
+
+            assertEquals("fallback", detail.value)
+            // INT-7454: the fallback says why, and a stall is a timeout, not a network failure.
+            assertEquals(FlagReason.ERROR, detail.reason)
+            assertEquals(FlagErrorKind.TIMEOUT, detail.error?.kind)
+            assertTrue("took $elapsedMs ms", elapsedMs in 1_500L until 5_000L)
+        }
+
+    @Test
+    fun `a stalled choose server yields no choices within about two seconds`() =
         runBlocking {
             val config = mock(ConfigManagerService::class.java)
             `when`(config.token()).thenReturn("dG9rZW4=")
@@ -58,7 +75,7 @@ class ChooseTimeoutTest {
             `when`(config.certificatePins).thenReturn(emptyList())
             `when`(config.optimizationUrl).thenReturn("http://127.0.0.1:${stalled.localPort}/choose")
             val events = mock(IntemptEventManagerService::class.java)
-            `when`(events.generateChooseBody(any(), anyOrNull())).thenReturn(mapOf("sourceId" to "s"))
+            `when`(events.generateChooseBody(any(), anyOrNull(), anyOrNull())).thenReturn(mapOf("sourceId" to "s"))
             val logger = mock(LoggerManagerService::class.java)
             val pool =
                 EventPoolManagerService(
@@ -68,9 +85,11 @@ class ChooseTimeoutTest {
                     events,
                     mock(DeliveryMessages::class.java),
                 )
+            val srv = mock(CustomCaptureService::class.java)
+            `when`(srv.logger).thenReturn(logger)
             val component =
                 CustomCaptureComponent(
-                    mock(CustomCaptureService::class.java),
+                    srv,
                     config,
                     pool,
                     events,
@@ -80,14 +99,12 @@ class ChooseTimeoutTest {
                 )
 
             val start = System.nanoTime()
-            val detail = component.variationDetailInternal("checkout", FlagContext(), "fallback")
+            val choices = component.choose(FlagContext(), listOf("hero"), null, disableExposure = false)
             val elapsedMs = (System.nanoTime() - start) / 1_000_000
 
-            assertEquals("fallback", detail.value)
-            // INT-7454: the fallback says why, and a stall is a timeout, not a network failure.
-            assertEquals(FlagReason.ERROR, detail.reason)
-            assertEquals(FlagErrorKind.TIMEOUT, detail.error?.kind)
+            assertTrue(choices.isEmpty())
             assertTrue("took $elapsedMs ms", elapsedMs in 1_500L until 5_000L)
+            verify(logger).warn(org.mockito.kotlin.argThat<String> { contains("timeout") })
         }
 
     @Test

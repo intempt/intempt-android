@@ -134,29 +134,6 @@ class FlagsTest {
         assertTrue(v is JsonObject)
     }
 
-    // ---- flagNameOf / selectChoice --------------------------------------------------------
-
-    @Test
-    fun `the choice matching the key is selected`() {
-        val choices = listOf(obj("""{"name":"a","body":1}"""), obj("""{"name":"b","body":2}"""))
-        assertEquals("b", flagNameOf(selectChoice(choices, "b")!!))
-        assertNull(selectChoice(choices, "c"))
-    }
-
-    /**
-     * A malformed `name` must not throw. The previous implementation read `jsonPrimitive`, which
-     * throws on a non-primitive, so a response shaped `{"name":{}}` propagated an exception out of
-     * a public `variation()` call — the one thing `docs/CONVENTIONS.md` says a service problem
-     * must never do.
-     */
-    @Test
-    fun `a non-string name yields null instead of throwing`() {
-        assertNull(flagNameOf(obj("""{"name":{},"body":1}""")))
-        assertNull(flagNameOf(obj("""{"name":7,"body":1}""")))
-        assertNull(flagNameOf(obj("""{"body":1}""")))
-        assertNull(selectChoice(listOf(obj("""{"name":{},"body":1}""")), "a"))
-    }
-
     // ---- FlagContext / FlagDetail ----------------------------------------------------------
 
     /**
@@ -185,16 +162,16 @@ class FlagsTest {
 
     // ---- FlagReason -----------------------------------------------------------------------
 
-    /**
-     * Pinned, not because it is reachable — it is not, see the note on [FlagReason] — but so that
-     * the decoding is already under the gate on the day `EXP-SERVE-001` starts sending a reason.
-     */
+    /** Every reason audience-service `FlagValue.reason` names decodes to its own value (F6). */
     @Test
     fun `every wire token decodes to its own reason`() {
         assertEquals(FlagReason.TARGETED, FlagReason.fromWire("targeted"))
         assertEquals(FlagReason.HOLDOUT, FlagReason.fromWire("holdout"))
         assertEquals(FlagReason.NOT_TARGETED, FlagReason.fromWire("not_targeted"))
+        assertEquals(FlagReason.NOT_IN_ROLLOUT, FlagReason.fromWire("not_in_rollout"))
         assertEquals(FlagReason.OFF, FlagReason.fromWire("off"))
+        assertEquals(FlagReason.KILLED, FlagReason.fromWire("killed"))
+        assertEquals(FlagReason.NOT_CLIENT_SIDE, FlagReason.fromWire("not_client_side"))
     }
 
     @Test
@@ -202,14 +179,6 @@ class FlagsTest {
         assertEquals(FlagReason.OFF, FlagReason.fromWire(null))
         assertEquals(FlagReason.OFF, FlagReason.fromWire("held_back"))
         assertEquals(FlagReason.OFF, FlagReason.fromWire("TARGETED"))
-    }
-
-    /** Today's real responses carry no `reason` key at all, so this is the only live path. */
-    @Test
-    fun `a real response with no reason key reads OFF`() {
-        assertEquals(FlagReason.OFF, flagReasonOf(obj("""{"name":"a","body":1}""")))
-        assertEquals(FlagReason.OFF, flagReasonOf(obj("""{"name":"a","reason":{}}""")))
-        assertEquals(FlagReason.TARGETED, flagReasonOf(obj("""{"name":"a","reason":"targeted"}""")))
     }
 
     // ---- flag errors (INT-7454, CONTRACT-R2 §S3) --------------------------------------------
@@ -276,30 +245,11 @@ class FlagsTest {
     }
 
     @Test
-    fun `the detail is ERROR with the error, OFF for an answered miss, the value when served`() {
-        val failed = chooseResultOf("k", 500, null, timedOut = false)
-        val e = flagDetailOf(failed, "k", "d")
-        assertEquals("d", e.value)
-        assertEquals(FlagReason.ERROR, e.reason)
-        assertEquals(failed.error, e.error)
-
-        val miss = flagDetailOf(chooseResultOf("k", 200, """{"choices":[{"name":"x","body":1}]}""", false), "k", "d")
-        assertEquals("d", miss.value)
-        assertEquals(FlagReason.OFF, miss.reason)
-        assertNull(miss.error)
-
-        val hit = flagDetailOf(chooseResultOf("k", 200, """{"choices":[{"name":"k","body":7}]}""", false), "k", "d")
-        assertEquals(7L, hit.value)
-        assertNull(hit.error)
-
-        val nobody = flagDetailOf(chooseResultOf("k", 200, """{"choices":[{"name":"k"}]}""", false), "k", "d")
-        assertEquals("d", nobody.value)
-    }
-
-    @Test
     fun `ERROR is never decoded from the wire`() {
         assertEquals("error", FlagReason.ERROR.wireValue)
         assertEquals(FlagReason.OFF, FlagReason.fromWire("error"))
+        assertEquals("cached", FlagReason.CACHED.wireValue)
+        assertEquals(FlagReason.OFF, FlagReason.fromWire("cached"))
     }
 
     @Test
@@ -347,7 +297,23 @@ class FlagsTest {
         )
         val d = FlagDetail("v", FlagReason.OFF)
         assertNull(d.error)
-        assertEquals("FlagDetail(value=v, reason=off, error=null)", d.toString())
+        assertNull(d.errorCode)
+        assertNull(d.variationId)
+        assertNull(d.valueType)
+        assertNull(d.rule)
+        assertNull(d.variant)
+        assertEquals(
+            "FlagDetail(value=v, reason=off, errorCode=null, variationId=null, valueType=null, rule=null, " +
+                "variant=null, error=null)",
+            d.toString(),
+        )
+        val full = FlagDetail(1, FlagReason.ERROR, null, FlagErrorCode.TYPE_MISMATCH, 9L, "number", 2, "b")
+        assertEquals(FlagErrorCode.TYPE_MISMATCH, full.errorCode)
+        assertEquals(9L, full.variationId)
+        assertEquals("number", full.valueType)
+        assertEquals(2, full.rule)
+        assertEquals("b", full.variant)
+        assertTrue(full.toString().contains("errorCode=TYPE_MISMATCH, variationId=9"))
     }
 
     // ---- exposure (INT-7456, CONTRACT-R2 §S4) -----------------------------------------------

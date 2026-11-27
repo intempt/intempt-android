@@ -44,6 +44,7 @@ import com.intempt.core.types.IntemptEventProvider
 import com.intempt.core.types.IntemptValue
 import com.intempt.core.types.Product
 import com.intempt.core.types.buildChooseBody
+import com.intempt.core.types.withGroups
 import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -332,13 +333,17 @@ internal open class IntemptEventManagerService
         fun generateChooseBody(
             context: FlagContext,
             names: List<String>?,
+            groups: List<String>? = null,
         ): Map<String, Any?> =
-            buildChooseBody(
-                sourceId = config.sourceId,
-                profileId = context.profileId ?: storage.getProfileId(),
-                userId = context.userId,
-                names = names,
-                sessionId = storage.getSessionId(),
+            withGroups(
+                buildChooseBody(
+                    sourceId = config.sourceId,
+                    profileId = context.profileId ?: storage.getProfileId(),
+                    userId = context.userId,
+                    names = names,
+                    sessionId = storage.getSessionId(),
+                ),
+                groups,
             )
 
         fun generateRecommendationBody(

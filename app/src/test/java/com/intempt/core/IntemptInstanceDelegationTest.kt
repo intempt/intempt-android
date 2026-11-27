@@ -4,10 +4,12 @@ package com.intempt.core
 
 import com.intempt.core.autocapture.AutoCaptureComponent
 import com.intempt.core.customCapture.CustomCaptureComponent
+import com.intempt.core.flags.FlagsService
 import com.intempt.core.intemptCore.IntemptCoreService
 import com.intempt.core.services.ConfigManagerService
 import com.intempt.core.services.ErrorReporter
 import com.intempt.core.services.LoggerManagerService
+import com.intempt.core.types.Choice
 import com.intempt.core.types.ConsentAction
 import com.intempt.core.types.FlagContext
 import com.intempt.core.types.FlagDetail
@@ -17,6 +19,9 @@ import com.intempt.core.types.FlagReason
 import com.intempt.core.types.IntemptValue
 import com.intempt.core.types.Product
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
@@ -48,6 +53,7 @@ class IntemptInstanceDelegationTest {
         val autoCapture: AutoCaptureComponent = mock(AutoCaptureComponent::class.java)
         val config: ConfigManagerService = mock(ConfigManagerService::class.java)
         val errors: ErrorReporter = mock(ErrorReporter::class.java)
+        val flags: FlagsService = mock(FlagsService::class.java)
 
         init {
             // IntemptCoreService's init block logs through this, so it cannot return null.
@@ -57,7 +63,7 @@ class IntemptInstanceDelegationTest {
         fun instance(): IntemptInstance =
             IntemptInstance(
                 "default",
-                IntemptCoreService(autoCapture, capture, config, errors),
+                IntemptCoreService(autoCapture, capture, config, errors, flags),
             )
     }
 
@@ -246,16 +252,16 @@ class IntemptInstanceDelegationTest {
     // returns a value, and still reads correctly in review.
 
     @Test
-    fun `variation reaches variationDetailInternal with the caller's key, context and default`() =
+    fun `variation reaches the flag module with the caller's key, context and default`() =
         runBlocking<Unit> {
             val f = Fixture()
             val ctx = FlagContext(profileId = "prof-1")
-            `when`(f.capture.variationDetailInternal("checkout", ctx, "off"))
+            `when`(f.flags.detail("checkout", ctx, "off", false))
                 .thenReturn(FlagDetail("on", FlagReason.OFF))
 
             assertEquals("on", f.instance().variation("checkout", ctx, "off"))
 
-            verify(f.capture).variationDetailInternal("checkout", ctx, "off")
+            verify(f.flags).detail("checkout", ctx, "off", false)
         }
 
     /**
@@ -268,7 +274,7 @@ class IntemptInstanceDelegationTest {
         runBlocking<Unit> {
             val f = Fixture()
             val ctx = FlagContext()
-            `when`(f.capture.variationDetailInternal("k", ctx, "fallback"))
+            `when`(f.flags.detail("k", ctx, "fallback", false))
                 .thenReturn(FlagDetail(null, FlagReason.OFF))
 
             assertNull(f.instance().variation("k", ctx, "fallback"))
@@ -280,7 +286,7 @@ class IntemptInstanceDelegationTest {
             val f = Fixture()
             val ctx = FlagContext(profileId = "prof-1")
             val detail = FlagDetail("d", FlagReason.ERROR, FlagError("k", FlagErrorKind.SERVER, 500))
-            `when`(f.capture.variationDetailInternal("k", ctx, "d")).thenReturn(detail)
+            `when`(f.flags.detail("k", ctx, "d", false)).thenReturn(detail)
 
             assertSame(detail, f.instance().variationDetail("k", ctx, "d"))
         }
@@ -290,8 +296,8 @@ class IntemptInstanceDelegationTest {
         runBlocking<Unit> {
             val f = Fixture()
             val ctx = FlagContext()
-            `when`(f.capture.variationDetailInternal("k", ctx, "d", false)).thenReturn(FlagDetail("v", FlagReason.OFF))
-            `when`(f.capture.variationDetailInternal("k", ctx, "d", true)).thenReturn(FlagDetail("r", FlagReason.OFF))
+            `when`(f.flags.detail("k", ctx, "d", true)).thenReturn(FlagDetail("v", FlagReason.OFF))
+            `when`(f.flags.detail("k", ctx, "d", false)).thenReturn(FlagDetail("r", FlagReason.OFF))
 
             assertEquals("v", f.instance().variation("k", ctx, "d", disableExposure = true))
             assertEquals("v", f.instance().variationDetail("k", ctx, "d", disableExposure = true).value)
@@ -306,15 +312,15 @@ class IntemptInstanceDelegationTest {
         runBlocking {
             val f = Fixture()
             val ctx = FlagContext()
-            `when`(f.capture.variationDetailInternal("b", ctx, false, true))
+            `when`(f.flags.detail("b", ctx, false, false))
                 .thenReturn(FlagDetail(true, FlagReason.OFF))
-            `when`(f.capture.variationDetailInternal("s", ctx, "d", true)).thenReturn(FlagDetail("on", FlagReason.OFF))
-            `when`(f.capture.variationDetailInternal("n", ctx, 1.0, true)).thenReturn(FlagDetail(3L, FlagReason.OFF))
-            `when`(f.capture.variationDetailInternal("wrong", ctx, "d", true))
+            `when`(f.flags.detail("s", ctx, "d", false)).thenReturn(FlagDetail("on", FlagReason.OFF))
+            `when`(f.flags.detail("n", ctx, 1.0, false)).thenReturn(FlagDetail(3L, FlagReason.OFF))
+            `when`(f.flags.detail("wrong", ctx, "d", false))
                 .thenReturn(FlagDetail(5L, FlagReason.OFF))
-            `when`(f.capture.variationDetailInternal("wrong", ctx, false, true))
+            `when`(f.flags.detail("wrong", ctx, false, false))
                 .thenReturn(FlagDetail("true", FlagReason.OFF))
-            `when`(f.capture.variationDetailInternal("wrong", ctx, 1.0, true))
+            `when`(f.flags.detail("wrong", ctx, 1.0, false))
                 .thenReturn(FlagDetail(true, FlagReason.OFF))
             val i = f.instance()
 
@@ -327,15 +333,15 @@ class IntemptInstanceDelegationTest {
         }
 
     @Test
-    fun `typed helpers on the instance pass disableExposure through as the inverse of recordExposure`() =
+    fun `typed helpers on the instance pass disableExposure through`() =
         runBlocking {
             val f = Fixture()
             val ctx = FlagContext()
-            `when`(f.capture.variationDetailInternal("b", ctx, false, false))
+            `when`(f.flags.detail("b", ctx, false, true))
                 .thenReturn(FlagDetail(true, FlagReason.OFF))
-            `when`(f.capture.variationDetailInternal("s", ctx, "d", false)).thenReturn(FlagDetail("on", FlagReason.OFF))
-            `when`(f.capture.variationDetailInternal("n", ctx, 1.0, false)).thenReturn(FlagDetail(2.5, FlagReason.OFF))
-            `when`(f.capture.variationDetailInternal("b", ctx, false, true))
+            `when`(f.flags.detail("s", ctx, "d", true)).thenReturn(FlagDetail("on", FlagReason.OFF))
+            `when`(f.flags.detail("n", ctx, 1.0, true)).thenReturn(FlagDetail(2.5, FlagReason.OFF))
+            `when`(f.flags.detail("b", ctx, false, false))
                 .thenReturn(FlagDetail(false, FlagReason.OFF))
             val i = f.instance()
 
@@ -346,14 +352,14 @@ class IntemptInstanceDelegationTest {
         }
 
     @Test
-    fun `onFlagError is stored on and read from the capture component`() {
+    fun `onFlagError is stored on and read from the flag module`() {
         val f = Fixture()
         val hook: (FlagError) -> Unit = {}
-        `when`(f.capture.onFlagError).thenReturn(hook)
+        `when`(f.flags.onFlagError).thenReturn(hook)
 
         f.instance().onFlagError = hook
 
-        verify(f.capture).onFlagError = hook
+        verify(f.flags).onFlagError = hook
         assertSame(hook, f.instance().onFlagError)
     }
 
@@ -362,10 +368,45 @@ class IntemptInstanceDelegationTest {
         runBlocking<Unit> {
             val f = Fixture()
             val ctx = FlagContext(userId = "user-9")
-            `when`(f.capture.allFlags(ctx)).thenReturn(mapOf("a" to 1L, "b" to null))
+            `when`(f.flags.all(ctx)).thenReturn(mapOf("a" to 1L, "b" to null))
 
             assertEquals(mapOf("a" to 1L, "b" to null), f.instance().allFlags(ctx))
 
-            verify(f.capture).allFlags(ctx)
+            verify(f.flags).all(ctx)
         }
+
+    @Test
+    fun `jsonVariation returns a served JSON element and falls back on anything else`() =
+        runBlocking {
+            val f = Fixture()
+            val ctx = FlagContext()
+            val fallback = JsonObject(emptyMap())
+            val served = JsonArray(listOf(JsonPrimitive(1)))
+            `when`(f.flags.detail("j", ctx, fallback, false)).thenReturn(FlagDetail(served, FlagReason.TARGETED))
+            `when`(f.flags.detail("j", ctx, fallback, true)).thenReturn(FlagDetail("x", FlagReason.TARGETED))
+            val i = f.instance()
+
+            assertSame(served, i.jsonVariation("j", ctx, fallback))
+            assertSame(fallback, i.jsonVariation("j", ctx, fallback, disableExposure = true))
+        }
+
+    @Test
+    fun `choose reaches the capture component with names, groups, context and exposure`() =
+        runBlocking<Unit> {
+            val f = Fixture()
+            val ctx = FlagContext(userId = "u")
+            val choices = listOf<Choice>()
+            `when`(f.capture.choose(ctx, listOf("n"), listOf("g"), true)).thenReturn(choices)
+
+            assertSame(choices, f.instance().choose(listOf("n"), listOf("g"), ctx, disableExposure = true))
+            verify(f.capture).choose(ctx, listOf("n"), listOf("g"), true)
+        }
+
+    @Test
+    fun `logOut and reset forget cached flag answers`() {
+        val f = Fixture()
+        f.instance().logOut()
+        f.instance().reset()
+        verify(f.flags, org.mockito.Mockito.times(2)).forget()
+    }
 }
