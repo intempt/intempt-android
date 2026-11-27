@@ -347,7 +347,12 @@ jobs:
           # failure listener (INT-7436, INT-7444), variationDetail with its reason/error types and
           # per-read disableExposure (INT-7454, INT-7456). Contract types, not trimmable without an
           # API change. Same rule: the measured number plus ~50.
-          CEILING=3213
+          # Raised from 3213 for 8.0.0 (semver-major, Beso ruling 2026-11-27): local d8 reads 3573
+          # on feature/sdk-align against 3172 before it, +401, so CI ~3585. The growth is the new
+          # public flag API: /flags/evaluate, /flags/all and the /flags/stream SSE reader, the 60 s
+          # flag cache, choose() and jsonVariation, all contract surface of the cross-SDK alignment
+          # with intempt-node. Same rule: the CI number plus ~50.
+          CEILING=3635
           echo "SDK's own method count: $METHOD_COUNT (ceiling: $CEILING, baseline: ~2,409)"
           if [ "$METHOD_COUNT" -gt "$CEILING" ]; then
             echo "::error::SDK method count $METHOD_COUNT exceeds ceiling $CEILING. If this growth is intentional, raise CEILING in .github/workflows/ci.yml with a note on why."
