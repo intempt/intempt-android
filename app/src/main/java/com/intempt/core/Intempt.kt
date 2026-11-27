@@ -791,7 +791,11 @@ object Intempt {
         disableExposure: Boolean,
     ): Double = (variation(key, context, defaultValue, disableExposure) as? Number)?.toDouble() ?: defaultValue
 
-    /** A json flag: any JSON value, objects, arrays and scalars alike, handed back as parsed. */
+    /**
+     * A flag read as parsed JSON, typed by [defaultValue]'s JSON kind as the other SDKs type theirs:
+     * an object or array default takes any JSON value (F30 #4), a boolean, string or number default
+     * takes only that kind, and [JsonNull] takes anything. Otherwise [defaultValue], TYPE_MISMATCH.
+     */
     @JvmStatic
     @JvmOverloads
     suspend fun jsonVariation(

@@ -277,6 +277,52 @@ class FlagWireTest {
         assertEquals(1.5, typedDetail(flag("""{"key":"k","value":1.5}"""), 0.0).value)
     }
 
+    // Beso ruling 2026-11-27: jsonVariation types by the default's JSON kind, as Node's expectedType.
+    @Test
+    fun `a json scalar default names its own type and a JsonNull default names none`() {
+        assertEquals(FlagValueType.BOOLEAN, expectedTypeOf(JsonPrimitive(false)))
+        assertEquals(FlagValueType.STRING, expectedTypeOf(JsonPrimitive("")))
+        assertEquals(FlagValueType.STRING, expectedTypeOf(JsonPrimitive("true")))
+        assertEquals(FlagValueType.NUMBER, expectedTypeOf(JsonPrimitive(0)))
+        assertEquals(FlagValueType.NUMBER, expectedTypeOf(JsonPrimitive(1.5)))
+        assertNull(expectedTypeOf(JsonNull))
+    }
+
+    @Test
+    fun `a json scalar default gets a served value of its kind back as the raw element`() {
+        assertEquals(JsonPrimitive(true), typedDetail(flag("""{"key":"k","value":true}"""), JsonPrimitive(false)).value)
+        assertEquals(JsonPrimitive("b"), typedDetail(flag("""{"key":"k","value":"b"}"""), JsonPrimitive("a")).value)
+        assertEquals(JsonPrimitive(5), typedDetail(flag("""{"key":"k","value":5}"""), JsonPrimitive(0)).value)
+    }
+
+    @Test
+    fun `a json scalar default rejects any other kind as TYPE_MISMATCH with the default`() {
+        val fallback = JsonPrimitive(false)
+        listOf(
+            """{"key":"k","value":"false"}""",
+            """{"key":"k","value":0}""",
+            """{"key":"k","value":{"a":1}}""",
+            """{"key":"k","value":[true]}""",
+            """{"key":"k","value":true,"valueType":"json"}""",
+        ).forEach { json ->
+            val d = typedDetail(flag(json), fallback)
+            assertEquals(json, fallback, d.value)
+            assertEquals(json, FlagReason.ERROR, d.reason)
+            assertEquals(json, FlagErrorCode.TYPE_MISMATCH, d.errorCode)
+        }
+        assertEquals(JsonPrimitive(0), typedDetail(flag("""{"key":"k","value":"0"}"""), JsonPrimitive(0)).value)
+        assertEquals(JsonPrimitive("a"), typedDetail(flag("""{"key":"k","value":1}"""), JsonPrimitive("a")).value)
+    }
+
+    @Test
+    fun `a JsonNull default checks nothing and gets the raw element`() {
+        val d = typedDetail(flag("""{"key":"k","value":"x","valueType":"string","reason":"targeted"}"""), JsonNull)
+        assertEquals(JsonPrimitive("x"), d.value)
+        assertEquals(FlagReason.TARGETED, d.reason)
+        assertNull(d.errorCode)
+        assertEquals(JsonNull, typedDetail(flag("""{"key":"k","value":null}"""), JsonNull).value)
+    }
+
     @Test
     fun `a reason override marks a cached answer`() {
         val d = typedDetail(flag("""{"key":"k","value":true,"reason":"targeted"}"""), false, FlagReason.CACHED)

@@ -42,6 +42,14 @@ under Unreleased.
   - Every flag request carries `device: "mobile"`, `identification` and, on evaluate and expose, the
     SDK's `sessionId`.
 
+- **`jsonVariation` checks the type its default names (Beso ruling 2026-11-27).** Before, any
+  `JsonElement` default accepted every served value. Now the default's JSON kind sets the expected
+  type, as in Node, Swift, Python and PHP: `JsonPrimitive` boolean, string or number accepts only
+  that kind, `JsonObject`/`JsonArray` accepts any JSON value, and `JsonNull` checks nothing. A
+  value of another kind returns the default with `FlagErrorCode.TYPE_MISMATCH`; a served null
+  returns the default. `variation`/`variationDetail` with a `JsonElement` default follow the same
+  rule and still return the raw element.
+
 ### Added
 
 - `choose(names, groups, context, disableExposure)` on `Intempt` and `IntemptInstance`: the served
@@ -49,8 +57,8 @@ under Unreleased.
   them) from `/optimization/choose-api`, bounded by the 2 s flag timeout. Any runtime failure returns
   an empty list; a malformed name or group throws. Leaving out both `names` and `groups` evaluates
   and exposes every API-channel experience the person is eligible for.
-- `jsonVariation(key, context, defaultValue: JsonElement)`, with a `disableExposure` overload: any
-  JSON value, objects, arrays and scalars alike.
+- `jsonVariation(key, context, defaultValue: JsonElement)`, with a `disableExposure` overload: the
+  served value as parsed JSON, typed by the default's JSON kind (see Changed).
 - `FlagDetail.errorCode`, `variationId`, `valueType`, `rule` and `variant`; `FlagErrorCode`;
   `FlagReason.NOT_IN_ROLLOUT`, `KILLED`, `NOT_CLIENT_SIDE` and `CACHED`.
 

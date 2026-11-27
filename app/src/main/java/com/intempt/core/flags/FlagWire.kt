@@ -159,14 +159,22 @@ internal enum class FlagValueType(val wire: String) {
 
 /**
  * The type a read expects, from its default (F30 #2). A null default names no type: it is the caller
- * saying "absent", so any served value is returned.
+ * saying "absent", so any served value is returned. A [JsonElement] default is typed by its JSON
+ * kind, as Node's `expectedType` types by `typeof` (Beso ruling 2026-11-27): a scalar names its own
+ * type and [JsonNull] names none, so `jsonVariation` is checked like the other typed reads.
  */
 internal fun expectedTypeOf(defaultValue: Any?): FlagValueType? =
     when (defaultValue) {
-        null -> null
+        null, JsonNull -> null
         is Boolean -> FlagValueType.BOOLEAN
         is String -> FlagValueType.STRING
         is Number -> FlagValueType.NUMBER
+        is JsonPrimitive ->
+            when {
+                defaultValue.isString -> FlagValueType.STRING
+                defaultValue.booleanOrNull != null -> FlagValueType.BOOLEAN
+                else -> FlagValueType.NUMBER
+            }
         else -> FlagValueType.JSON
     }
 
@@ -190,8 +198,8 @@ internal fun matchesType(
 }
 
 /**
- * The detail for an answered (or cached) flag. A json read gets the raw element back, scalars and
- * arrays included; every other read gets the unwrapped Kotlin value. A value of the wrong type is
+ * The detail for an answered (or cached) flag. A json read, or any read with a [JsonElement] default,
+ * gets the raw element back; every other read gets the unwrapped Kotlin value. A value of the wrong type is
  * TYPE_MISMATCH with the default, never a coercion: `"false"` is truthy almost everywhere.
  */
 internal fun typedDetail(
@@ -206,7 +214,7 @@ internal fun typedDetail(
         value == null || value == JsonNull -> detailOf(flag, defaultValue, answered, null)
         expected != null && !matchesType(expected, value, flag.valueType) ->
             detailOf(flag, defaultValue, FlagReason.ERROR, FlagErrorCode.TYPE_MISMATCH)
-        expected == FlagValueType.JSON -> detailOf(flag, value, answered, null)
+        expected == FlagValueType.JSON || defaultValue is JsonElement -> detailOf(flag, value, answered, null)
         else -> detailOf(flag, unwrapFlagValue(value), answered, null)
     }
 }
