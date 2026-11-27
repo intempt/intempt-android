@@ -7,6 +7,7 @@ import com.intempt.core.types.FlagError
 import com.intempt.core.types.FlagErrorCode
 import com.intempt.core.types.FlagErrorKind
 import com.intempt.core.types.FlagErrorReporter
+import com.intempt.core.types.FlagMap
 import com.intempt.core.types.FlagReason
 import com.intempt.core.types.isValidFlagKey
 import com.intempt.core.types.transportErrorOf
@@ -171,11 +172,11 @@ internal class FlagEvaluator(
     /**
      * Every flag served to this person. `/flags/all` publishes nothing (F32 hybrid exposure), so the
      * map reports the exposure itself: the first read of each served key sends `/flags/expose` once
-     * for this map. See [ExposingFlagMap] for which reads count.
+     * for this map. See [FlagMap] for which reads count.
      */
-    suspend fun all(context: FlagContext): Map<String, Any?> {
+    suspend fun all(context: FlagContext): FlagMap {
         val who = identity(context)
-        if (!answerable(who, null)) return emptyMap()
+        if (!answerable(who, null)) return emptyFlagMap()
 
         val outcome = allOutcomeOf(null, post(FlagRoute.ALL, allBody(who, null)))
         outcome.error?.let(reporter::report)
@@ -185,7 +186,7 @@ internal class FlagEvaluator(
     private fun answerMap(
         who: FlagIdentity,
         flags: List<RawFlag>,
-    ): Map<String, Any?> {
+    ): FlagMap {
         val values = LinkedHashMap<String, Any?>()
         val served = ConcurrentHashMap<String, Long>()
         for (flag in flags) {
@@ -197,11 +198,8 @@ internal class FlagEvaluator(
             val variationId = flag.variationId
             if (flag.hasValue && variationId != null) served[key] = variationId
         }
-        return if (served.isEmpty()) {
-            values
-        } else {
-            ExposingFlagMap(values) { key -> served.remove(key)?.let { expose(who, key, it) } }
-        }
+        // Always a FlagMap, even with nothing to expose: a bridge reaches peek/snapshot through the type.
+        return ExposingFlagMap(values) { key -> served.remove(key)?.let { expose(who, key, it) } }
     }
 
     /**
@@ -266,18 +264,24 @@ internal class FlagEvaluator(
     }
 }
 
-/**
- * The `allFlags` answer. A value read (`get`, and iterating [values] or [entries], which read every
- * value) records the exposure of each served key once; `keys`, `containsKey` and `size` do not.
- * `toString` is diagnostic and records nothing.
- */
+/** [FlagMap] over [backing]; [onRead] records a key's exposure and owns the once-per-map dedup. */
 internal class ExposingFlagMap(
     private val backing: Map<String, Any?>,
     private val onRead: (String) -> Unit,
-) : Map<String, Any?> by backing {
+) : FlagMap,
+    Map<String, Any?> by backing {
     override fun get(key: String): Any? {
         onRead(key)
         return backing[key]
+    }
+
+    // Not backing.getOrDefault: Map.getOrDefault is API 24 and minSdk is 23.
+    override fun getOrDefault(
+        key: String,
+        defaultValue: Any?,
+    ): Any? {
+        onRead(key)
+        return if (backing.containsKey(key)) backing[key] else defaultValue
     }
 
     override val values: Collection<Any?>
@@ -292,9 +296,17 @@ internal class ExposingFlagMap(
             return backing.entries
         }
 
+    override fun peek(key: String): Any? = backing[key]
+
+    override fun snapshot(): Map<String, Any?> = LinkedHashMap(backing)
+
+    override fun expose(key: String) = onRead(key)
+
     override fun equals(other: Any?): Boolean = backing == other
 
     override fun hashCode(): Int = backing.hashCode()
 
     override fun toString(): String = backing.toString()
 }
+
+internal fun emptyFlagMap(): FlagMap = ExposingFlagMap(emptyMap()) {}

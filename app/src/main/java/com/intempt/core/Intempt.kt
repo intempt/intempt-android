@@ -5,6 +5,7 @@ package com.intempt.core
 import android.content.Context
 import android.util.Log
 import android.view.View
+import com.intempt.core.flags.emptyFlagMap
 import com.intempt.core.intemptCore.DaggerIntemptCoreComponent
 import com.intempt.core.intemptCore.IntemptCoreModule
 import com.intempt.core.internal.InternalIntemptApi
@@ -18,6 +19,7 @@ import com.intempt.core.types.FeedFields
 import com.intempt.core.types.FlagContext
 import com.intempt.core.types.FlagDetail
 import com.intempt.core.types.FlagError
+import com.intempt.core.types.FlagMap
 import com.intempt.core.types.FlagReason
 import com.intempt.core.types.InstanceId
 import com.intempt.core.types.IntemptCredentials
@@ -724,13 +726,13 @@ object Intempt {
 
     /**
      * Every flag served to this person, from `/flags/all`, which records nothing. Reading a served
-     * key's value from the map records its exposure once; see [IntemptInstance.allFlags]. Empty when
-     * the SDK is not initialized.
+     * key's value from the map records its exposure once; [FlagMap.snapshot] records nothing. See
+     * [IntemptInstance.allFlags]. Empty when the SDK is not initialized.
      */
     @JvmStatic
     @JvmOverloads
-    suspend fun allFlags(context: FlagContext = FlagContext()): Map<String, Any?> {
-        return main("allFlags")?.allFlags(context) ?: emptyMap()
+    suspend fun allFlags(context: FlagContext = FlagContext()): FlagMap {
+        return main("allFlags")?.allFlags(context) ?: emptyFlagMap()
     }
 
     /** A boolean flag. A served value of another type returns [defaultValue]; it is never coerced. */

@@ -4,6 +4,7 @@ package com.intempt.core
 
 import com.intempt.core.autocapture.AutoCaptureComponent
 import com.intempt.core.customCapture.CustomCaptureComponent
+import com.intempt.core.flags.ExposingFlagMap
 import com.intempt.core.flags.FlagsService
 import com.intempt.core.intemptCore.IntemptCoreService
 import com.intempt.core.services.ConfigManagerService
@@ -368,9 +369,10 @@ class IntemptInstanceDelegationTest {
         runBlocking<Unit> {
             val f = Fixture()
             val ctx = FlagContext(userId = "user-9")
-            `when`(f.flags.all(ctx)).thenReturn(mapOf("a" to 1L, "b" to null))
+            val served = ExposingFlagMap(mapOf("a" to 1L, "b" to null)) {}
+            `when`(f.flags.all(ctx)).thenReturn(served)
 
-            assertEquals(mapOf("a" to 1L, "b" to null), f.instance().allFlags(ctx))
+            assertSame(served, f.instance().allFlags(ctx))
 
             verify(f.flags).all(ctx)
         }

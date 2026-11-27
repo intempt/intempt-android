@@ -529,6 +529,12 @@ public final class com/intempt/core/types/FlagErrorKind : java/lang/Enum {
 	public static fun values ()[Lcom/intempt/core/types/FlagErrorKind;
 }
 
+public abstract interface class com/intempt/core/types/FlagMap : java/util/Map, kotlin/jvm/internal/markers/KMappedMarker {
+	public abstract fun expose (Ljava/lang/String;)V
+	public abstract fun peek (Ljava/lang/String;)Ljava/lang/Object;
+	public abstract fun snapshot ()Ljava/util/Map;
+}
+
 public final class com/intempt/core/types/FlagReason : java/lang/Enum {
 	public static final field CACHED Lcom/intempt/core/types/FlagReason;
 	public static final field Companion Lcom/intempt/core/types/FlagReason$Companion;

@@ -2,6 +2,7 @@
 
 package com.intempt.core
 
+import android.os.Build
 import com.intempt.core.flags.FlagsService
 import com.intempt.core.types.FlagContext
 import kotlinx.coroutines.runBlocking
@@ -9,6 +10,7 @@ import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -93,6 +95,31 @@ class FlagExposureTest {
             assertEquals("a", expose.getString("key"))
             assertEquals(11L, expose.getLong("variationId"))
             assertEquals("sess-1", expose.getString("sessionId"))
+            Thread.sleep(200)
+            assertEquals(2, flagPaths().size)
+        }
+
+    @Test
+    fun `getOrDefault on an allFlags map exposes like get and keeps a served null`() =
+        runBlocking<Unit> {
+            // Map.getOrDefault is API 24 and lint checks tests at minSdk 23: an app needs this check too.
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) error("needs API 24, runs at ${Build.VERSION.SDK_INT}")
+            val flags =
+                serving(
+                    200 to """{"flags":[{"key":"a","value":1,"variationId":11},{"key":"n","value":null}]}""",
+                    202 to "",
+                )
+
+            val all = flags.all(FlagContext())
+            assertEquals(1L, all.getOrDefault("a", 0L))
+            assertEquals(1L, all.getOrDefault("a", 0L))
+            assertNull(all.getOrDefault("n", 9L))
+            assertEquals(9L, all.getOrDefault("zzz", 9L))
+            val deadline = System.currentTimeMillis() + 5_000
+            while (flagPaths().size < 2 && System.currentTimeMillis() < deadline) Thread.sleep(20)
+
+            assertEquals(listOf("/v1/o/projects/p/flags/all", "/v1/o/projects/p/flags/expose"), flagPaths())
+            assertEquals("a", sent(1).getString("key"))
             Thread.sleep(200)
             assertEquals(2, flagPaths().size)
         }

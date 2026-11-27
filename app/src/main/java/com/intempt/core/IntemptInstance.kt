@@ -13,6 +13,7 @@ import com.intempt.core.types.FeedFields
 import com.intempt.core.types.FlagContext
 import com.intempt.core.types.FlagDetail
 import com.intempt.core.types.FlagError
+import com.intempt.core.types.FlagMap
 import com.intempt.core.types.FlagReason
 import com.intempt.core.types.IntemptError
 import com.intempt.core.types.IntemptValue
@@ -316,9 +317,11 @@ class IntemptInstance internal constructor(
      * Every flag served to this person (`/flags/all`, which records nothing). Reading a served key's
      * value from the map records its exposure once per returned map (`/flags/expose`); `keys`,
      * `containsKey` and `size` record nothing, iterating `values` or `entries` records every key.
+     * [FlagMap.peek] and [FlagMap.snapshot] read without recording; a caller using them must call
+     * [FlagMap.expose] for each key it uses.
      */
     @JvmOverloads
-    suspend fun allFlags(context: FlagContext = FlagContext()): Map<String, Any?> = core.flags.all(context)
+    suspend fun allFlags(context: FlagContext = FlagContext()): FlagMap = core.flags.all(context)
 
     /** A boolean flag. A served value of another type is TYPE_MISMATCH and returns [defaultValue]. */
     @JvmOverloads

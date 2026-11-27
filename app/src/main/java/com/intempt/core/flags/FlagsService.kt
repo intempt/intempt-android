@@ -15,6 +15,7 @@ import com.intempt.core.types.FlagContext
 import com.intempt.core.types.FlagDetail
 import com.intempt.core.types.FlagError
 import com.intempt.core.types.FlagErrorReporter
+import com.intempt.core.types.FlagMap
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.timeout
 import io.ktor.client.request.header
@@ -110,7 +111,7 @@ internal class FlagsService
             disableExposure: Boolean = false,
         ): FlagDetail = evaluator.detail(key, context, defaultValue, disableExposure)
 
-        suspend fun all(context: FlagContext): Map<String, Any?> = evaluator.all(context)
+        suspend fun all(context: FlagContext): FlagMap = evaluator.all(context)
 
         fun forget() = evaluator.forget()
 

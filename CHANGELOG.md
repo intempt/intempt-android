@@ -24,6 +24,13 @@ under Unreleased.
   - `allFlags` posts `/flags/all`, which records nothing; reading a served key's value from the
     returned map sends `/flags/expose` once for that map. Iterating `values`/`entries` reads every
     value; `keys`, `containsKey` and `size` do not.
+  - `allFlags` returns `FlagMap`, a `Map<String, Any?>` with three reads for a bridge that must
+    copy the values before it knows which keys are used (React Native, PLAN §7 item 5):
+    `peek(key)` and `snapshot()` read without recording any exposure, and `expose(key)` sends
+    `/flags/expose` once per map, sharing the dedup with `get`; an unserved key sends nothing. A
+    caller using the snapshot must call `expose` for each key it uses. `getOrDefault` now records
+    like `get` (it bypassed the exposure before); `equals`, `hashCode` and `toString` record
+    nothing. The map is a `FlagMap` even when nothing was served or the SDK is not initialized.
   - One `/flags/stream` (SSE) connection per instance, opened by the first single read, reconnecting
     with backoff 1 s to 60 s and closed when the app goes to the background. While it is connected a
     read younger than 60 s is answered from memory and a `flags_changed` event drops the named keys

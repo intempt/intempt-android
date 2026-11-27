@@ -109,6 +109,33 @@ class FlagDetail
                 "variationId=$variationId, valueType=$valueType, rule=$rule, variant=$variant, error=$error)"
     }
 
+/**
+ * The `allFlags` answer. As a [Map], a value read records the exposure of each served key it reads,
+ * once per map (`/flags/expose`): `get`, `getOrDefault`, and iterating `values` or `entries`, which
+ * read every value. `keys`, `containsKey`, `size`, `equals`, `hashCode` and `toString` record nothing.
+ *
+ * [peek] and [snapshot] read without recording, for a caller that must hand the values on before it
+ * knows which keys will be used, such as the React Native bridge (PLAN §7 item 5): the bridge copies
+ * the [snapshot] across and calls [expose] for each key the app then reads.
+ */
+interface FlagMap : Map<String, Any?> {
+    /** The served value of [key], or null. Records no exposure. */
+    fun peek(key: String): Any?
+
+    /**
+     * A copy of every served value. Records no exposure, now or when read: the caller must call
+     * [expose] for each key it uses, or those reads go unrecorded.
+     */
+    fun snapshot(): Map<String, Any?>
+
+    /**
+     * Records the exposure of [key] as a value read does: once per map, shared with `get`, so a
+     * key already read or exposed sends nothing again. Does nothing for a key this map did not
+     * serve with a variation. Fire-and-forget; never throws or waits.
+     */
+    fun expose(key: String)
+}
+
 /** CONTRACT-R2 §S3 kinds. 429 is [SERVER] and 408 is [TIMEOUT], as in the node and php SDKs. */
 enum class FlagErrorKind(val wireName: String) {
     AUTH("auth"),

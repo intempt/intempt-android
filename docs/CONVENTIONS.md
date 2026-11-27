@@ -69,6 +69,8 @@ reference is intempt-node `feature/feature-flags-node` ffc4df6. The rules below 
   reason `CACHED`. A 401/403/400/404 never does, and a 404 or a served null forgets the entry.
 - `allFlags` records nothing; reading a served key's value from the returned map sends
   `/flags/expose` once for that map. `keys`, `containsKey` and `size` record nothing.
+  `FlagMap.peek`/`snapshot` read without recording; `FlagMap.expose(key)` records once per map,
+  for a bridge that copies the values first (PLAN §7 item 5).
 
 ## Credentials — OPEN, not settled
 

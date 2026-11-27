@@ -334,6 +334,30 @@ events, neither of them an install or upgrade:
 Ordinary installs and upgrades carry no `reason`. **A journey triggered on `App install/upgrade`
 must exclude events where `reason` is set**, or it fires on every logout.
 
+### allFlags
+
+Every feature flag served to this person, as a `FlagMap` (a `Map<String, Any?>`). `/flags/all`
+records nothing; reading a served key's value from the map (`get`, `getOrDefault`, iterating
+`values` or `entries`) sends `/flags/expose` once for that key and map. `keys`, `containsKey`,
+`size`, `equals` and `toString` record nothing.
+
+```kotlin
+val flags = Intempt.allFlags(FlagContext(userId = "user-1"))
+val theme = flags["checkout-theme"]        // records the exposure of "checkout-theme"
+```
+
+A caller that must pass the values on before it knows which keys will be used, such as a bridge to
+another runtime, reads them without recording and reports each key it uses:
+
+```kotlin
+val values = flags.snapshot()              // records NO exposure
+val one = flags.peek("checkout-theme")     // records NO exposure
+flags.expose("checkout-theme")             // records it, once per map; nothing for an unserved key
+```
+
+`snapshot()` and `peek()` record no exposure: the caller must call `expose(key)` for every key it
+uses, or those reads are missing from experiment and flag analytics.
+
 ## Ecommerce
 
 ### productView

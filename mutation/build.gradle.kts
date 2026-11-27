@@ -126,11 +126,13 @@ sourceSets {
             include("com/intempt/core/types/ContractTypesTest.kt")
             include("com/intempt/core/types/FlagsTest.kt")
             include("com/intempt/core/types/ChooseBodyJsonTest.kt")
+            include("com/intempt/core/flags/ExposingFlagMapPureTest.kt")
             include("com/intempt/core/types/ChooseTest.kt")
             include("com/intempt/core/flags/FlagWireTest.kt")
             include("com/intempt/core/flags/FlagCacheTest.kt")
             include("com/intempt/core/flags/FlagStreamTest.kt")
             include("com/intempt/core/flags/FlagEvaluatorTest.kt")
+            include("com/intempt/core/flags/FlagMapTest.kt")
             include("com/intempt/core/autocapture/composeHitTest/SemanticsHitTest.kt")
             include("com/intempt/core/queue/ConsentSendOnceTest.kt")
         }
@@ -192,11 +194,13 @@ pitest {
             "com.intempt.core.types.ContractTypesTest",
             "com.intempt.core.types.FlagsTest",
             "com.intempt.core.types.ChooseBodyJsonTest",
+            "com.intempt.core.flags.ExposingFlagMapPureTest",
             "com.intempt.core.types.ChooseTest",
             "com.intempt.core.flags.FlagWireTest",
             "com.intempt.core.flags.FlagCacheTest",
             "com.intempt.core.flags.FlagStreamTest",
             "com.intempt.core.flags.FlagEvaluatorTest",
+            "com.intempt.core.flags.FlagMapTest",
             "com.intempt.core.autocapture.composeHitTest.SemanticsHitTest",
             "com.intempt.core.queue.HttpStatusPolicyTest",
             "com.intempt.core.queue.PureJvmQueueTest",
