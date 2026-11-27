@@ -28,33 +28,47 @@ prevent. By this file's own tie-break rule, until then this file is the bug.
 
 **Superseded in part by ruling R1 (Beso 2026-11-13):** `variationDetail`, `FlagDetail`,
 `FlagReason`, `disableExposure` and `onFlagError` are public in every SDK, and the instance flag
-surface matches the singleton's. The rest of this section stands.
+surface matches the singleton's.
+
+**Superseded by SDK-ALIGN (Beso 2026-11-27, D13/D20):** the flag surface reads the `/flags` routes
+only and `choose()` reads experiments and personalizations over `/optimization/choose-api`; the
+reference is intempt-node `feature/feature-flags-node` ffc4df6. The rules below are updated to it.
 
 ## The rules that come from the contract
 
-- **A caller asks for a KEY, never a mode.** The platform resolves whether a key is an experiment, a
-  personalization or a flag; its serving query filters on channel and status and never on mode. A
-  method name that encodes the mode forces an integrator to know the answer before they can ask the
-  question, and grows combinatorially with every mode added.
-- **`defaultValue` is REQUIRED, everywhere.** It is what a caller receives on a network failure, a
-  timeout, an unknown key or a malformed response. An SDK that throws when the service is
-  unreachable takes the application down with it, which is the opposite of what a kill switch is for.
+- **Flags and experiments are separate calls (D13, D20).** `variation*`, `variationDetail` and
+  `allFlags` read flags over `/flags/evaluate`, `/flags/all` and `/flags/expose` and never fall back
+  to choose-api. Experiments and personalizations are read with the one `choose(names, groups)`,
+  which returns the served `Choice`s. Before SDK-ALIGN `variation` resolved any key over choose-api.
 - **A wrong-typed value falls back; it is never coerced.** A flag configured as a string and read as
   a boolean returns the caller's default, not `true`. Coercion makes a misconfiguration look like a
   deliberate value.
 - **`variationDetail` is public, in every SDK** (ruling R1, Beso 2026-11-13), together with
-  `FlagDetail`, `FlagReason`, the `disableExposure` overloads and `onFlagError`. Know what its
-  reason can say: `ERROR`, with a `FlagError`, means the call failed and the default came back. An
-  answered read is `OFF` whether or not a value was served, because the serving response sends no
-  reason, so it cannot tell a targeted person from an untargeted one until `EXP-SERVE-001` ships.
+  `FlagDetail`, `FlagReason`, the `disableExposure` overloads and `onFlagError`. The reason is the
+  server's (`targeted`, `not_targeted`, `not_in_rollout`, `off`, `killed`, `not_client_side`), or
+  `ERROR` with a `FlagErrorCode` (and a `FlagError` when the call failed), or `CACHED` when the last
+  known value was served because the call failed.
 - **Evaluation is REMOTE only.** No local rule engine, no flag store to poll, and no hashing utility:
   the server buckets, so no second implementation can disagree with it. `check-no-local-bucketing.mjs`
   enforces this in CI and a new bucketing helper fails the build.
-- **A validation mistake throws; a service problem does not.** A blank key or a missing default is a
-  programming error the caller can fix, so it fails loudly at the call site — `variation("")` raises
-  `IllegalArgumentException`. A 5xx is absorbed. This cuts both ways: a malformed *response* must
-  not throw either, which is why `flagNameOf` and `flagReasonOf` read through `as?` rather than
-  `jsonPrimitive`, which throws on a non-primitive.
+- **No flag read throws (S11).** A blank key or one outside `^[a-zA-Z0-9_-]+$` returns the default
+  with `FLAG_NOT_FOUND` and one warning per key; it used to throw `IllegalArgumentException`. A
+  context the server cannot identify is `TARGETING_KEY_MISSING`, a wrong-typed value is
+  `TYPE_MISMATCH`. A malformed *response* does not throw either: every field is read through `as?`.
+  `choose()` is the exception, as in Node: a malformed `names`/`groups` entry throws, every runtime
+  failure returns an empty list.
+
+## Flag cache and stream (F15, client SDKs use the server contract)
+
+- One `/flags/stream` SSE connection per instance, opened by the first single read, reconnecting
+  with a backoff of 1 s doubling to 60 s. It closes when the app goes to the background
+  (`ProcessLifecycleOwner` ON_STOP) and reopens on the next read.
+- While it is connected, an answer younger than 60 s is served from memory; a `flags_changed` event
+  drops the named keys at once. Without it every read asks the server.
+- A failed read (timeout, network, 5xx, parse) serves the last known value for up to 24 h with
+  reason `CACHED`. A 401/403/400/404 never does, and a 404 or a served null forgets the entry.
+- `allFlags` records nothing; reading a served key's value from the returned map sends
+  `/flags/expose` once for that map. `keys`, `containsKey` and `size` record nothing.
 
 ## Credentials — OPEN, not settled
 
@@ -85,31 +99,19 @@ That is the project's **ingestion** credential — the same one `/track` uses �
 on an end-user device. It is not a server credential by any reading of `EXP-SERVE-004`. It is left
 as-is deliberately: changing it is a D4 decision, and this repo may not make it.
 
-**Consequence if D4 resolves toward `EXP-SERVE-004`:** the SDK's own credential is refused,
-`chooseFlags` returns `emptyList()` on the 401, `variationDetailInternal` maps that to the default,
-and **every `variation()` call returns the caller's default forever, silently** — nothing in the SDK
-or the product surfaces it. That is the same absent-vs-unanswered collapse recorded below.
+**Consequence if D4 resolves toward `EXP-SERVE-004`:** the SDK's own credential is refused and
+**every `variation()` call returns the caller's default** with `FlagErrorKind.AUTH`, logged at error
+once per instance and reported to `onFlagError`. The public key is allowed on all four `/flags`
+routes today (audience-service `PublicApiKeyDenyWebFilter`, verified 2026-11-27).
 
 **Owner: Sid.** Routed, not resolved here. Never log the credential, never put it in a URL.
 
-## Known upstream gap — an unanswered call and an empty result are the same value
+## Resolved upstream gap — an unanswered call and an empty result used to be the same value
 
-Not fixable in this repo, recorded so nobody re-files it as an SDK defect.
-
-`chooseFlags` returns `emptyList()` for **all** of: a non-2xx, a thrown exception, an unparseable
-body, a missing `choices` key, and a genuinely empty `choices`. `variationDetailInternal` maps an
-absent key to the default. So "paused", "not targeted", "unknown key" and "service unreachable" are
-one value at the call site.
-
-The platform owns this, and the spec already says so:
-
-- Known limitation **37** — *"The evaluation response cannot express why a value is absent."*
-  Governed by `EXP-SERVE-001` (H, unimplemented).
-- Known limitation **39** — *"No off value exists. A paused or stopped experience drops out of the
-  response entirely."* Governed by `EXP-SERVE-005` (H).
-
-`variationDetail` is public (R1), but until `EXP-SERVE-001` ships the platform sends no reason, so
-every answered read reports `OFF`. Only `ERROR` carries information beyond the value.
+Over choose-api, "paused", "not targeted", "unknown key" and "service unreachable" were one value
+at the call site (known limitations 37 and 39). The `/flags` routes answer every key with a reason,
+a 404 for an unknown key, and a null value for an unserved one, so `variationDetail` now tells them
+apart.
 
 ## Assignment identity — `FlagContext.userId` breaks stability, it does not preserve it
 
@@ -130,8 +132,8 @@ Caveat kept rather than buried: the *primary* assignment key is `entityId` from
 ## Surface parity — the instance carries the same flag surface as the singleton
 
 Ruling R1 (Beso 2026-11-13): `IntemptInstance` carries every flag member `Intempt` does —
-`variation`, `variationDetail`, `boolVariation`, `stringVariation`, `numberVariation` (each with a
-`disableExposure` overload), `allFlags` and `onFlagError`. A flag method added to one goes on the
+`variation`, `variationDetail`, `boolVariation`, `stringVariation`, `numberVariation`,
+`jsonVariation` (each with a `disableExposure` overload), `allFlags`, `onFlagError` and `choose`. A flag method added to one goes on the
 other in the same change; `IntemptInstanceDelegationTest` pins the instance wiring.
 
 ## Android specifics

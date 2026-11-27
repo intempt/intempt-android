@@ -13,7 +13,7 @@
 
 ## 1. Public API
 
-19 callable members plus `isInitialized`. **Signatures DID change in 3.0.0:** `initialize` returns `Boolean` rather than `Unit` (a binary break for Java callers), and the `experiment` / `personalization` properties were removed — experiments and personalizations are an intemptjs capability, not an Android one.
+19 callable members plus `isInitialized`. **Signatures DID change in 3.0.0:** `initialize` returns `Boolean` rather than `Unit` (a binary break for Java callers), and the `experiment` / `personalization` properties were removed — experiments and personalizations are read with `choose()` since SDK-ALIGN, see §5.
 
 | Member | Signature | Status |
 |---|---|---|
@@ -102,12 +102,18 @@ Journey IDs are `journeys-pipeline`'s own vocabulary (`PipelineOutboxService`, `
 
 ---
 
-## 5. Experiments & personalization — NOT in this SDK
+## 5. Experiments, personalization and flags
 
-Removed deliberately. Experiments and personalizations are an intemptjs capability and are
-not part of the Android or iOS SDKs, so `optimization/choose-api` is not called from here and
-`ModificationProvider` no longer exists. Recommendation feeds (`/feeds/{id}/data`) are
-unaffected and remain part of the SDK.
+Experiments and personalizations are read with `choose(names, groups)`, one call over
+`/optimization/choose-api` returning the served `Choice`s (D13, Beso 2026-11-27). There is no
+visual editor for a native surface: the value is authored as a payload and the integrator writes the
+branch. `ModificationProvider` stays removed.
+
+Feature flags are read with `variation`, the typed `bool/string/number/jsonVariation`,
+`variationDetail` and `allFlags`, over `/flags/evaluate`, `/flags/all`, `/flags/expose` and
+`/flags/stream` only (D20). See `docs/CONVENTIONS.md` for the cache, stream and exposure rules.
+
+Recommendation feeds (`/feeds/{id}/data`) are unaffected.
 
 ---
 
@@ -197,7 +203,6 @@ minSdk | 23 — **open decision, see §11** |
 Session replay | ❌ Not an Intempt product direction; absent from `intemptjs` with no plan proposing it |
 Super properties | ❌ Attributes are event-scoped; the backend owns profile persistence. `intemptjs` has no `register()` either |
 Mutable group profiles | ❌ `group()` is an event, not a profile object — matches `intemptjs` |
-OpenFeature-style feature flags | ❌ Intempt's model is `optimization/choose-api` returning DOM/content choices |
 In-app messaging | ❌ Absent from both Intempt and current Mixpanel |
 Client-side attribute cache | ❌ Same reason as super properties |
 

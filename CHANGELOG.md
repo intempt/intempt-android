@@ -9,6 +9,44 @@ Only `v2.0.1` is tagged in this repository's history, so entries below it do not
 invent them, the `2.0.1` section records what the tag contains and nothing more. Everything since is
 under Unreleased.
 
+## [Unreleased]
+
+### Changed — BREAKING (semver-major)
+
+- **Flags read the `/flags` routes only; experiments and personalizations move to `choose()`
+  (SDK-ALIGN, D13/D20).** `variation`, `variationDetail`, the typed variations and `allFlags` no
+  longer call `/optimization/choose-api`. Before, `variation(key)` resolved any key there ("a key,
+  never a mode"), so it also returned experiment and personalization values; it now reads flags
+  only, and those callers must move to `choose()`. There is no choose-api fallback: once
+  audience-service stops serving flags from choose-api, released versions return only the default.
+  - A single read posts one key to `/flags/evaluate`, which records the exposure.
+    `disableExposure = true` reads `/flags/all` with that one key, which records nothing.
+  - `allFlags` posts `/flags/all`, which records nothing; reading a served key's value from the
+    returned map sends `/flags/expose` once for that map. Iterating `values`/`entries` reads every
+    value; `keys`, `containsKey` and `size` do not.
+  - One `/flags/stream` (SSE) connection per instance, opened by the first single read, reconnecting
+    with backoff 1 s to 60 s and closed when the app goes to the background. While it is connected a
+    read younger than 60 s is answered from memory and a `flags_changed` event drops the named keys
+    at once. A failed read serves the last known value for up to 24 h with reason `CACHED`.
+  - **No flag read throws.** A blank or invalid key threw `IllegalArgumentException`; it now
+    returns the default with `FlagReason.ERROR` and `FlagErrorCode.FLAG_NOT_FOUND`, warning once per
+    key. A served value of the wrong type is `TYPE_MISMATCH`; an unknown flag (404) is
+    `FLAG_NOT_FOUND`; a context the server cannot identify is `TARGETING_KEY_MISSING`.
+  - Every flag request carries `device: "mobile"`, `identification` and, on evaluate and expose, the
+    SDK's `sessionId`.
+
+### Added
+
+- `choose(names, groups, context, disableExposure)` on `Intempt` and `IntemptInstance`: the served
+  `Choice`s (`name`, `group`, `body`, and `experienceId`, `variantId`, `reason` when the server sends
+  them) from `/optimization/choose-api`, bounded by the 2 s flag timeout. Any runtime failure returns
+  an empty list; a malformed name or group throws. Leaving out both `names` and `groups` evaluates
+  and exposes every API-channel experience the person is eligible for.
+- `jsonVariation(key, context, defaultValue: JsonElement)`, with a `disableExposure` overload: any
+  JSON value, objects, arrays and scalars alike.
+- `FlagDetail.errorCode`, `variationId`, `valueType`, `rule` and `variant`; `FlagErrorCode`;
+  `FlagReason.NOT_IN_ROLLOUT`, `KILLED`, `NOT_CLIENT_SIDE` and `CACHED`.
+
 ## [7.1.1] - 2026-11-25
 
 ### Fixed

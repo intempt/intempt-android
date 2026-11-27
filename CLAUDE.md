@@ -258,11 +258,12 @@ Two rules that produced real defects:
 - **Never expose a credential.** `ConfigManagerService.token()` was public API
   returning the base64 ingestion key.
 
-## Experiments and personalizations are not in this SDK
+## Experiments, personalizations and flags are separate calls
 
-They are an intemptjs capability. `ModificationProvider`, `Intempt.experiment` and
-`Intempt.personalization` were removed. Recommendation feeds
-(`/feeds/{id}/data`) are unaffected and remain.
+`choose(names, groups)` reads experiments and personalizations over `/optimization/choose-api`;
+`variation*`/`allFlags` read flags over the `/flags` routes only and never fall back to choose-api
+(D13/D20, SDK-ALIGN 2026-11-27). `ModificationProvider`, `Intempt.experiment` and
+`Intempt.personalization` stay removed. Recommendation feeds (`/feeds/{id}/data`) are unaffected.
 
 `recommendation()` needs a profile the platform has **already ingested** — the SDK
 sends its device-generated `profileId`, which does not exist server-side on a

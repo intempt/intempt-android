@@ -165,7 +165,17 @@ class MainActivity : AppCompatActivity() {
             scope.launch {
                 val flags = Intempt.allFlags()
                 log.append("  allFlags -> ${flags.size} key(s)\n")
-                flags.forEach { (key, value) -> log.append("    $key = $value\n") }
+                // Keys record nothing. Reading a value records that flag's exposure, so read only
+                // the values the screen shows; iterating entries would expose every flag.
+                flags.keys.forEach { key -> log.append("    $key\n") }
+            }
+        }
+        button(root, "choose (an experiment by name)") {
+            scope.launch {
+                // Experiments and personalizations come from choose(), never variation(). Name what
+                // you render: leaving names and groups out evaluates and exposes every experiment.
+                val choices = Intempt.choose(names = listOf("hero_banner"))
+                log.append("  choose -> ${choices.map { "${it.name}=${it.body}" }}\n")
             }
         }
         button(root, "productOrdered") {
